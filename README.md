@@ -2,7 +2,7 @@
 
 그림 그리는 사람들을 위한 커뮤니티. 네이버 카페 "커미션 월드 우타나라"(약 1만 명)를 이전하는 프로젝트로, 창작 이야기·크리틱(피드백) 중심이고 커미션 거래는 부차적인 기능이다.
 
-디자인·화면 프로토타입은 정적 HTML(`../Palo_최종본.html`)로 먼저 완성했고, 이 저장소는 그 화면에 Supabase 기반 실제 데이터 저장·로그인을 붙여 서비스로 만든 것이다. 전체 개발 계획은 `../2_프로젝트_설계.md`에 있다.
+디자인·화면 프로토타입은 정적 HTML(`Palo_최종본.html`)로 먼저 완성했고, 이 저장소는 그 화면에 Supabase 기반 실제 데이터 저장·로그인을 붙여 서비스로 만든 것이다. 전체 개발 계획은 `2_프로젝트_설계.md`에 있다. (두 파일 모두 이 저장소에는 포함되어 있지 않고, 로컬의 `palo/` 상위 폴더에 참고용으로 보관 중 — 이 저장소 자체는 `palo/web/` 폴더 내용만 담고 있음)
 
 - **배포 주소:** https://palo-web-nu.vercel.app
 - **GitHub:** https://github.com/dangsimu-collab/palo-web
@@ -10,12 +10,14 @@
 
 ## 기술 스택
 
-- **프론트엔드:** Next.js (App Router, JavaScript). 단, 화면 자체는 React 컴포넌트로 새로 짠 게 아니라 기존 프로토타입의 HTML/CSS/vanilla JS를 그대로 이식한 것 — 아래 [구조](#폴더-구조와-작동-방식) 참고.
-- **백엔드:** Supabase
+- **프론트엔드:** Next.js 16 (App Router, JavaScript, React 19). 단, 화면 자체는 React 컴포넌트로 새로 짠 게 아니라 기존 프로토타입의 HTML/CSS/vanilla JS를 그대로 이식한 것 — 아래 [구조](#폴더-구조와-작동-방식) 참고.
+- **백엔드:** Supabase (`@supabase/supabase-js` v2)
   - Database (PostgreSQL) — 글/댓글/회원/좋아요/이미지 저장
   - Auth — 구글 로그인 (소셜 로그인, 선택 사항)
   - Storage — 이미지 업로드 (`post-images` 버킷)
 - **배포:** Vercel + GitHub (main 브랜치에 push하면 자동 배포)
+
+> ⚠️ `AGENTS.md`에 적힌 것처럼 이 Next.js 버전(16)은 최신 major 버전이라 AI 어시스턴트의 학습 데이터와 API가 다를 수 있다. 코드를 크게 바꾸기 전에 `node_modules/next/dist/docs/`의 실제 문서를 확인할 것.
 
 ## 폴더 구조와 작동 방식
 
@@ -60,7 +62,17 @@ lib/
 | `likes` | 좋아요. `(user_id, post_id)` 복합 기본키로 중복 방지. 비로그인 사용자는 `localStorage`의 `palo_anon_id`를 `user_id` 대신 사용 |
 | `post_images` | 글에 첨부된 이미지 URL 목록 (`post-images` Storage 버킷에 업로드된 파일) |
 
-**⚠️ 알려진 보안 부채:** 개발을 단계별로 빠르게 진행하기 위해 `posts_update_all_temp`, `posts_insert_all_temp`, `comments_insert_all_temp` 등 여러 정책이 "로그인 여부와 무관하게 전부 허용"으로 임시 설정되어 있다. 특히 `posts_update_all_temp`는 **누구나 남의 글을 수정할 수 있는 상태**라 실사용 전에 반드시 손봐야 한다. (설계 문서의 "단계 8: 다듬기" 항목)
+**⚠️ 알려진 보안 부채 (단계 8에서 처리 예정):** 개발을 단계별로 빠르게 진행하기 위해 아래 정책들이 "로그인 여부와 무관하게 전부 허용"으로 임시 설정되어 있다.
+
+| 정책 | 현재 상태 | 위험도 |
+|---|---|---|
+| `posts_update_all_temp` | 누구나 아무 글이나 수정 가능 | **높음** — 가장 먼저 고쳐야 함 (본인 글만 가능하도록) |
+| `posts_insert_all_temp` | 누구나 글 작성 가능 | 중간 (스팸 우려, 의도된 기능이기도 함 — 비로그인 글쓰기 허용은 사용자가 요청한 사양) |
+| `comments_insert_all_temp` | 누구나 댓글 작성 가능 | 중간 (스팸 우려) |
+| `post_images_insert_all_temp` / `images_bucket_insert_all_temp` | 누구나 `post-images` 버킷에 파일 업로드 가능 | 중간 — 파일 크기 제한도 아직 없어서 저장 공간 남용 우려 |
+| `likes_insert_own_or_anon` / `likes_delete_own_or_anon` | 로그인 사용자는 본인 것만, 비로그인은 전부 허용 | 낮음 (의도된 설계 — 익명 좋아요 지원용) |
+
+그리고 **글/댓글을 지우는 기능 자체가 아직 없다** (삭제 정책도 없음) — 스팸이 들어와도 관리자가 못 지우는 상태.
 
 ## 완성된 기능 (개발 단계 1~7)
 
