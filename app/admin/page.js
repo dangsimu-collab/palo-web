@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 
 const btnStyle = {
@@ -233,10 +233,143 @@ function UserManagement() {
   );
 }
 
+function NoticeManagement() {
+  const [notices, setNotices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [title, setTitle] = useState('');
+  const [saving, setSaving] = useState(false);
+  const contentRef = useRef(null);
+
+  async function load() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('notices')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(30);
+    if (!error) setNotices(data);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function applyBold() {
+    contentRef.current.focus();
+    document.execCommand('bold');
+  }
+
+  async function handleCreate() {
+    if (!title.trim()) {
+      alert('제목을 입력해주세요');
+      return;
+    }
+    const html = contentRef.current.innerHTML.trim();
+    setSaving(true);
+    const { error } = await supabase
+      .from('notices')
+      .insert({ title: title.trim(), content: html || null });
+    setSaving(false);
+    if (error) {
+      alert('등록 실패: ' + error.message);
+      return;
+    }
+    setTitle('');
+    contentRef.current.innerHTML = '';
+    load();
+  }
+
+  async function handleDelete(id) {
+    if (!confirm('이 공지를 삭제할까요?')) return;
+    const { error } = await supabase.from('notices').delete().eq('id', id);
+    if (error) {
+      alert('삭제 실패: ' + error.message);
+      return;
+    }
+    setNotices((prev) => prev.filter((n) => n.id !== id));
+  }
+
+  return (
+    <div>
+      <div style={{ ...rowStyle, flexDirection: 'column', alignItems: 'stretch', gap: 10, marginBottom: 20 }}>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="공지 제목"
+          style={inputStyle}
+        />
+        <div>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={applyBold}
+            style={{
+              width: 34,
+              height: 30,
+              border: '1.5px solid var(--line-2)',
+              borderRadius: 8,
+              background: 'var(--surface)',
+              fontWeight: 900,
+              cursor: 'pointer',
+              marginBottom: 6,
+            }}
+          >
+            B
+          </button>
+          <div
+            ref={contentRef}
+            contentEditable
+            suppressContentEditableWarning
+            style={{
+              ...inputStyle,
+              height: 'auto',
+              minHeight: 80,
+              padding: 12,
+              lineHeight: 1.6,
+            }}
+          />
+          <div style={{ fontSize: 11, color: 'var(--muted-2)', marginTop: 4 }}>
+            공지 내용 (선택). 굵게 하고 싶은 부분을 드래그해서 선택한 뒤 B 버튼을 눌러줘.
+          </div>
+        </div>
+        <button style={{ ...btnStyle, alignSelf: 'flex-end' }} onClick={handleCreate} disabled={saving}>
+          {saving ? '등록 중...' : '공지 등록'}
+        </button>
+      </div>
+      {loading ? (
+        <p style={{ color: 'var(--muted)' }}>불러오는 중...</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {notices.length === 0 && <p style={{ color: 'var(--muted)' }}>등록된 공지가 없어요.</p>}
+          {notices.map((n) => (
+            <div key={n.id} style={rowStyle}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700 }}>{n.title}</div>
+                {n.content && (
+                  <div
+                    style={{ fontSize: 13, color: 'var(--ink-2)', marginTop: 4, lineHeight: 1.6 }}
+                    dangerouslySetInnerHTML={{ __html: n.content }}
+                  />
+                )}
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                  {new Date(n.created_at).toLocaleString('ko-KR')}
+                </div>
+              </div>
+              <button style={dangerBtnStyle} onClick={() => handleDelete(n.id)}>삭제</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const [status, setStatus] = useState('loading'); // loading | unauthenticated | forbidden | admin
   const [profile, setProfile] = useState(null);
-  const [tab, setTab] = useState('posts'); // posts | users
+  const [tab, setTab] = useState('posts'); // posts | users | notices
 
   useEffect(() => {
     let active = true;
@@ -329,8 +462,26 @@ export default function AdminPage() {
         >
           회원 관리
         </button>
+        <button
+          onClick={() => setTab('notices')}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: '10px 4px',
+            marginLeft: 16,
+            fontWeight: 800,
+            fontSize: 14,
+            cursor: 'pointer',
+            color: tab === 'notices' ? 'var(--brand)' : 'var(--muted)',
+            borderBottom: tab === 'notices' ? '2px solid var(--brand)' : '2px solid transparent',
+          }}
+        >
+          공지 작성
+        </button>
       </div>
-      {tab === 'posts' ? <PostManagement /> : <UserManagement />}
+      {tab === 'posts' && <PostManagement />}
+      {tab === 'users' && <UserManagement />}
+      {tab === 'notices' && <NoticeManagement />}
     </div>
   );
 }

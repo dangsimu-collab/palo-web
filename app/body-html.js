@@ -182,6 +182,14 @@ export const BODY_HTML = `
   </div>
 </div>
 
+<div class="rules-scrim" id="noticeModal" onclick="if(event.target===this)closeNotice()">
+  <div class="rules">
+    <h3 id="noticeModalTitle">📢 공지</h3>
+    <p id="noticeModalBody" style="white-space:pre-wrap;line-height:1.7;color:var(--ink-2);margin-bottom:16px"></p>
+    <button class="r-ok" onclick="closeNotice()">확인했어요</button>
+  </div>
+</div>
+
 <div class="rules-scrim" id="nickModal" onclick="if(event.target===this)closeNick()">
   <div class="rules">
     <h3>✏️ 닉네임 변경</h3>

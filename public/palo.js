@@ -123,8 +123,19 @@ function timeAgo(iso){
   if(diff<86400)return Math.floor(diff/3600)+"시간 전";
   return Math.floor(diff/86400)+"일 전";
 }
+var LATEST_NOTICE=null;
+function showNotice(){
+  if(!LATEST_NOTICE)return;
+  document.getElementById("noticeModalTitle").textContent="📢 "+LATEST_NOTICE.title;
+  document.getElementById("noticeModalBody").innerHTML=LATEST_NOTICE.content||"";
+  document.getElementById("noticeModal").classList.add("open");
+}
+function closeNotice(){document.getElementById("noticeModal").classList.remove("open");}
 async function loadRealPosts(){
   if(!window.supabase)return;
+  var noticeRes=await window.supabase.from("notices").select("*").order("created_at",{ascending:false}).limit(1);
+  if(!noticeRes.error&&noticeRes.data.length)LATEST_NOTICE=noticeRes.data[0];
+
   var res=await window.supabase.from("posts").select("*").order("created_at",{ascending:false});
   if(res.error){console.error(res.error);return;}
   var dbIds=res.data.map(function(row){return row.id});
@@ -281,8 +292,10 @@ function renderList(){
   var sub=state.query?('"'+esc(state.query)+'" 검색 결과 '+arr.length+'건'):(state.sort==="new"?"방금 올라온 이야기부터":"반응 많은 순으로");
   var h='<div class="board-head"><h1 class="serif">'+esc(state.query?"검색":boardName(state.board))+'</h1><span class="sub">'+sub+'</span>'+
     '<div class="sortbar"><button class="'+(state.sort==="new"?"on":"")+'" onclick="setSort(\'new\')">최신</button><button class="'+(state.sort==="hot"?"on":"")+'" onclick="setSort(\'hot\')">인기</button></div></div>';
-  if(state.board==="all"&&!state.query)
+  if(state.board==="all"&&!state.query){
+    if(LATEST_NOTICE)h+='<div class="notice" onclick="showNotice()"><span class="pin">공지</span><span class="nt">📢 '+esc(LATEST_NOTICE.title)+'</span></div>';
     h+='<div class="notice" onclick="openRules()"><span class="pin">공지</span><span class="nt">📌 Palo 이용 규칙 & 크리틱 매너 안내 (처음 오셨다면 꼭!)</span></div>';
+  }
   if(arr.length===0){
     h+='<div class="empty"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg><h3>아직 글이 없어요</h3><p>이 게시판의 첫 글을 남겨보세요.</p><button onclick="openWrite()">글쓰기</button></div>';
     main.innerHTML=h;return;
