@@ -373,6 +373,14 @@ function openPost(id){
     if(location.pathname!==targetPath)history.pushState({},"",targetPath);
     document.title=p.title+" · Palo";
   }
+  renderPostDetail(id);
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function likeIconSvg(liked){
+  return liked?"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"none\"><path d=\"M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5c0 5-7 9.5-7 9.5z\"/></svg>":"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5c0 5-7 9.5-7 9.5z\"/></svg>";
+}
+function renderPostDetail(id){
+  var p=POSTS.find(function(x){return x.id===id});if(!p)return;
   var main=document.getElementById("main");var c=catFor(p);
   var canvas=(p.images&&p.images.length)?
     '<div class="d-canvas" style="height:auto;display:block;padding:0">'+(p.stage?'<span class="stage-tag">'+p.stage+' 단계</span>':'')+
@@ -383,9 +391,9 @@ function openPost(id){
   var h='<div class="detail"><div class="d-grip"></div><button class="d-back" onclick="renderList()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>목록으로</button>'+
     '<div class="d-head"><div class="line1"><span class="cat '+c.cls+'">'+c.label+'</span></div><h1 class="serif">'+esc(p.title)+'</h1>'+
     '<div class="d-author"><div class="d-ava serif">'+esc(dispName(p.author)[0])+'</div><div class="d-au-info"><div class="n"'+(p.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+'</div><div class="meta">'+p.time+' · 조회 '+fmtViews(p.views)+'</div></div>'+
-    '<button class="d-follow'+(FOLLOW.has(p.author)?' following':'')+'" onclick="toggleFollow(\''+esc(p.author)+'\','+p.id+')">'+(FOLLOW.has(p.author)?'팔로잉 ✓':'＋ 팔로우')+'</button></div></div>'+
+    '<button class="d-follow'+(FOLLOW.has(p.author)?' following':'')+'" id="followBtn" onclick="toggleFollow(\''+esc(p.author)+'\','+p.id+')">'+(FOLLOW.has(p.author)?'팔로잉 ✓':'＋ 팔로우')+'</button></div></div>'+
     canvas+'<div class="d-content">'+(p.html?p.html:p.content.map(function(x){return'<p>'+esc(x)+'</p>'}).join(""))+'</div>'+
-    '<div class="d-actions"><button class="d-act'+liked+'" onclick="toggleLike('+p.id+')">'+(p._liked?"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"none\"><path d=\"M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5c0 5-7 9.5-7 9.5z\"/></svg>":"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5c0 5-7 9.5-7 9.5z\"/></svg>")+'좋아요 '+p.likes+'</button>'+
+    '<div class="d-actions"><button class="d-act'+liked+'" id="likeBtn" onclick="toggleLike('+p.id+')">'+likeIconSvg(p._liked)+'좋아요 '+p.likes+'</button>'+
     '<button class="d-act" onclick="sharePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6"/><path d="M10 6l1-1a4 4 0 0 1 6 6l-1 1M14 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg>공유</button>'+
     '<button class="d-act" onclick="reportPost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>신고</button>'+
     ((p.dbId&&AUTH.user&&p.authorId===AUTH.user.id)?('<button class="d-act" onclick="openEditPost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L20 8l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>수정</button>'+
@@ -395,7 +403,7 @@ function openPost(id){
     '<div class="cm-write"><div class="d-ava serif" id="cmAva">나</div><div class="box"><textarea id="cmInput" placeholder="따뜻한 피드백을 남겨주세요. 사람보다 그림을 이야기해요."></textarea>'+
     '<div class="row"><span class="hint">인신공격·조롱은 삭제될 수 있어요</span><button class="send" onclick="addComment('+p.id+')">등록</button></div></div></div>'+
     '<div class="ad d-ad" role="complementary" aria-label="광고"><span class="ad-label">AD</span><div class="ad-ph"><svg viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"1.6\\" style=\\"width:22px;height:22px\\"><rect x=\\"3\\" y=\\"4\\" width=\\"18\\" height=\\"16\\" rx=\\"2\\"/><circle cx=\\"8.5\\" cy=\\"9.5\\" r=\\"1.6\\"/><path d=\\"m4 18 5-5 4 3 3-2 4 4\\"/></svg></div><div class="ad-body"><div class="ad-t">광고 문의 환영</div><div class="ad-d">이 자리에 광고가 노출됩니다</div></div></div>'+'<div class="cm-list" id="cmList">'+renderComments(p)+'</div></div></div>';
-  main.innerHTML=h;window.scrollTo({top:0,behavior:"smooth"});
+  main.innerHTML=h;
 }
 async function deletePost(id){
   var p=POSTS.find(function(x){return x.id===id});if(!p)return;
@@ -495,8 +503,13 @@ async function toggleLike(id){
   }else{
     p._liked=!p._liked;p.likes+=p._liked?1:-1;
   }
-  var wasLiked=p._liked;openPost(id);p.views--;
-  var btn=document.querySelector(".d-act");if(btn){btn.classList.add("pop");setTimeout(function(){btn.classList.remove("pop")},340);}
+  var wasLiked=p._liked;
+  var btn=document.getElementById("likeBtn");
+  if(btn){
+    btn.classList.toggle("liked",p._liked);
+    btn.innerHTML=likeIconSvg(p._liked)+'좋아요 '+p.likes;
+    btn.classList.add("pop");setTimeout(function(){btn.classList.remove("pop")},340);
+  }
   if(wasLiked)toast("좋아요를 눌렀어요","♥");
 }
 function selectBoard(id){
@@ -983,7 +996,12 @@ function closeRules(){document.getElementById("rulesModal").classList.remove("op
 function toggleFollow(name,pid){
   if(FOLLOW.has(name)){FOLLOW.delete(name);toast(dispName(name)+"님 팔로우를 취소했어요");}
   else{FOLLOW.add(name);toast(dispName(name)+"님을 팔로우했어요","✓");}
-  var p=POSTS.find(function(x){return x.id===pid});openPost(pid);if(p)p.views--;
+  var btn=document.getElementById("followBtn");
+  if(btn){
+    var following=FOLLOW.has(name);
+    btn.classList.toggle("following",following);
+    btn.textContent=following?"팔로잉 ✓":"＋ 팔로우";
+  }
 }
 
 // ===== 댓글 상호작용 =====
