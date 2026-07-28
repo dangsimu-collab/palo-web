@@ -137,7 +137,7 @@ async function loadRealPosts(){
   var cmRes=dbIds.length?await window.supabase.from("comments").select("*").in("post_id",dbIds).order("created_at"):{data:[]};
   var commentsByPost={};
   (cmRes.data||[]).forEach(function(c){
-    (commentsByPost[c.post_id]=commentsByPost[c.post_id]||[]).push({n:nameFor(c.author_id),t:timeAgo(c.created_at),txt:c.content});
+    (commentsByPost[c.post_id]=commentsByPost[c.post_id]||[]).push({n:nameFor(c.author_id),t:timeAgo(c.created_at),txt:c.content,dbId:c.id,authorId:c.author_id});
   });
 
   var likeRes=dbIds.length?await window.supabase.from("likes").select("post_id,user_id").in("post_id",dbIds):{data:[]};
@@ -327,7 +327,7 @@ function renderList(){
 }
 function openPost(id){
   var p=POSTS.find(function(x){return x.id===id});if(!p)return;p.views++;READ.add(id);
-  if(p.dbId&&window.supabase)window.supabase.from("posts").update({views:p.views}).eq("id",p.dbId).then(function(){});
+  if(p.dbId&&window.supabase)window.supabase.rpc("increment_post_views",{p_id:p.dbId}).then(function(){});
   var main=document.getElementById("main");var c=catFor(p);
   var canvas=(p.images&&p.images.length)?
     '<div class="d-canvas" style="height:auto;display:block;padding:0">'+(p.stage?'<span class="stage-tag">'+p.stage+' 단계</span>':'')+
@@ -342,27 +342,56 @@ function openPost(id){
     canvas+'<div class="d-content">'+(p.html?p.html:p.content.map(function(x){return'<p>'+esc(x)+'</p>'}).join(""))+'</div>'+
     '<div class="d-actions"><button class="d-act'+liked+'" onclick="toggleLike('+p.id+')">'+(p._liked?"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"none\"><path d=\"M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5c0 5-7 9.5-7 9.5z\"/></svg>":"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5c0 5-7 9.5-7 9.5z\"/></svg>")+'좋아요 '+p.likes+'</button>'+
     '<button class="d-act" onclick="toast(\'링크를 복사했어요\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6"/><path d="M10 6l1-1a4 4 0 0 1 6 6l-1 1M14 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg>공유</button>'+
-    '<button class="d-act" onclick="toast(\'신고가 접수되었어요\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>신고</button></div>'+
+    '<button class="d-act" onclick="toast(\'신고가 접수되었어요\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>신고</button>'+
+    ((p.dbId&&AUTH.user&&p.authorId===AUTH.user.id)?'<button class="d-act" onclick="deletePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>삭제</button>':'')+
+    '</div>'+
     '<div class="comments"><div class="cm-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>훈수 · 크리틱 '+p.comments.length+'</div>'+
     '<div class="cm-write"><div class="d-ava serif" id="cmAva">나</div><div class="box"><textarea id="cmInput" placeholder="따뜻한 피드백을 남겨주세요. 사람보다 그림을 이야기해요."></textarea>'+
     '<div class="row"><span class="hint">인신공격·조롱은 삭제될 수 있어요</span><button class="send" onclick="addComment('+p.id+')">등록</button></div></div></div>'+
     '<div class="ad d-ad" role="complementary" aria-label="광고"><span class="ad-label">AD</span><div class="ad-ph"><svg viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"1.6\\" style=\\"width:22px;height:22px\\"><rect x=\\"3\\" y=\\"4\\" width=\\"18\\" height=\\"16\\" rx=\\"2\\"/><circle cx=\\"8.5\\" cy=\\"9.5\\" r=\\"1.6\\"/><path d=\\"m4 18 5-5 4 3 3-2 4 4\\"/></svg></div><div class="ad-body"><div class="ad-t">광고 문의 환영</div><div class="ad-d">이 자리에 광고가 노출됩니다</div></div></div>'+'<div class="cm-list" id="cmList">'+renderComments(p)+'</div></div></div>';
   main.innerHTML=h;window.scrollTo({top:0,behavior:"smooth"});
 }
+async function deletePost(id){
+  var p=POSTS.find(function(x){return x.id===id});if(!p)return;
+  if(!confirm("이 글을 삭제할까요? 되돌릴 수 없어요."))return;
+  if(p.dbId&&window.supabase){
+    var res=await window.supabase.from("posts").delete().eq("id",p.dbId);
+    if(res.error){toast("삭제 실패: "+res.error.message);return;}
+  }
+  POSTS=POSTS.filter(function(x){return x.id!==id});
+  toast("글을 삭제했어요");
+  renderList();
+}
 function renderComments(p){
   if(p.comments.length===0)return '<div style="padding:26px 0;text-align:center;color:var(--muted);font-size:13px">첫 훈수를 남겨보세요 ✏️</div>';
   return p.comments.map(function(c,ci){
-    return '<div class="cm"><div class="d-ava serif">'+esc(dispName(c.n)[0])+'</div><div class="cbody"><div class="ch"><span class="cn">'+esc(c.n)+'</span><span class="ct">'+esc(c.t)+'</span></div><div class="ctext">'+esc(c.txt).replace(/^@(\S+)/,'<b class="mention">@$1</b>')+'</div><div class="cfoot"><span onclick="helpful('+p.id+','+ci+',this)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 6h5a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7"/></svg>도움돼요'+(c.h?' <b>'+c.h+'</b>':'')+'</span><span onclick="replyTo(\''+esc(c.n)+'\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>답글</span></div></div></div>';
+    var canDelete=c.dbId&&AUTH.user&&c.authorId===AUTH.user.id;
+    return '<div class="cm"><div class="d-ava serif">'+esc(dispName(c.n)[0])+'</div><div class="cbody"><div class="ch"><span class="cn">'+esc(c.n)+'</span><span class="ct">'+esc(c.t)+'</span></div><div class="ctext">'+esc(c.txt).replace(/^@(\S+)/,'<b class="mention">@$1</b>')+'</div><div class="cfoot"><span onclick="helpful('+p.id+','+ci+',this)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 6h5a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7"/></svg>도움돼요'+(c.h?' <b>'+c.h+'</b>':'')+'</span><span onclick="replyTo(\''+esc(c.n)+'\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>답글</span>'+(canDelete?'<span onclick="deleteComment('+p.id+','+ci+')">삭제</span>':'')+'</div></div></div>';
   }).join("");
+}
+async function deleteComment(postId,ci){
+  var p=POSTS.find(function(x){return x.id===postId});if(!p)return;
+  var c=p.comments[ci];if(!c)return;
+  if(!confirm("댓글을 삭제할까요?"))return;
+  if(c.dbId&&window.supabase){
+    var res=await window.supabase.from("comments").delete().eq("id",c.dbId);
+    if(res.error){toast("삭제 실패: "+res.error.message);return;}
+  }
+  p.comments.splice(ci,1);
+  document.getElementById("cmList").innerHTML=renderComments(p);
+  document.querySelector(".cm-head").innerHTML='<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>훈수 · 크리틱 '+p.comments.length;
+  toast("댓글을 삭제했어요");
 }
 async function addComment(id){
   var p=POSTS.find(function(x){return x.id===id});var inp=document.getElementById("cmInput");var v=inp.value.trim();
   if(!v){toast("내용을 입력해주세요");return;}
+  var newComment={n:"나",t:"방금",txt:v};
   if(p.dbId&&window.supabase){
-    var res=await window.supabase.from("comments").insert({post_id:p.dbId,author_id:AUTH.user?AUTH.user.id:null,content:v});
+    var res=await window.supabase.from("comments").insert({post_id:p.dbId,author_id:AUTH.user?AUTH.user.id:null,content:v}).select().single();
     if(res.error){toast("저장 실패: "+res.error.message);return;}
+    newComment.dbId=res.data.id;newComment.authorId=res.data.author_id;
   }
-  p.comments.push({n:"나",t:"방금",txt:v});
+  p.comments.push(newComment);
   document.getElementById("cmList").innerHTML=renderComments(p);
   document.querySelector(".cm-head").innerHTML='<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>훈수 · 크리틱 '+p.comments.length;
   inp.value="";toast("훈수를 남겼어요 🙏");
@@ -384,7 +413,6 @@ async function toggleLike(id){
     p._liked=!p._liked;p.likes+=p._liked?1:-1;
   }
   var wasLiked=p._liked;openPost(id);p.views--;
-  if(p.dbId&&window.supabase)window.supabase.from("posts").update({views:p.views}).eq("id",p.dbId).then(function(){});
   var btn=document.querySelector(".d-act");if(btn){btn.classList.add("pop");setTimeout(function(){btn.classList.remove("pop")},340);}
   if(wasLiked)toast("좋아요를 눌렀어요","♥");
 }
@@ -520,6 +548,7 @@ async function submitPost(){
   var np={id:Date.now(),board:edState.board,title:title,author:"나",time:"방금",likes:0,views:1,
     thumb:edState.img?"t1":"none",stage:edState.img?(stage||"완성"):null,
     images:edState.images.length?edState.images.slice():undefined,
+    dbId:saved&&saved.data?saved.data.id:undefined,authorId:saved&&saved.data?saved.data.author_id:undefined,
     html:html,content:text.split("\n").filter(Boolean),comments:[]};
   justAddedId=np.id;setTimeout(function(){justAddedId=null},1800);POSTS.unshift(np);scheduleLiveReply(np.id);
   closeWrite();state.board=edState.board;state.query="";state.sort="new";state.shown=8;
