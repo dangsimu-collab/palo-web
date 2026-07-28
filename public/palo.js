@@ -340,7 +340,7 @@ function renderList(){
         (imgCount>1?'<span class="ncount">'+imgCount+'+</span>':'')+
       '</div>' :
       p.thumb==="none" ?
-      '<div class="nthumb nthumb-empty"><span class="ne-ico">'+CATICON(p.board)+'</span></div>' :
+      '' :
       '<div class="nthumb '+p.thumb+'">'+
         (p.stage?'<span class="nstage">'+p.stage+'</span>':'')+
         (imgCount>1?'<span class="ncount">'+imgCount+'+</span>':'')+
