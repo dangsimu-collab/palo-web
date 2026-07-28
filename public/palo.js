@@ -174,7 +174,9 @@ async function loadRealPosts(){
   renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
   var initialDbId=getPostIdFromPath();
   var initialPost=initialDbId?POSTS.find(function(x){return x.dbId===initialDbId}):null;
+  var initialUserId=getUserIdFromPath();
   if(initialPost)openPost(initialPost.id);
+  else if(initialUserId)openUserProfile(initialUserId);
   else renderList();
 }
 function getPostIdFromPath(){
@@ -193,7 +195,9 @@ function sharePost(id){
 window.addEventListener("popstate",function(){
   var dbId=getPostIdFromPath();
   var post=dbId?POSTS.find(function(x){return x.dbId===dbId}):null;
+  var userId=getUserIdFromPath();
   if(post)openPost(post.id);
+  else if(userId)openUserProfile(userId);
   else renderList();
 });
 
@@ -346,7 +350,7 @@ function renderList(){
         '<div class="ptitle">'+esc(p.title)+'</div>'+
         '<div class="pmeta">'+
           '<span class="cat '+c.cls+'">'+c.label+'</span>'+
-          '<span class="who">'+esc(dispName(p.author))+'</span>'+
+          '<span class="who"'+(p.authorId?' style="cursor:pointer" onclick="event.stopPropagation();openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+'</span>'+
           '<span class="sep"></span><span class="mt">'+p.time+'</span>'+
           '<span class="sep"></span><span class="mv">조회 '+fmtViews(p.views)+'</span>'+
           (p.likes?'<span class="sep"></span><span class="ml">추천 '+p.likes+'</span>':'')+
@@ -378,7 +382,7 @@ function openPost(id){
   var liked=p._liked?" liked":"";
   var h='<div class="detail"><div class="d-grip"></div><button class="d-back" onclick="renderList()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>목록으로</button>'+
     '<div class="d-head"><div class="line1"><span class="cat '+c.cls+'">'+c.label+'</span></div><h1 class="serif">'+esc(p.title)+'</h1>'+
-    '<div class="d-author"><div class="d-ava serif">'+esc(dispName(p.author)[0])+'</div><div class="d-au-info"><div class="n">'+esc(dispName(p.author))+'</div><div class="meta">'+p.time+' · 조회 '+fmtViews(p.views)+'</div></div>'+
+    '<div class="d-author"><div class="d-ava serif">'+esc(dispName(p.author)[0])+'</div><div class="d-au-info"><div class="n"'+(p.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+'</div><div class="meta">'+p.time+' · 조회 '+fmtViews(p.views)+'</div></div>'+
     '<button class="d-follow'+(FOLLOW.has(p.author)?' following':'')+'" onclick="toggleFollow(\''+esc(p.author)+'\','+p.id+')">'+(FOLLOW.has(p.author)?'팔로잉 ✓':'＋ 팔로우')+'</button></div></div>'+
     canvas+'<div class="d-content">'+(p.html?p.html:p.content.map(function(x){return'<p>'+esc(x)+'</p>'}).join(""))+'</div>'+
     '<div class="d-actions"><button class="d-act'+liked+'" onclick="toggleLike('+p.id+')">'+(p._liked?"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"none\"><path d=\"M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5c0 5-7 9.5-7 9.5z\"/></svg>":"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5c0 5-7 9.5-7 9.5z\"/></svg>")+'좋아요 '+p.likes+'</button>'+
@@ -445,7 +449,7 @@ function renderComments(p){
   if(p.comments.length===0)return '<div style="padding:26px 0;text-align:center;color:var(--muted);font-size:13px">첫 훈수를 남겨보세요 ✏️</div>';
   return p.comments.map(function(c,ci){
     var canDelete=c.dbId&&AUTH.user&&c.authorId===AUTH.user.id;
-    return '<div class="cm"><div class="d-ava serif">'+esc(dispName(c.n)[0])+'</div><div class="cbody"><div class="ch"><span class="cn">'+esc(c.n)+'</span><span class="ct">'+esc(c.t)+'</span></div><div class="ctext">'+esc(c.txt).replace(/^@(\S+)/,'<b class="mention">@$1</b>')+'</div><div class="cfoot"><span onclick="helpful('+p.id+','+ci+',this)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 6h5a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7"/></svg>도움돼요'+(c.h?' <b>'+c.h+'</b>':'')+'</span><span onclick="replyTo(\''+esc(c.n)+'\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>답글</span>'+(canDelete?'<span onclick="deleteComment('+p.id+','+ci+')">삭제</span>':'')+'</div></div></div>';
+    return '<div class="cm"><div class="d-ava serif">'+esc(dispName(c.n)[0])+'</div><div class="cbody"><div class="ch"><span class="cn"'+(c.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+c.authorId+'\')"':'')+'>'+esc(c.n)+'</span><span class="ct">'+esc(c.t)+'</span></div><div class="ctext">'+esc(c.txt).replace(/^@(\S+)/,'<b class="mention">@$1</b>')+'</div><div class="cfoot"><span onclick="helpful('+p.id+','+ci+',this)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 6h5a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7"/></svg>도움돼요'+(c.h?' <b>'+c.h+'</b>':'')+'</span><span onclick="replyTo(\''+esc(c.n)+'\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>답글</span>'+(canDelete?'<span onclick="deleteComment('+p.id+','+ci+')">삭제</span>':'')+'</div></div></div>';
   }).join("");
 }
 async function deleteComment(postId,ci){
@@ -709,7 +713,7 @@ var mSearch=document.getElementById("searchInputM");if(mSearch)mSearch.addEventL
 document.addEventListener("keydown",function(e){if(e.key==="Escape"){closeWrite();closeDrawer();closeSheet()}});
 
 renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
-if(!getPostIdFromPath()){renderChips();renderHot();renderTrend();renderList();}
+if(!getPostIdFromPath()&&!getUserIdFromPath()){renderChips();renderHot();renderTrend();renderList();}
 
 var toTop=document.getElementById('toTop');
 if(toTop){
@@ -807,6 +811,38 @@ function setPfTab(t){pfTab=t;openProfile();}
 function listOrEmpty(arr,emptyMsg,cta){
   if(arr.length)return '<div class="list">'+arr.map(profileRow).join("")+'</div>';
   return '<div class="pf-empty">'+emptyMsg+(cta?'<button onclick="openWrite()">✏️ 첫 글 쓰기</button>':'')+'</div>';
+}
+async function openUserProfile(userId){
+  if(!userId||!window.supabase)return;
+  closeNotif();
+  var res=await window.supabase.from("profiles").select("*").eq("id",userId).single();
+  if(res.error||!res.data){
+    document.getElementById("main").innerHTML='<div class="profile"><div class="empty"><h3>사용자를 찾을 수 없어요</h3></div></div>';
+    return;
+  }
+  var profile=res.data;
+  var targetPath="/user/"+userId;
+  if(location.pathname!==targetPath)history.pushState({},"",targetPath);
+  document.title=profile.nickname+"님의 프로필 · Palo";
+  var theirPosts=POSTS.filter(function(p){return p.authorId===userId});
+  var likeSum=theirPosts.reduce(function(a,p){return a+p.likes},0);
+  var h='<div class="profile">';
+  h+='<div class="pf-card"><div class="pf-ava">'+esc(profile.nickname[0])+'</div><div class="pf-info">'+
+     '<div class="pf-name">'+esc(profile.nickname)+'<span class="pf-lv">'+esc(profile.level||"새싹 작가")+'</span></div>'+
+     '</div></div>';
+  h+='<div class="pf-stats">'+
+     '<div class="pf-st"><b>'+theirPosts.length+'</b><span>쓴 글</span></div>'+
+     '<div class="pf-st"><b>'+likeSum+'</b><span>받은 추천</span></div></div>';
+  h+='<div class="pf-sec">쓴 글 ('+theirPosts.length+')</div>';
+  h+=listOrEmpty(theirPosts,esc(profile.nickname)+'님이 쓴 글이 아직 없어요.');
+  h+='<button class="pf-edit" style="margin-top:16px" onclick="renderList()">← 목록으로</button>';
+  h+='</div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function getUserIdFromPath(){
+  var m=location.pathname.match(/^\/user\/([0-9a-fA-F-]{36})$/);
+  return m?m[1]:null;
 }
 function openProfile(){
   closeNotif();
