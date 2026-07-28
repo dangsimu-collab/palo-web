@@ -512,6 +512,7 @@ function StatsPanel() {
   const [activityPeriod, setActivityPeriod] = useState(7);
   const [byBoard, setByBoard] = useState([]);
   const [topPosts, setTopPosts] = useState([]);
+  const [topAuthors, setTopAuthors] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const activityDatesByMetric = { posts: postDates, comments: commentDates, signups: userDates };
@@ -558,6 +559,7 @@ function StatsPanel() {
       commentedPostIdsRes,
       rankPostsRes,
       rankLikesRes,
+      rankProfilesRes,
     ] = await Promise.all([
       supabase.from('profiles').select('*', { count: 'exact', head: true }),
       supabase.from('posts').select('*', { count: 'exact', head: true }),
@@ -574,22 +576,35 @@ function StatsPanel() {
       supabase.from('posts').select('author_id').gte('created_at', sevenDaysAgoIso),
       supabase.from('comments').select('author_id').gte('created_at', sevenDaysAgoIso),
       supabase.from('comments').select('post_id').limit(5000),
-      supabase.from('posts').select('id,title,board,views').limit(5000),
+      supabase.from('posts').select('id,title,board,views,author_id').limit(5000),
       supabase.from('likes').select('post_id').limit(5000),
+      supabase.from('profiles').select('id,nickname').limit(2000),
     ]);
 
     const likeCountByPost = {};
     (rankLikesRes.data || []).forEach((r) => {
       likeCountByPost[r.post_id] = (likeCountByPost[r.post_id] || 0) + 1;
     });
-    const topPostsComputed = (rankPostsRes.data || [])
-      .map((p) => {
-        const likes = likeCountByPost[p.id] || 0;
-        return { ...p, likes, score: likes + (p.views || 0) / 10 };
-      })
+    const postsWithScore = (rankPostsRes.data || []).map((p) => {
+      const likes = likeCountByPost[p.id] || 0;
+      return { ...p, likes, score: likes + (p.views || 0) / 10 };
+    });
+    setTopPosts([...postsWithScore].sort((a, b) => b.score - a.score).slice(0, 10));
+
+    const nicknameById = {};
+    (rankProfilesRes.data || []).forEach((u) => { nicknameById[u.id] = u.nickname; });
+    const authorAgg = {};
+    postsWithScore.forEach((p) => {
+      if (!p.author_id) return;
+      if (!authorAgg[p.author_id]) authorAgg[p.author_id] = { authorId: p.author_id, score: 0, postCount: 0 };
+      authorAgg[p.author_id].score += p.score;
+      authorAgg[p.author_id].postCount += 1;
+    });
+    const topAuthorsComputed = Object.values(authorAgg)
+      .map((a) => ({ ...a, nickname: nicknameById[a.authorId] || '알 수 없음' }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 10);
-    setTopPosts(topPostsComputed);
+    setTopAuthors(topAuthorsComputed);
 
     const activeUserIds = new Set();
     (activePostAuthorsRes.data || []).forEach((r) => { if (r.author_id) activeUserIds.add(r.author_id); });
@@ -762,6 +777,26 @@ function StatsPanel() {
               </div>
               <div style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0 }}>
                 {BOARD_LABELS[p.board] || p.board} · 조회 {p.views} · 좋아요 {p.likes}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <h2 style={{ fontWeight: 800, fontSize: 16, margin: '28px 0 14px' }}>인기 작성자 TOP 10</h2>
+      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
+        기준: 작성한 글들의 인기 점수 합산 (익명 글은 제외)
+      </p>
+      {topAuthors.length === 0 ? (
+        <p style={{ color: 'var(--muted)' }}>집계할 데이터가 없어요.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {topAuthors.map((a, i) => (
+            <div key={a.authorId} style={{ ...rowStyle, padding: '10px 14px' }}>
+              <div style={{ width: 22, fontWeight: 900, color: 'var(--brand)', flexShrink: 0 }}>{i + 1}</div>
+              <div style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 13 }}>{a.nickname}</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0 }}>
+                글 {a.postCount}개 · 점수 {Math.round(a.score)}
               </div>
             </div>
           ))}
