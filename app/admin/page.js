@@ -518,11 +518,16 @@ function PeriodToggle({ period, setPeriod }) {
 function StatsPanel() {
   const [totals, setTotals] = useState(null);
   const [postDates, setPostDates] = useState([]);
-  const [postPeriod, setPostPeriod] = useState(7);
+  const [commentDates, setCommentDates] = useState([]);
+  const [activityMetric, setActivityMetric] = useState('posts'); // posts | comments
+  const [activityPeriod, setActivityPeriod] = useState(7);
   const [byBoard, setByBoard] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const daily = useMemo(() => bucketByDay(postDates, postPeriod), [postDates, postPeriod]);
+  const daily = useMemo(
+    () => bucketByDay(activityMetric === 'posts' ? postDates : commentDates, activityPeriod),
+    [activityMetric, postDates, commentDates, activityPeriod]
+  );
 
   useEffect(() => {
     load();
@@ -544,7 +549,8 @@ function StatsPanel() {
       bannedRes,
       todayPostRes,
       todayUserRes,
-      recentRes,
+      recentPostRes,
+      recentCommentRes,
       boardRes,
     ] = await Promise.all([
       supabase.from('profiles').select('*', { count: 'exact', head: true }),
@@ -556,6 +562,7 @@ function StatsPanel() {
       supabase.from('posts').select('*', { count: 'exact', head: true }).gte('created_at', todayStartIso),
       supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', todayStartIso),
       supabase.from('posts').select('created_at').order('created_at', { ascending: false }).limit(3000),
+      supabase.from('comments').select('created_at').order('created_at', { ascending: false }).limit(3000),
       supabase.from('posts').select('board').limit(5000),
     ]);
 
@@ -570,7 +577,8 @@ function StatsPanel() {
       todayUsers: todayUserRes.count,
     });
 
-    setPostDates((recentRes.data || []).map((p) => p.created_at));
+    setPostDates((recentPostRes.data || []).map((p) => p.created_at));
+    setCommentDates((recentCommentRes.data || []).map((c) => c.created_at));
 
     const boardCounts = {};
     (boardRes.data || []).forEach((p) => {
@@ -604,8 +612,32 @@ function StatsPanel() {
         <StatCard label="오늘 신규 가입" value={totals.todayUsers} />
       </div>
 
-      <h2 style={{ fontWeight: 800, fontSize: 16, marginBottom: 4 }}>일별 게시글 수</h2>
-      <PeriodToggle period={postPeriod} setPeriod={setPostPeriod} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {[
+            { key: 'posts', label: '게시글 수' },
+            { key: 'comments', label: '댓글 수' },
+          ].map((m) => (
+            <button
+              key={m.key}
+              onClick={() => setActivityMetric(m.key)}
+              style={{
+                border: 'none',
+                background: 'none',
+                padding: '6px 4px',
+                fontSize: 16,
+                fontWeight: 800,
+                cursor: 'pointer',
+                color: activityMetric === m.key ? 'var(--brand)' : 'var(--muted)',
+                borderBottom: activityMetric === m.key ? '2px solid var(--brand)' : '2px solid transparent',
+              }}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <PeriodToggle period={activityPeriod} setPeriod={setActivityPeriod} />
+      </div>
       <div style={{ marginBottom: 28 }}>
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={daily} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
@@ -614,10 +646,16 @@ function StatsPanel() {
             <YAxis allowDecimals={false} fontSize={11} stroke="#a294a0" />
             <Tooltip
               labelFormatter={(d) => d}
-              formatter={(value) => [value, '게시글 수']}
+              formatter={(value) => [value, activityMetric === 'posts' ? '게시글 수' : '댓글 수']}
               contentStyle={{ borderRadius: 10, border: '1px solid #e6d3df', fontSize: 13 }}
             />
-            <Line type="monotone" dataKey="count" stroke="#e07aa6" strokeWidth={2.5} dot={{ r: 3 }} />
+            <Line
+              type="monotone"
+              dataKey="count"
+              stroke={activityMetric === 'posts' ? '#e07aa6' : '#9784d6'}
+              strokeWidth={2.5}
+              dot={{ r: 3 }}
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>
