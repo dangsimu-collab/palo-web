@@ -1,7 +1,8 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 const btnStyle = {
   background: 'linear-gradient(120deg,var(--brand),var(--grape))',
@@ -431,8 +432,209 @@ function NoticeManagement() {
   );
 }
 
+function StatCard({ label, value }) {
+  return (
+    <div style={{ ...rowStyle, flexDirection: 'column', alignItems: 'flex-start', gap: 4, flex: 1 }}>
+      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 900 }}>{value ?? '-'}</div>
+    </div>
+  );
+}
+
+const BOARD_LABELS = {
+  talk: '수다 광장',
+  ask: '물어보기',
+  wip: '작업 과정',
+  crit: '봐주세요',
+  sketch: '스케치북',
+  challenge: '챌린지',
+  tip: '팁 · 강좌',
+  trade: '커미션 구인구직',
+  used: '중고 장비',
+};
+
+function Bar({ label, count, max }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ width: 90, fontSize: 12, color: 'var(--muted)', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {label}
+      </div>
+      <div style={{ flex: 1, background: 'var(--surface-2)', borderRadius: 6, overflow: 'hidden', height: 18 }}>
+        <div
+          style={{
+            width: `${max ? (count / max) * 100 : 0}%`,
+            background: 'linear-gradient(120deg,var(--brand),var(--grape))',
+            height: '100%',
+          }}
+        />
+      </div>
+      <div style={{ width: 24, fontSize: 12, fontWeight: 700, textAlign: 'right' }}>{count}</div>
+    </div>
+  );
+}
+
+function bucketByDay(dates, period) {
+  const days = [];
+  const now = new Date();
+  for (let i = period - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    days.push(d.toISOString().slice(0, 10));
+  }
+  const counts = Object.fromEntries(days.map((d) => [d, 0]));
+  dates.forEach((iso) => {
+    const day = iso.slice(0, 10);
+    if (day in counts) counts[day] += 1;
+  });
+  return days.map((d) => ({ date: d, count: counts[d] }));
+}
+
+function PeriodToggle({ period, setPeriod }) {
+  return (
+    <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+      {[7, 30].map((p) => (
+        <button
+          key={p}
+          onClick={() => setPeriod(p)}
+          style={{
+            border: '1.5px solid var(--line-2)',
+            background: period === p ? 'linear-gradient(120deg,var(--brand),var(--grape))' : 'var(--surface)',
+            color: period === p ? '#fff' : 'var(--ink-2)',
+            borderColor: period === p ? 'transparent' : 'var(--line-2)',
+            padding: '6px 14px',
+            borderRadius: 10,
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          {p}일
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function StatsPanel() {
+  const [totals, setTotals] = useState(null);
+  const [postDates, setPostDates] = useState([]);
+  const [postPeriod, setPostPeriod] = useState(7);
+  const [byBoard, setByBoard] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const daily = useMemo(() => bucketByDay(postDates, postPeriod), [postDates, postPeriod]);
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function load() {
+    setLoading(true);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayStartIso = todayStart.toISOString();
+
+    const [
+      userRes,
+      postRes,
+      commentRes,
+      likeRes,
+      pendingReportRes,
+      bannedRes,
+      todayPostRes,
+      todayUserRes,
+      recentRes,
+      boardRes,
+    ] = await Promise.all([
+      supabase.from('profiles').select('*', { count: 'exact', head: true }),
+      supabase.from('posts').select('*', { count: 'exact', head: true }),
+      supabase.from('comments').select('*', { count: 'exact', head: true }),
+      supabase.from('likes').select('*', { count: 'exact', head: true }),
+      supabase.from('reports').select('*', { count: 'exact', head: true }).eq('resolved', false),
+      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_banned', true),
+      supabase.from('posts').select('*', { count: 'exact', head: true }).gte('created_at', todayStartIso),
+      supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', todayStartIso),
+      supabase.from('posts').select('created_at').order('created_at', { ascending: false }).limit(3000),
+      supabase.from('posts').select('board').limit(5000),
+    ]);
+
+    setTotals({
+      users: userRes.count,
+      posts: postRes.count,
+      comments: commentRes.count,
+      likes: likeRes.count,
+      pendingReports: pendingReportRes.count,
+      banned: bannedRes.count,
+      todayPosts: todayPostRes.count,
+      todayUsers: todayUserRes.count,
+    });
+
+    setPostDates((recentRes.data || []).map((p) => p.created_at));
+
+    const boardCounts = {};
+    (boardRes.data || []).forEach((p) => {
+      boardCounts[p.board] = (boardCounts[p.board] || 0) + 1;
+    });
+    const boardRows = Object.entries(boardCounts)
+      .map(([board, count]) => ({ board, label: BOARD_LABELS[board] || board, count }))
+      .sort((a, b) => b.count - a.count);
+    setByBoard(boardRows);
+
+    setLoading(false);
+  }
+
+  if (loading || !totals) return <p style={{ color: 'var(--muted)' }}>불러오는 중...</p>;
+
+  const boardMax = Math.max(1, ...byBoard.map((b) => b.count));
+
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12, marginBottom: 28 }}>
+        <StatCard label="총 회원 수" value={totals.users} />
+        <StatCard label="총 글 수" value={totals.posts} />
+        <StatCard label="총 댓글 수" value={totals.comments} />
+        <StatCard label="총 좋아요 수" value={totals.likes} />
+        <StatCard label="미처리 신고" value={totals.pendingReports} />
+        <StatCard label="차단된 회원" value={totals.banned} />
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>
+        <StatCard label="오늘 새 글" value={totals.todayPosts} />
+        <StatCard label="오늘 신규 가입" value={totals.todayUsers} />
+      </div>
+
+      <h2 style={{ fontWeight: 800, fontSize: 16, marginBottom: 4 }}>일별 게시글 수</h2>
+      <PeriodToggle period={postPeriod} setPeriod={setPostPeriod} />
+      <div style={{ marginBottom: 28 }}>
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={daily} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e6d3df" />
+            <XAxis dataKey="date" tickFormatter={(d) => d.slice(5)} fontSize={11} stroke="#a294a0" />
+            <YAxis allowDecimals={false} fontSize={11} stroke="#a294a0" />
+            <Tooltip
+              labelFormatter={(d) => d}
+              formatter={(value) => [value, '게시글 수']}
+              contentStyle={{ borderRadius: 10, border: '1px solid #e6d3df', fontSize: 13 }}
+            />
+            <Line type="monotone" dataKey="count" stroke="#e07aa6" strokeWidth={2.5} dot={{ r: 3 }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      <h2 style={{ fontWeight: 800, fontSize: 16, marginBottom: 14 }}>게시판별 글 수</h2>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {byBoard.length === 0 && <p style={{ color: 'var(--muted)' }}>글이 없어요.</p>}
+        {byBoard.map((b) => (
+          <Bar key={b.board} label={b.label} count={b.count} max={boardMax} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function AdminDashboard({ profile }) {
-  const [tab, setTab] = useState('posts'); // posts | users | notices
+  const [tab, setTab] = useState('posts'); // posts | users | notices | stats
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 20px' }}>
@@ -486,10 +688,27 @@ function AdminDashboard({ profile }) {
         >
           공지 작성
         </button>
+        <button
+          onClick={() => setTab('stats')}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: '10px 4px',
+            marginLeft: 16,
+            fontWeight: 800,
+            fontSize: 14,
+            cursor: 'pointer',
+            color: tab === 'stats' ? 'var(--brand)' : 'var(--muted)',
+            borderBottom: tab === 'stats' ? '2px solid var(--brand)' : '2px solid transparent',
+          }}
+        >
+          통계
+        </button>
       </div>
       {tab === 'posts' && <PostManagement />}
       {tab === 'users' && <UserManagement />}
       {tab === 'notices' && <NoticeManagement />}
+      {tab === 'stats' && <StatsPanel />}
     </div>
   );
 }
