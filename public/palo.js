@@ -172,8 +172,30 @@ async function loadRealPosts(){
   });
   POSTS=real.concat(POSTS);
   renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
-  renderList();
+  var initialDbId=getPostIdFromPath();
+  var initialPost=initialDbId?POSTS.find(function(x){return x.dbId===initialDbId}):null;
+  if(initialPost)openPost(initialPost.id);
+  else renderList();
 }
+function getPostIdFromPath(){
+  var m=location.pathname.match(/^\/post\/(\d+)$/);
+  return m?parseInt(m[1],10):null;
+}
+function sharePost(id){
+  var p=POSTS.find(function(x){return x.id===id});if(!p)return;
+  var url=p.dbId?(location.origin+"/post/"+p.dbId):location.href;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(function(){toast("링크를 복사했어요")},function(){toast("복사에 실패했어요")});
+  }else{
+    toast("이 브라우저에서는 복사를 지원하지 않아요");
+  }
+}
+window.addEventListener("popstate",function(){
+  var dbId=getPostIdFromPath();
+  var post=dbId?POSTS.find(function(x){return x.dbId===dbId}):null;
+  if(post)openPost(post.id);
+  else renderList();
+});
 
 /* ---------- 로그인 (Supabase Auth) ---------- */
 async function initAuth(){
@@ -288,6 +310,7 @@ function adRow(){
   '</div>';
 }
 function renderList(){
+  if(location.pathname!=="/"){history.pushState({},"","/");document.title="Palo · 그림 그리는 사람들의 커뮤니티";}
   var main=document.getElementById("main");var arr=filteredPosts();
   var sub=state.query?('"'+esc(state.query)+'" 검색 결과 '+arr.length+'건'):(state.sort==="new"?"방금 올라온 이야기부터":"반응 많은 순으로");
   var h='<div class="board-head"><h1 class="serif">'+esc(state.query?"검색":boardName(state.board))+'</h1><span class="sub">'+sub+'</span>'+
@@ -341,6 +364,11 @@ function renderList(){
 function openPost(id){
   var p=POSTS.find(function(x){return x.id===id});if(!p)return;p.views++;READ.add(id);
   if(p.dbId&&window.supabase)window.supabase.rpc("increment_post_views",{p_id:p.dbId}).then(function(){});
+  if(p.dbId){
+    var targetPath="/post/"+p.dbId;
+    if(location.pathname!==targetPath)history.pushState({},"",targetPath);
+    document.title=p.title+" · Palo";
+  }
   var main=document.getElementById("main");var c=catFor(p);
   var canvas=(p.images&&p.images.length)?
     '<div class="d-canvas" style="height:auto;display:block;padding:0">'+(p.stage?'<span class="stage-tag">'+p.stage+' 단계</span>':'')+
@@ -354,7 +382,7 @@ function openPost(id){
     '<button class="d-follow'+(FOLLOW.has(p.author)?' following':'')+'" onclick="toggleFollow(\''+esc(p.author)+'\','+p.id+')">'+(FOLLOW.has(p.author)?'팔로잉 ✓':'＋ 팔로우')+'</button></div></div>'+
     canvas+'<div class="d-content">'+(p.html?p.html:p.content.map(function(x){return'<p>'+esc(x)+'</p>'}).join(""))+'</div>'+
     '<div class="d-actions"><button class="d-act'+liked+'" onclick="toggleLike('+p.id+')">'+(p._liked?"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"none\"><path d=\"M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5c0 5-7 9.5-7 9.5z\"/></svg>":"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5c0 5-7 9.5-7 9.5z\"/></svg>")+'좋아요 '+p.likes+'</button>'+
-    '<button class="d-act" onclick="toast(\'링크를 복사했어요\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6"/><path d="M10 6l1-1a4 4 0 0 1 6 6l-1 1M14 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg>공유</button>'+
+    '<button class="d-act" onclick="sharePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6"/><path d="M10 6l1-1a4 4 0 0 1 6 6l-1 1M14 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg>공유</button>'+
     '<button class="d-act" onclick="reportPost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>신고</button>'+
     ((p.dbId&&AUTH.user&&p.authorId===AUTH.user.id)?('<button class="d-act" onclick="openEditPost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L20 8l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>수정</button>'+
     '<button class="d-act" onclick="deletePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>삭제</button>'):'')+
@@ -681,7 +709,7 @@ var mSearch=document.getElementById("searchInputM");if(mSearch)mSearch.addEventL
 document.addEventListener("keydown",function(e){if(e.key==="Escape"){closeWrite();closeDrawer();closeSheet()}});
 
 renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
-renderChips();renderHot();renderTrend();renderList();
+if(!getPostIdFromPath()){renderChips();renderHot();renderTrend();renderList();}
 
 var toTop=document.getElementById('toTop');
 if(toTop){
