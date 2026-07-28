@@ -154,7 +154,7 @@ async function loadRealPosts(){
 
   var real=res.data.map(function(row){
     var likers=likesByPost[row.id]||[];
-    return {id:100000+row.id,dbId:row.id,authorId:row.author_id,board:row.board,title:row.title,author:nameFor(row.author_id),
+    return {id:100000+row.id,dbId:row.id,authorId:row.author_id,board:row.board,title:row.title,category:row.category,author:nameFor(row.author_id),
       time:timeAgo(row.created_at),likes:likers.length,_liked:likers.indexOf(myLikeId())>-1,
       views:row.views,thumb:"none",stage:row.stage,images:imagesByPost[row.id],
       content:(row.content||"").split("\n").filter(Boolean),comments:commentsByPost[row.id]||[]};
@@ -343,7 +343,8 @@ function openPost(id){
     '<div class="d-actions"><button class="d-act'+liked+'" onclick="toggleLike('+p.id+')">'+(p._liked?"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"none\"><path d=\"M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5c0 5-7 9.5-7 9.5z\"/></svg>":"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5c0 5-7 9.5-7 9.5z\"/></svg>")+'좋아요 '+p.likes+'</button>'+
     '<button class="d-act" onclick="toast(\'링크를 복사했어요\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6"/><path d="M10 6l1-1a4 4 0 0 1 6 6l-1 1M14 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg>공유</button>'+
     '<button class="d-act" onclick="reportPost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>신고</button>'+
-    ((p.dbId&&AUTH.user&&p.authorId===AUTH.user.id)?'<button class="d-act" onclick="deletePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>삭제</button>':'')+
+    ((p.dbId&&AUTH.user&&p.authorId===AUTH.user.id)?('<button class="d-act" onclick="openEditPost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L20 8l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>수정</button>'+
+    '<button class="d-act" onclick="deletePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>삭제</button>'):'')+
     '</div>'+
     '<div class="comments"><div class="cm-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>훈수 · 크리틱 '+p.comments.length+'</div>'+
     '<div class="cm-write"><div class="d-ava serif" id="cmAva">나</div><div class="box"><textarea id="cmInput" placeholder="따뜻한 피드백을 남겨주세요. 사람보다 그림을 이야기해요."></textarea>'+
@@ -455,17 +456,40 @@ var TAGS_BY_BOARD={
   trade:["구인","구직"],used:["판매","구매"]
 };
 var edState={board:null,tag:null,img:false,images:[]};
+var editingPostId=null;
+function stripTag(title,cat){
+  if(cat&&title.indexOf("["+cat+"] ")===0)return title.slice(cat.length+3);
+  return title;
+}
 function openWrite(){
+  editingPostId=null;
   edState={board:(state.board!=="all"&&state.board!=="sketch")?state.board:null,tag:null,img:false,images:[]};
   buildBoardMenu();refreshBoardLabel();renderEdTags();
   document.getElementById("wTitle").value="";
   document.getElementById("wContent").innerHTML="";
   document.getElementById("edImages").innerHTML="";
   document.getElementById("edCrit").checked=(edState.board==="crit");
+  document.getElementById("edTitleLabel").textContent="글쓰기";
+  document.getElementById("edSubmitBtn").textContent="등록";
   document.getElementById("writeModal").classList.add("open");document.body.style.overflow="hidden";
   document.getElementById("edBoardMenu").classList.remove("open");
 }
-function closeWrite(){document.getElementById("writeModal").classList.remove("open");document.body.style.overflow=""}
+function openEditPost(id){
+  var p=POSTS.find(function(x){return x.id===id});if(!p)return;
+  if(!p.dbId||!AUTH.user||p.authorId!==AUTH.user.id){toast("수정 권한이 없어요");return;}
+  editingPostId=id;
+  edState={board:p.board,tag:p.category||null,img:!!(p.images&&p.images.length),images:p.images?p.images.slice():[]};
+  buildBoardMenu();refreshBoardLabel();renderEdTags();
+  document.getElementById("wTitle").value=stripTag(p.title,p.category);
+  document.getElementById("wContent").innerHTML=p.html?p.html:p.content.map(function(x){return"<p>"+esc(x)+"</p>"}).join("");
+  renderEdImages();
+  document.getElementById("edCrit").checked=(edState.board==="crit");
+  document.getElementById("edTitleLabel").textContent="글 수정";
+  document.getElementById("edSubmitBtn").textContent="수정 완료";
+  document.getElementById("writeModal").classList.add("open");document.body.style.overflow="hidden";
+  document.getElementById("edBoardMenu").classList.remove("open");
+}
+function closeWrite(){editingPostId=null;document.getElementById("writeModal").classList.remove("open");document.body.style.overflow=""}
 function buildBoardMenu(){
   var h="";
   BOARDS.forEach(function(g){
@@ -531,6 +555,34 @@ async function submitPost(){
   if(!text&&!edState.img){toast("내용을 입력해주세요");return}
   var title=(edState.tag?"["+edState.tag+"] ":"")+t;
   var stage=(["러프","선화","채색","완성"].indexOf(edState.tag)>-1)?edState.tag:null;
+
+  if(editingPostId){
+    var ep=POSTS.find(function(x){return x.id===editingPostId});
+    if(!ep){editingPostId=null;toast("수정할 글을 찾을 수 없어요");return;}
+    if(window.supabase&&ep.dbId){
+      var upd=await window.supabase.from("posts").update({
+        board:edState.board,category:edState.tag,title:title,content:text,
+        stage:edState.img?(stage||"완성"):null
+      }).eq("id",ep.dbId);
+      if(upd.error){toast("수정 실패: "+upd.error.message);return;}
+      var delImgs=await window.supabase.from("post_images").delete().eq("post_id",ep.dbId);
+      if(delImgs.error)console.error(delImgs.error);
+      if(edState.images.length){
+        var newImgRows=edState.images.map(function(url,i){return{post_id:ep.dbId,url:url,sort:i};});
+        var savedNewImgs=await window.supabase.from("post_images").insert(newImgRows);
+        if(savedNewImgs.error)console.error(savedNewImgs.error);
+      }
+    }
+    ep.board=edState.board;ep.category=edState.tag;ep.title=title;
+    ep.stage=edState.img?(stage||"완성"):null;
+    ep.images=edState.images.length?edState.images.slice():undefined;
+    ep.html=html;ep.content=text.split("\n").filter(Boolean);
+    editingPostId=null;
+    closeWrite();
+    toast("글을 수정했어요");
+    openPost(ep.id);
+    return;
+  }
 
   if(window.supabase){
     var saved=await window.supabase.from("posts").insert({

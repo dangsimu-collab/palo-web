@@ -103,8 +103,8 @@ export const BODY_HTML = `
   <div class="ed-top">
     <div class="wrap ed-top-in">
       <button class="ed-cancel" onclick="closeWrite()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg><span>나가기</span></button>
-      <span class="ed-title">글쓰기</span>
-      <button class="ed-submit" onclick="submitPost()">등록</button>
+      <span class="ed-title" id="edTitleLabel">글쓰기</span>
+      <button class="ed-submit" id="edSubmitBtn" onclick="submitPost()">등록</button>
     </div>
   </div>
 
