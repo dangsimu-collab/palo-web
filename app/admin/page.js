@@ -511,6 +511,7 @@ function StatsPanel() {
   const [activityMetric, setActivityMetric] = useState('posts'); // posts | comments | signups
   const [activityPeriod, setActivityPeriod] = useState(7);
   const [byBoard, setByBoard] = useState([]);
+  const [topPosts, setTopPosts] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const activityDatesByMetric = { posts: postDates, comments: commentDates, signups: userDates };
@@ -555,6 +556,8 @@ function StatsPanel() {
       activePostAuthorsRes,
       activeCommentAuthorsRes,
       commentedPostIdsRes,
+      rankPostsRes,
+      rankLikesRes,
     ] = await Promise.all([
       supabase.from('profiles').select('*', { count: 'exact', head: true }),
       supabase.from('posts').select('*', { count: 'exact', head: true }),
@@ -571,7 +574,22 @@ function StatsPanel() {
       supabase.from('posts').select('author_id').gte('created_at', sevenDaysAgoIso),
       supabase.from('comments').select('author_id').gte('created_at', sevenDaysAgoIso),
       supabase.from('comments').select('post_id').limit(5000),
+      supabase.from('posts').select('id,title,board,views').limit(5000),
+      supabase.from('likes').select('post_id').limit(5000),
     ]);
+
+    const likeCountByPost = {};
+    (rankLikesRes.data || []).forEach((r) => {
+      likeCountByPost[r.post_id] = (likeCountByPost[r.post_id] || 0) + 1;
+    });
+    const topPostsComputed = (rankPostsRes.data || [])
+      .map((p) => {
+        const likes = likeCountByPost[p.id] || 0;
+        return { ...p, likes, score: likes + (p.views || 0) / 10 };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+    setTopPosts(topPostsComputed);
 
     const activeUserIds = new Set();
     (activePostAuthorsRes.data || []).forEach((r) => { if (r.author_id) activeUserIds.add(r.author_id); });
@@ -716,6 +734,38 @@ function StatsPanel() {
             <Bar dataKey="count" fill="#a3c07a" radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>
+      )}
+
+      <h2 style={{ fontWeight: 800, fontSize: 16, margin: '28px 0 14px' }}>인기 글 TOP 10</h2>
+      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
+        기준: 좋아요 + 조회수 ÷ 10 (사이트 인기순 정렬과 동일)
+      </p>
+      {topPosts.length === 0 ? (
+        <p style={{ color: 'var(--muted)' }}>글이 없어요.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {topPosts.map((p, i) => (
+            <div key={p.id} style={{ ...rowStyle, padding: '10px 14px' }}>
+              <div style={{ width: 22, fontWeight: 900, color: 'var(--brand)', flexShrink: 0 }}>{i + 1}</div>
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  fontWeight: 700,
+                  fontSize: 13,
+                }}
+              >
+                {p.title}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0 }}>
+                {BOARD_LABELS[p.board] || p.board} · 조회 {p.views} · 좋아요 {p.likes}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
