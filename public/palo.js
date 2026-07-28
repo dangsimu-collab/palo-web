@@ -166,7 +166,7 @@ async function loadRealPosts(){
   var real=res.data.map(function(row){
     var likers=likesByPost[row.id]||[];
     return {id:100000+row.id,dbId:row.id,authorId:row.author_id,board:row.board,title:row.title,category:row.category,author:nameFor(row.author_id),
-      time:timeAgo(row.created_at),likes:likers.length,_liked:likers.indexOf(myLikeId())>-1,
+      time:timeAgo(row.created_at),createdAt:row.created_at,likes:likers.length,_liked:likers.indexOf(myLikeId())>-1,
       views:row.views,thumb:"none",stage:row.stage,images:imagesByPost[row.id],
       content:(row.content||"").split("\n").filter(Boolean),comments:commentsByPost[row.id]||[]};
   });
@@ -260,11 +260,29 @@ function renderHot(){
     return '<div class="hot" onclick="openPost('+p.id+')"><span class="rank serif">'+(i+1)+'</span><div><div class="ht">'+esc(p.title)+'</div><div class="hm">💬 '+p.comments.length+' · '+catFor(p).label+'</div></div></div>';
   }).join("");
 }
+function hotMultiplier(createdAt){
+  if(!createdAt)return{mult:0.6,within7:false};
+  var days=Math.floor((Date.now()-new Date(createdAt).getTime())/86400000);
+  if(days<7)return{mult:2-0.2*days,within7:true};
+  return{mult:0.6,within7:false}; // 7일째 배수(2-0.2*7)로 고정
+}
+function hotScore(p){
+  var base=(p.views||0)*0.02+(p.likes||0)*1+(p.comments?p.comments.length:0)*0.2;
+  var m=hotMultiplier(p.createdAt);
+  return{score:base*m.mult,within7:m.within7};
+}
+function sortHot(arr){
+  var scored=arr.map(function(p){var r=hotScore(p);return{p:p,score:r.score,within7:r.within7};});
+  var freshCount=scored.filter(function(x){return x.within7}).length;
+  var pool=freshCount>10?scored.filter(function(x){return x.within7}):scored;
+  pool.sort(function(a,b){return b.score-a.score});
+  return pool.map(function(x){return x.p});
+}
 function filteredPosts(){
   var arr=POSTS.slice();
   if(state.board!=="all")arr=arr.filter(function(p){return p.board===state.board});
   if(state.query){var q=state.query.toLowerCase();arr=arr.filter(function(p){var body=(p.content||[]).join(" ").toLowerCase();return p.title.toLowerCase().indexOf(q)>-1||p.author.toLowerCase().indexOf(q)>-1||body.indexOf(q)>-1})}
-  if(state.sort==="hot")arr.sort(function(a,b){return(b.likes+b.views/10)-(a.likes+a.views/10)});
+  if(state.sort==="hot")arr=sortHot(arr);
   return arr;
 }
 function renderTrend(){
@@ -692,7 +710,7 @@ async function submitPost(){
     }
   }
 
-  var np={id:Date.now(),board:edState.board,title:title,author:"나",time:"방금",likes:0,views:1,
+  var np={id:Date.now(),board:edState.board,title:title,author:"나",time:"방금",createdAt:new Date().toISOString(),likes:0,views:1,
     thumb:edState.img?"t1":"none",stage:edState.img?(stage||"완성"):null,
     images:edState.images.length?edState.images.slice():undefined,
     dbId:saved&&saved.data?saved.data.id:undefined,authorId:saved&&saved.data?saved.data.author_id:undefined,

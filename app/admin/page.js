@@ -456,6 +456,20 @@ const BOARD_LABELS = {
 const ACTIVITY_METRIC_LABELS = { posts: '게시글 수', comments: '댓글 수', signups: '신규 가입' };
 const ACTIVITY_METRIC_COLORS = { posts: '#e07aa6', comments: '#9784d6', signups: '#7cc3e0' };
 
+// 사이트의 "인기" 정렬과 동일한 점수 공식(조회수*0.02 + 좋아요*1 + 댓글*0.2, 하루 이내 x2,
+// 이후 하루마다 -0.2, 7일째 배수(0.6)로 바닥) — 단 관리자 TOP 10은 7일 지난 글도
+// 계속 후보로 둠(고정 10개 랭킹이라 목록 탭의 "부족하면 유지" 규칙이 필요 없음).
+function hotMultiplier(createdAt) {
+  if (!createdAt) return 0.6;
+  const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
+  if (days < 7) return 2 - 0.2 * days;
+  return 0.6;
+}
+function hotScore(views, likes, commentCount, createdAt) {
+  const base = (views || 0) * 0.02 + (likes || 0) * 1 + (commentCount || 0) * 0.2;
+  return base * hotMultiplier(createdAt);
+}
+
 function localDateKey(d) {
   const dt = new Date(d);
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
@@ -576,7 +590,7 @@ function StatsPanel() {
       supabase.from('posts').select('author_id').gte('created_at', sevenDaysAgoIso),
       supabase.from('comments').select('author_id').gte('created_at', sevenDaysAgoIso),
       supabase.from('comments').select('post_id').limit(5000),
-      supabase.from('posts').select('id,title,board,views,author_id').limit(5000),
+      supabase.from('posts').select('id,title,board,views,author_id,created_at').limit(5000),
       supabase.from('likes').select('post_id').limit(5000),
       supabase.from('profiles').select('id,nickname').limit(2000),
     ]);
@@ -585,9 +599,14 @@ function StatsPanel() {
     (rankLikesRes.data || []).forEach((r) => {
       likeCountByPost[r.post_id] = (likeCountByPost[r.post_id] || 0) + 1;
     });
+    const commentCountByPost = {};
+    (commentedPostIdsRes.data || []).forEach((r) => {
+      commentCountByPost[r.post_id] = (commentCountByPost[r.post_id] || 0) + 1;
+    });
     const postsWithScore = (rankPostsRes.data || []).map((p) => {
       const likes = likeCountByPost[p.id] || 0;
-      return { ...p, likes, score: likes + (p.views || 0) / 10 };
+      const commentCount = commentCountByPost[p.id] || 0;
+      return { ...p, likes, score: hotScore(p.views, likes, commentCount, p.created_at) };
     });
     setTopPosts([...postsWithScore].sort((a, b) => b.score - a.score).slice(0, 10));
 
