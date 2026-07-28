@@ -144,9 +144,99 @@ function PostManagement() {
   );
 }
 
+function UserManagement() {
+  const [query, setQuery] = useState('');
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  async function load(q) {
+    setLoading(true);
+    let req = supabase
+      .from('profiles')
+      .select('id,nickname,level,is_admin,is_banned,created_at')
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (q) req = req.ilike('nickname', `%${q}%`);
+    const { data, error } = await req;
+    if (!error) setUsers(data);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    load('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function toggleBan(u) {
+    const next = !u.is_banned;
+    if (!confirm(next ? `${u.nickname}님을 차단할까요?` : `${u.nickname}님 차단을 해제할까요?`)) return;
+    const { error } = await supabase.from('profiles').update({ is_banned: next }).eq('id', u.id);
+    if (error) {
+      alert('처리 실패: ' + error.message);
+      return;
+    }
+    setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, is_banned: next } : x)));
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') load(query);
+          }}
+          placeholder="닉네임으로 검색"
+          style={inputStyle}
+        />
+        <button style={btnStyle} onClick={() => load(query)}>검색</button>
+      </div>
+      {loading ? (
+        <p style={{ color: 'var(--muted)' }}>불러오는 중...</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {users.length === 0 && <p style={{ color: 'var(--muted)' }}>회원이 없어요.</p>}
+          {users.map((u) => (
+            <div key={u.id} style={rowStyle}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700 }}>
+                  {u.nickname}
+                  {u.is_admin && (
+                    <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--brand)', fontWeight: 800 }}>
+                      관리자
+                    </span>
+                  )}
+                  {u.is_banned && (
+                    <span style={{ marginLeft: 8, fontSize: 11, color: '#c0392b', fontWeight: 800 }}>
+                      차단됨
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                  {u.level} · 가입 {new Date(u.created_at).toLocaleDateString('ko-KR')}
+                </div>
+              </div>
+              {!u.is_admin && (
+                <button
+                  style={u.is_banned ? btnStyle : dangerBtnStyle}
+                  onClick={() => toggleBan(u)}
+                >
+                  {u.is_banned ? '차단 해제' : '차단'}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const [status, setStatus] = useState('loading'); // loading | unauthenticated | forbidden | admin
   const [profile, setProfile] = useState(null);
+  const [tab, setTab] = useState('posts'); // posts | users
 
   useEffect(() => {
     let active = true;
@@ -207,8 +297,40 @@ export default function AdminPage() {
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 20px' }}>
       <h1 style={{ fontWeight: 900, fontSize: 24, marginBottom: 8 }}>Palo 관리자</h1>
       <p style={{ color: 'var(--muted)', marginBottom: 24 }}>{profile.nickname}님, 환영해요.</p>
-      <h2 style={{ fontWeight: 800, fontSize: 16, marginBottom: 12 }}>글 관리</h2>
-      <PostManagement />
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1.5px solid var(--line)' }}>
+        <button
+          onClick={() => setTab('posts')}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: '10px 4px',
+            marginRight: 16,
+            fontWeight: 800,
+            fontSize: 14,
+            cursor: 'pointer',
+            color: tab === 'posts' ? 'var(--brand)' : 'var(--muted)',
+            borderBottom: tab === 'posts' ? '2px solid var(--brand)' : '2px solid transparent',
+          }}
+        >
+          글 관리
+        </button>
+        <button
+          onClick={() => setTab('users')}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: '10px 4px',
+            fontWeight: 800,
+            fontSize: 14,
+            cursor: 'pointer',
+            color: tab === 'users' ? 'var(--brand)' : 'var(--muted)',
+            borderBottom: tab === 'users' ? '2px solid var(--brand)' : '2px solid transparent',
+          }}
+        >
+          회원 관리
+        </button>
+      </div>
+      {tab === 'posts' ? <PostManagement /> : <UserManagement />}
     </div>
   );
 }
