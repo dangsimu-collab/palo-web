@@ -367,7 +367,7 @@ function openPost(id){
 }
 async function deletePost(id){
   var p=POSTS.find(function(x){return x.id===id});if(!p)return;
-  if(!confirm("이 글을 삭제할까요? 되돌릴 수 없어요."))return;
+  if(!(await confirmDialog("이 글을 삭제할까요? 되돌릴 수 없어요.")))return;
   if(p.dbId&&window.supabase){
     var res=await window.supabase.from("posts").delete().eq("id",p.dbId);
     if(res.error){toast("삭제 실패: "+res.error.message);return;}
@@ -394,6 +394,25 @@ async function submitReport(){
   if(res.error){toast("신고 접수 실패: "+res.error.message);return;}
   toast("신고가 접수되었어요");
 }
+function confirmDialog(message){
+  return new Promise(function(resolve){
+    var modal=document.getElementById("confirmModal");
+    var okBtn=document.getElementById("confirmModalOkBtn");
+    var cancelBtn=document.getElementById("confirmModalCancelBtn");
+    document.getElementById("confirmModalBody").textContent=message;
+    modal.classList.add("open");
+    function cleanup(result){
+      modal.classList.remove("open");
+      okBtn.removeEventListener("click",onOk);
+      cancelBtn.removeEventListener("click",onCancel);
+      resolve(result);
+    }
+    function onOk(){cleanup(true);}
+    function onCancel(){cleanup(false);}
+    okBtn.addEventListener("click",onOk);
+    cancelBtn.addEventListener("click",onCancel);
+  });
+}
 function renderComments(p){
   if(p.comments.length===0)return '<div style="padding:26px 0;text-align:center;color:var(--muted);font-size:13px">첫 훈수를 남겨보세요 ✏️</div>';
   return p.comments.map(function(c,ci){
@@ -404,7 +423,7 @@ function renderComments(p){
 async function deleteComment(postId,ci){
   var p=POSTS.find(function(x){return x.id===postId});if(!p)return;
   var c=p.comments[ci];if(!c)return;
-  if(!confirm("댓글을 삭제할까요?"))return;
+  if(!(await confirmDialog("댓글을 삭제할까요?")))return;
   if(c.dbId&&window.supabase){
     var res=await window.supabase.from("comments").delete().eq("id",c.dbId);
     if(res.error){toast("삭제 실패: "+res.error.message);return;}
@@ -855,7 +874,7 @@ async function dismissReport(reportId){
   openAdminReports();
 }
 async function adminDeleteReportedPost(reportId,postDbId){
-  if(!confirm("이 글을 삭제할까요?"))return;
+  if(!(await confirmDialog("이 글을 삭제할까요?")))return;
   var res=await window.supabase.from("posts").delete().eq("id",postDbId);
   if(res.error){toast("삭제 실패: "+res.error.message);return;}
   await window.supabase.from("reports").update({resolved:true}).eq("id",reportId);

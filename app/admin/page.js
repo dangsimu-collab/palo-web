@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 
 const btnStyle = {
@@ -66,7 +66,69 @@ function Center({ children }) {
   );
 }
 
+// ---------- 사이트 디자인(.rules-scrim/.rules)을 재사용하는 confirm/alert 대체 ----------
+const DialogContext = createContext(null);
+
+function DialogProvider({ children }) {
+  const [dialog, setDialog] = useState(null); // { message, mode: 'confirm'|'alert', resolve }
+
+  const confirmDialog = useCallback((message) => {
+    return new Promise((resolve) => setDialog({ message, mode: 'confirm', resolve }));
+  }, []);
+
+  const notify = useCallback((message) => {
+    return new Promise((resolve) => setDialog({ message, mode: 'alert', resolve }));
+  }, []);
+
+  function handleOk() {
+    dialog.resolve(true);
+    setDialog(null);
+  }
+  function handleCancel() {
+    dialog.resolve(false);
+    setDialog(null);
+  }
+
+  return (
+    <DialogContext.Provider value={{ confirmDialog, notify }}>
+      {children}
+      {dialog && (
+        <div
+          className="rules-scrim open"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) handleCancel();
+          }}
+        >
+          <div className="rules">
+            <h3>{dialog.mode === 'confirm' ? '⚠️ 확인해주세요' : '알림'}</h3>
+            <p style={{ color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: 20, whiteSpace: 'pre-wrap' }}>
+              {dialog.message}
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {dialog.mode === 'confirm' && (
+                <button
+                  className="r-ok"
+                  style={{ background: 'var(--surface-2)', color: 'var(--ink)' }}
+                  onClick={handleCancel}
+                >
+                  취소
+                </button>
+              )}
+              <button className="r-ok" onClick={handleOk}>확인</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </DialogContext.Provider>
+  );
+}
+
+function useDialog() {
+  return useContext(DialogContext);
+}
+
 function PostManagement() {
+  const { confirmDialog, notify } = useDialog();
   const [query, setQuery] = useState('');
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -90,10 +152,10 @@ function PostManagement() {
   }, []);
 
   async function handleDelete(id) {
-    if (!confirm('이 글을 삭제할까요? 되돌릴 수 없어요.')) return;
+    if (!(await confirmDialog('이 글을 삭제할까요? 되돌릴 수 없어요.'))) return;
     const { error } = await supabase.from('posts').delete().eq('id', id);
     if (error) {
-      alert('삭제 실패: ' + error.message);
+      await notify('삭제 실패: ' + error.message);
       return;
     }
     setPosts((prev) => prev.filter((p) => p.id !== id));
@@ -145,6 +207,7 @@ function PostManagement() {
 }
 
 function UserManagement() {
+  const { confirmDialog, notify } = useDialog();
   const [query, setQuery] = useState('');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -169,10 +232,11 @@ function UserManagement() {
 
   async function toggleBan(u) {
     const next = !u.is_banned;
-    if (!confirm(next ? `${u.nickname}님을 차단할까요?` : `${u.nickname}님 차단을 해제할까요?`)) return;
+    const ok = await confirmDialog(next ? `${u.nickname}님을 차단할까요?` : `${u.nickname}님 차단을 해제할까요?`);
+    if (!ok) return;
     const { error } = await supabase.from('profiles').update({ is_banned: next }).eq('id', u.id);
     if (error) {
-      alert('처리 실패: ' + error.message);
+      await notify('처리 실패: ' + error.message);
       return;
     }
     setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, is_banned: next } : x)));
@@ -234,6 +298,7 @@ function UserManagement() {
 }
 
 function NoticeManagement() {
+  const { confirmDialog, notify } = useDialog();
   const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
@@ -263,7 +328,7 @@ function NoticeManagement() {
 
   async function handleCreate() {
     if (!title.trim()) {
-      alert('제목을 입력해주세요');
+      await notify('제목을 입력해주세요');
       return;
     }
     const html = contentRef.current.innerHTML.trim();
@@ -273,7 +338,7 @@ function NoticeManagement() {
       .insert({ title: title.trim(), content: html || null });
     setSaving(false);
     if (error) {
-      alert('등록 실패: ' + error.message);
+      await notify('등록 실패: ' + error.message);
       return;
     }
     setTitle('');
@@ -282,10 +347,10 @@ function NoticeManagement() {
   }
 
   async function handleDelete(id) {
-    if (!confirm('이 공지를 삭제할까요?')) return;
+    if (!(await confirmDialog('이 공지를 삭제할까요?'))) return;
     const { error } = await supabase.from('notices').delete().eq('id', id);
     if (error) {
-      alert('삭제 실패: ' + error.message);
+      await notify('삭제 실패: ' + error.message);
       return;
     }
     setNotices((prev) => prev.filter((n) => n.id !== id));
@@ -366,65 +431,8 @@ function NoticeManagement() {
   );
 }
 
-export default function AdminPage() {
-  const [status, setStatus] = useState('loading'); // loading | unauthenticated | forbidden | admin
-  const [profile, setProfile] = useState(null);
+function AdminDashboard({ profile }) {
   const [tab, setTab] = useState('posts'); // posts | users | notices
-
-  useEffect(() => {
-    let active = true;
-
-    async function check() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        if (active) setStatus('unauthenticated');
-        return;
-      }
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
-      if (!active) return;
-      if (error || !data || !data.is_admin) {
-        setStatus('forbidden');
-        return;
-      }
-      setProfile(data);
-      setStatus('admin');
-    }
-
-    check();
-    const { data: sub } = supabase.auth.onAuthStateChange(() => check());
-    return () => {
-      active = false;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
-
-  function login() {
-    supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin + '/admin' },
-    });
-  }
-
-  if (status === 'loading') {
-    return <Center>확인 중...</Center>;
-  }
-
-  if (status === 'unauthenticated') {
-    return (
-      <Center>
-        <p>관리자 페이지는 로그인이 필요해요.</p>
-        <button style={btnStyle} onClick={login}>구글로 로그인</button>
-      </Center>
-    );
-  }
-
-  if (status === 'forbidden') {
-    return <Center>관리자만 접근할 수 있는 페이지예요.</Center>;
-  }
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 20px' }}>
@@ -483,5 +491,62 @@ export default function AdminPage() {
       {tab === 'users' && <UserManagement />}
       {tab === 'notices' && <NoticeManagement />}
     </div>
+  );
+}
+
+export default function AdminPage() {
+  const [status, setStatus] = useState('loading'); // loading | unauthenticated | forbidden | admin
+  const [profile, setProfile] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function check() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        if (active) setStatus('unauthenticated');
+        return;
+      }
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+      if (!active) return;
+      if (error || !data || !data.is_admin) {
+        setStatus('forbidden');
+        return;
+      }
+      setProfile(data);
+      setStatus('admin');
+    }
+
+    check();
+    const { data: sub } = supabase.auth.onAuthStateChange(() => check());
+    return () => {
+      active = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  function login() {
+    supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/admin' },
+    });
+  }
+
+  return (
+    <DialogProvider>
+      {status === 'loading' && <Center>확인 중...</Center>}
+      {status === 'unauthenticated' && (
+        <Center>
+          <p>관리자 페이지는 로그인이 필요해요.</p>
+          <button style={btnStyle} onClick={login}>구글로 로그인</button>
+        </Center>
+      )}
+      {status === 'forbidden' && <Center>관리자만 접근할 수 있는 페이지예요.</Center>}
+      {status === 'admin' && <AdminDashboard profile={profile} />}
+    </DialogProvider>
   );
 }

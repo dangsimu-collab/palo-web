@@ -190,6 +190,17 @@ export const BODY_HTML = `
   </div>
 </div>
 
+<div class="rules-scrim" id="confirmModal" onclick="if(event.target===this)document.getElementById('confirmModalCancelBtn').click()">
+  <div class="rules">
+    <h3>⚠️ 확인해주세요</h3>
+    <p id="confirmModalBody" style="color:var(--ink-2);line-height:1.6;margin-bottom:20px"></p>
+    <div style="display:flex;gap:10px">
+      <button id="confirmModalCancelBtn" class="r-ok" style="background:var(--surface-2);color:var(--ink)">취소</button>
+      <button id="confirmModalOkBtn" class="r-ok" style="background:linear-gradient(120deg,#e0607a,#c0392b)">확인</button>
+    </div>
+  </div>
+</div>
+
 <div class="rules-scrim" id="reportModal" onclick="if(event.target===this)closeReport()">
   <div class="rules">
     <h3>🚩 신고하기</h3>
