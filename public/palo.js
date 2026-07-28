@@ -967,10 +967,15 @@ function openNickModal(){
 function closeNick(){document.getElementById("nickModal").classList.remove("open");}
 async function saveNick(){
   var v=document.getElementById("nickInput").value.trim();
-  if(v.length<2){toast("닉네임은 2자 이상이어야 해요");return;}
+  if(v.length<2||v.length>12){toast("닉네임은 2~12자여야 해요");return;}
+  if(!/^[가-힣a-zA-Z0-9]+$/.test(v)){toast("닉네임에는 한글·영문·숫자만 사용할 수 있어요");return;}
   if(AUTH.user&&window.supabase){
     var res=await window.supabase.from("profiles").update({nickname:v}).eq("id",AUTH.user.id);
-    if(res.error){toast("저장 실패: "+res.error.message);return;}
+    if(res.error){
+      if(res.error.code==="23505"){toast("이미 사용 중인 닉네임이에요");}
+      else{toast("저장 실패: "+res.error.message);}
+      return;
+    }
     if(AUTH.profile)AUTH.profile.nickname=v;
   }
   ME.nick=v;closeNick();toast("닉네임을 \'"+v+"\'(으)로 바꿨어요","✓");
