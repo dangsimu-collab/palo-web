@@ -342,7 +342,7 @@ function openPost(id){
     canvas+'<div class="d-content">'+(p.html?p.html:p.content.map(function(x){return'<p>'+esc(x)+'</p>'}).join(""))+'</div>'+
     '<div class="d-actions"><button class="d-act'+liked+'" onclick="toggleLike('+p.id+')">'+(p._liked?"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"none\"><path d=\"M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5c0 5-7 9.5-7 9.5z\"/></svg>":"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5c0 5-7 9.5-7 9.5z\"/></svg>")+'좋아요 '+p.likes+'</button>'+
     '<button class="d-act" onclick="toast(\'링크를 복사했어요\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6"/><path d="M10 6l1-1a4 4 0 0 1 6 6l-1 1M14 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg>공유</button>'+
-    '<button class="d-act" onclick="toast(\'신고가 접수되었어요\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>신고</button>'+
+    '<button class="d-act" onclick="reportPost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>신고</button>'+
     ((p.dbId&&AUTH.user&&p.authorId===AUTH.user.id)?'<button class="d-act" onclick="deletePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>삭제</button>':'')+
     '</div>'+
     '<div class="comments"><div class="cm-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>훈수 · 크리틱 '+p.comments.length+'</div>'+
@@ -361,6 +361,14 @@ async function deletePost(id){
   POSTS=POSTS.filter(function(x){return x.id!==id});
   toast("글을 삭제했어요");
   renderList();
+}
+async function reportPost(id){
+  var p=POSTS.find(function(x){return x.id===id});if(!p)return;
+  if(!p.dbId||!window.supabase){toast("신고가 접수되었어요");return;}
+  var reason=prompt("신고 사유를 알려주세요 (선택사항)")||null;
+  var res=await window.supabase.from("reports").insert({post_id:p.dbId,reporter_id:AUTH.user?AUTH.user.id:null,reason:reason});
+  if(res.error){toast("신고 접수 실패: "+res.error.message);return;}
+  toast("신고가 접수되었어요");
 }
 function renderComments(p){
   if(p.comments.length===0)return '<div style="padding:26px 0;text-align:center;color:var(--muted);font-size:13px">첫 훈수를 남겨보세요 ✏️</div>';
@@ -703,7 +711,9 @@ function openProfile(){
      '<div class="pf-name">'+esc(ME.nick)+'<span class="pf-lv">'+lvName+'</span></div>'+
      '<div class="pf-sub">Palo와 함께 그리는 중 · 팔로잉 '+FOLLOW.size+'명</div></div>'+
      '<button class="pf-edit" onclick="openNickModal()">닉네임 변경</button>'+
-     '<button class="pf-edit" onclick="logout()">로그아웃</button></div>';
+     '<button class="pf-edit" onclick="logout()">로그아웃</button>'+
+     (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openAdminReports()">🛡 신고 목록</button>':'')+
+     '</div>';
   h+='<div class="pf-progress"><div class="pp-row"><span>'+lvName+'</span><span>'+
      (nextLv?('다음 등급까지 글 '+nextLv+'개'):'등급 달성! 🎉')+'</span></div>'+
      '<div class="pp-bar"><div class="pp-fill" style="width:'+pct+'%"></div></div></div>';
@@ -736,6 +746,48 @@ function openProfile(){
   syncTabs("me");window.scrollTo({top:0,behavior:"smooth"});
 }
 function unfollowFromProfile(n){FOLLOW.delete(n);toast(dispName(n)+"님 팔로우를 취소했어요");openProfile();}
+async function openAdminReports(){
+  var res=await window.supabase.from("reports").select("*").eq("resolved",false).order("created_at",{ascending:false});
+  if(res.error){toast("불러오기 실패: "+res.error.message);return;}
+  var reports=res.data;
+  var postIds=Array.from(new Set(reports.map(function(r){return r.post_id})));
+  var postRes=postIds.length?await window.supabase.from("posts").select("id,title,board").in("id",postIds):{data:[]};
+  var postById={};(postRes.data||[]).forEach(function(pr){postById[pr.id]=pr;});
+  var h='<div class="profile"><div class="pf-sec">🛡 신고된 글 ('+reports.length+')</div>';
+  if(!reports.length){
+    h+='<div class="pf-empty">처리할 신고가 없어요.</div>';
+  }else{
+    h+='<div class="list">';
+    reports.forEach(function(r){
+      var post=postById[r.post_id];
+      h+='<div class="post rip"><div class="pmain"><div class="ptitle">'+(post?esc(post.title):"(이미 삭제된 글)")+'</div>'+
+        '<div class="pmeta"><span class="mt">'+timeAgo(r.created_at)+'</span>'+(r.reason?'<span class="sep"></span><span class="mv">사유: '+esc(r.reason)+'</span>':'')+'</div></div>'+
+        '<div style="display:flex;gap:8px;flex-shrink:0">'+
+          (post?'<button class="d-act" onclick="adminDeleteReportedPost('+r.id+','+post.id+')">글 삭제</button>':'')+
+          '<button class="d-act" onclick="dismissReport('+r.id+')">무시</button>'+
+        '</div></div>';
+    });
+    h+='</div>';
+  }
+  h+='<button class="pf-edit" onclick="openProfile()" style="margin-top:16px">내 정보로 돌아가기</button></div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+async function dismissReport(reportId){
+  var res=await window.supabase.from("reports").update({resolved:true}).eq("id",reportId);
+  if(res.error){toast("처리 실패: "+res.error.message);return;}
+  toast("신고를 처리했어요");
+  openAdminReports();
+}
+async function adminDeleteReportedPost(reportId,postDbId){
+  if(!confirm("이 글을 삭제할까요?"))return;
+  var res=await window.supabase.from("posts").delete().eq("id",postDbId);
+  if(res.error){toast("삭제 실패: "+res.error.message);return;}
+  await window.supabase.from("reports").update({resolved:true}).eq("id",reportId);
+  POSTS=POSTS.filter(function(x){return x.dbId!==postDbId});
+  toast("글을 삭제했어요");
+  openAdminReports();
+}
 function openNickModal(){
   document.getElementById("nickInput").value=ME.nick==="나"?"":ME.nick;
   document.getElementById("nickModal").classList.add("open");
