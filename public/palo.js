@@ -760,7 +760,7 @@ async function openAdminReports(){
     h+='<div class="list">';
     reports.forEach(function(r){
       var post=postById[r.post_id];
-      h+='<div class="post rip"><div class="pmain"><div class="ptitle">'+(post?esc(post.title):"(이미 삭제된 글)")+'</div>'+
+      h+='<div class="post rip"><div class="pmain"'+(post?' style="cursor:pointer" onclick="openPost('+(100000+post.id)+')"':'')+'><div class="ptitle">'+(post?esc(post.title):"(이미 삭제된 글)")+'</div>'+
         '<div class="pmeta"><span class="mt">'+timeAgo(r.created_at)+'</span>'+(r.reason?'<span class="sep"></span><span class="mv">사유: '+esc(r.reason)+'</span>':'')+'</div></div>'+
         '<div style="display:flex;gap:8px;flex-shrink:0">'+
           (post?'<button class="d-act" onclick="adminDeleteReportedPost('+r.id+','+post.id+')">글 삭제</button>':'')+
