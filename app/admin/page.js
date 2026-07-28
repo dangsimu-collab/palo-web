@@ -554,6 +554,7 @@ function StatsPanel() {
       boardRes,
       activePostAuthorsRes,
       activeCommentAuthorsRes,
+      commentedPostIdsRes,
     ] = await Promise.all([
       supabase.from('profiles').select('*', { count: 'exact', head: true }),
       supabase.from('posts').select('*', { count: 'exact', head: true }),
@@ -569,11 +570,17 @@ function StatsPanel() {
       supabase.from('posts').select('board').limit(5000),
       supabase.from('posts').select('author_id').gte('created_at', sevenDaysAgoIso),
       supabase.from('comments').select('author_id').gte('created_at', sevenDaysAgoIso),
+      supabase.from('comments').select('post_id').limit(5000),
     ]);
 
     const activeUserIds = new Set();
     (activePostAuthorsRes.data || []).forEach((r) => { if (r.author_id) activeUserIds.add(r.author_id); });
     (activeCommentAuthorsRes.data || []).forEach((r) => { if (r.author_id) activeUserIds.add(r.author_id); });
+
+    const commentedPostIds = new Set((commentedPostIdsRes.data || []).map((r) => r.post_id));
+    const noCommentRatio = postRes.count
+      ? Math.round(((postRes.count - commentedPostIds.size) / postRes.count) * 100)
+      : 0;
 
     setTotals({
       users: userRes.count,
@@ -585,6 +592,7 @@ function StatsPanel() {
       todayPosts: todayPostRes.count,
       todayUsers: todayUserRes.count,
       activeUsers7d: activeUserIds.size,
+      noCommentRatio,
     });
 
     setPostDates((recentPostRes.data || []).map((p) => p.created_at));
@@ -620,6 +628,7 @@ function StatsPanel() {
         <StatCard label="오늘 새 글" value={totals.todayPosts} />
         <StatCard label="오늘 신규 가입" value={totals.todayUsers} />
         <StatCard label="최근 7일 활동 회원" value={totals.activeUsers7d} />
+        <StatCard label="댓글 없는 글 비율" value={totals.posts ? `${totals.noCommentRatio}%` : '-'} />
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
