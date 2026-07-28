@@ -453,24 +453,12 @@ const BOARD_LABELS = {
   used: '중고 장비',
 };
 
-function SimpleBar({ label, count, max }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <div style={{ width: 90, fontSize: 12, color: 'var(--muted)', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {label}
-      </div>
-      <div style={{ flex: 1, background: 'var(--surface-2)', borderRadius: 6, overflow: 'hidden', height: 18 }}>
-        <div
-          style={{
-            width: `${max ? (count / max) * 100 : 0}%`,
-            background: 'linear-gradient(120deg,var(--brand),var(--grape))',
-            height: '100%',
-          }}
-        />
-      </div>
-      <div style={{ width: 24, fontSize: 12, fontWeight: 700, textAlign: 'right' }}>{count}</div>
-    </div>
-  );
+const ACTIVITY_METRIC_LABELS = { posts: '게시글 수', comments: '댓글 수', signups: '신규 가입' };
+const ACTIVITY_METRIC_COLORS = { posts: '#e07aa6', comments: '#9784d6', signups: '#7cc3e0' };
+
+function localDateKey(d) {
+  const dt = new Date(d);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 }
 
 function bucketByDay(dates, period) {
@@ -479,11 +467,11 @@ function bucketByDay(dates, period) {
   for (let i = period - 1; i >= 0; i--) {
     const d = new Date(now);
     d.setDate(d.getDate() - i);
-    days.push(d.toISOString().slice(0, 10));
+    days.push(localDateKey(d));
   }
   const counts = Object.fromEntries(days.map((d) => [d, 0]));
   dates.forEach((iso) => {
-    const day = iso.slice(0, 10);
+    const day = localDateKey(iso);
     if (day in counts) counts[day] += 1;
   });
   return days.map((d) => ({ date: d, count: counts[d] }));
@@ -519,14 +507,16 @@ function StatsPanel() {
   const [totals, setTotals] = useState(null);
   const [postDates, setPostDates] = useState([]);
   const [commentDates, setCommentDates] = useState([]);
-  const [activityMetric, setActivityMetric] = useState('posts'); // posts | comments
+  const [userDates, setUserDates] = useState([]);
+  const [activityMetric, setActivityMetric] = useState('posts'); // posts | comments | signups
   const [activityPeriod, setActivityPeriod] = useState(7);
   const [byBoard, setByBoard] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const activityDatesByMetric = { posts: postDates, comments: commentDates, signups: userDates };
   const daily = useMemo(
-    () => bucketByDay(activityMetric === 'posts' ? postDates : commentDates, activityPeriod),
-    [activityMetric, postDates, commentDates, activityPeriod]
+    () => bucketByDay(activityDatesByMetric[activityMetric], activityPeriod),
+    [activityMetric, postDates, commentDates, userDates, activityPeriod]
   );
 
   const hourly = useMemo(() => {
@@ -559,6 +549,7 @@ function StatsPanel() {
       todayUserRes,
       recentPostRes,
       recentCommentRes,
+      recentUserRes,
       boardRes,
     ] = await Promise.all([
       supabase.from('profiles').select('*', { count: 'exact', head: true }),
@@ -571,6 +562,7 @@ function StatsPanel() {
       supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', todayStartIso),
       supabase.from('posts').select('created_at').order('created_at', { ascending: false }).limit(3000),
       supabase.from('comments').select('created_at').order('created_at', { ascending: false }).limit(3000),
+      supabase.from('profiles').select('created_at').order('created_at', { ascending: false }).limit(3000),
       supabase.from('posts').select('board').limit(5000),
     ]);
 
@@ -587,6 +579,7 @@ function StatsPanel() {
 
     setPostDates((recentPostRes.data || []).map((p) => p.created_at));
     setCommentDates((recentCommentRes.data || []).map((c) => c.created_at));
+    setUserDates((recentUserRes.data || []).map((u) => u.created_at));
 
     const boardCounts = {};
     (boardRes.data || []).forEach((p) => {
@@ -601,8 +594,6 @@ function StatsPanel() {
   }
 
   if (loading || !totals) return <p style={{ color: 'var(--muted)' }}>불러오는 중...</p>;
-
-  const boardMax = Math.max(1, ...byBoard.map((b) => b.count));
 
   return (
     <div>
@@ -625,6 +616,7 @@ function StatsPanel() {
           {[
             { key: 'posts', label: '게시글 수' },
             { key: 'comments', label: '댓글 수' },
+            { key: 'signups', label: '신규 가입' },
           ].map((m) => (
             <button
               key={m.key}
@@ -654,13 +646,13 @@ function StatsPanel() {
             <YAxis allowDecimals={false} fontSize={11} stroke="#a294a0" />
             <Tooltip
               labelFormatter={(d) => d}
-              formatter={(value) => [value, activityMetric === 'posts' ? '게시글 수' : '댓글 수']}
+              formatter={(value) => [value, ACTIVITY_METRIC_LABELS[activityMetric]]}
               contentStyle={{ borderRadius: 10, border: '1px solid #e6d3df', fontSize: 13 }}
             />
             <Line
               type="monotone"
               dataKey="count"
-              stroke={activityMetric === 'posts' ? '#e07aa6' : '#9784d6'}
+              stroke={ACTIVITY_METRIC_COLORS[activityMetric]}
               strokeWidth={2.5}
               dot={{ r: 3 }}
             />
@@ -689,12 +681,22 @@ function StatsPanel() {
       </div>
 
       <h2 style={{ fontWeight: 800, fontSize: 16, marginBottom: 14 }}>게시판별 글 수</h2>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-        {byBoard.length === 0 && <p style={{ color: 'var(--muted)' }}>글이 없어요.</p>}
-        {byBoard.map((b) => (
-          <SimpleBar key={b.board} label={b.label} count={b.count} max={boardMax} />
-        ))}
-      </div>
+      {byBoard.length === 0 ? (
+        <p style={{ color: 'var(--muted)' }}>글이 없어요.</p>
+      ) : (
+        <ResponsiveContainer width="100%" height={Math.max(200, byBoard.length * 36)}>
+          <BarChart data={byBoard} layout="vertical" margin={{ top: 8, right: 24, left: 8, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e6d3df" horizontal={false} />
+            <XAxis type="number" allowDecimals={false} fontSize={11} stroke="#a294a0" />
+            <YAxis type="category" dataKey="label" fontSize={12} stroke="#a294a0" width={100} />
+            <Tooltip
+              formatter={(value) => [value, '게시글 수']}
+              contentStyle={{ borderRadius: 10, border: '1px solid #e6d3df', fontSize: 13 }}
+            />
+            <Bar dataKey="count" fill="#a3c07a" radius={[0, 4, 4, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      )}
     </div>
   );
 }
