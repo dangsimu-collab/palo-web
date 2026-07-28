@@ -537,6 +537,7 @@ function StatsPanel() {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayStartIso = todayStart.toISOString();
+    const sevenDaysAgoIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
     const [
       userRes,
@@ -551,6 +552,8 @@ function StatsPanel() {
       recentCommentRes,
       recentUserRes,
       boardRes,
+      activePostAuthorsRes,
+      activeCommentAuthorsRes,
     ] = await Promise.all([
       supabase.from('profiles').select('*', { count: 'exact', head: true }),
       supabase.from('posts').select('*', { count: 'exact', head: true }),
@@ -564,7 +567,13 @@ function StatsPanel() {
       supabase.from('comments').select('created_at').order('created_at', { ascending: false }).limit(3000),
       supabase.from('profiles').select('created_at').order('created_at', { ascending: false }).limit(3000),
       supabase.from('posts').select('board').limit(5000),
+      supabase.from('posts').select('author_id').gte('created_at', sevenDaysAgoIso),
+      supabase.from('comments').select('author_id').gte('created_at', sevenDaysAgoIso),
     ]);
+
+    const activeUserIds = new Set();
+    (activePostAuthorsRes.data || []).forEach((r) => { if (r.author_id) activeUserIds.add(r.author_id); });
+    (activeCommentAuthorsRes.data || []).forEach((r) => { if (r.author_id) activeUserIds.add(r.author_id); });
 
     setTotals({
       users: userRes.count,
@@ -575,6 +584,7 @@ function StatsPanel() {
       banned: bannedRes.count,
       todayPosts: todayPostRes.count,
       todayUsers: todayUserRes.count,
+      activeUsers7d: activeUserIds.size,
     });
 
     setPostDates((recentPostRes.data || []).map((p) => p.created_at));
@@ -609,6 +619,7 @@ function StatsPanel() {
       <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>
         <StatCard label="오늘 새 글" value={totals.todayPosts} />
         <StatCard label="오늘 신규 가입" value={totals.todayUsers} />
+        <StatCard label="최근 7일 활동 회원" value={totals.activeUsers7d} />
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
