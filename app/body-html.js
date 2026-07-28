@@ -190,6 +190,15 @@ export const BODY_HTML = `
   </div>
 </div>
 
+<div class="rules-scrim" id="reportModal" onclick="if(event.target===this)closeReport()">
+  <div class="rules">
+    <h3>🚩 신고하기</h3>
+    <textarea id="reportReasonInput" class="nick-in" style="height:90px;resize:vertical" placeholder="신고 사유를 알려주세요 (선택사항)"></textarea>
+    <p class="nick-hint">신고 내용은 운영진만 확인할 수 있어요.</p>
+    <button class="r-ok" onclick="submitReport()">신고 접수</button>
+  </div>
+</div>
+
 <div class="rules-scrim" id="nickModal" onclick="if(event.target===this)closeNick()">
   <div class="rules">
     <h3>✏️ 닉네임 변경</h3>

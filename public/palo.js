@@ -376,11 +376,21 @@ async function deletePost(id){
   toast("글을 삭제했어요");
   renderList();
 }
-async function reportPost(id){
+var reportingPostId=null;
+function reportPost(id){
   var p=POSTS.find(function(x){return x.id===id});if(!p)return;
   if(!p.dbId||!window.supabase){toast("신고가 접수되었어요");return;}
-  var reason=prompt("신고 사유를 알려주세요 (선택사항)")||null;
+  reportingPostId=id;
+  document.getElementById("reportReasonInput").value="";
+  document.getElementById("reportModal").classList.add("open");
+  setTimeout(function(){document.getElementById("reportReasonInput").focus()},60);
+}
+function closeReport(){reportingPostId=null;document.getElementById("reportModal").classList.remove("open");}
+async function submitReport(){
+  var id=reportingPostId;var p=POSTS.find(function(x){return x.id===id});if(!p)return;
+  var reason=document.getElementById("reportReasonInput").value.trim()||null;
   var res=await window.supabase.from("reports").insert({post_id:p.dbId,reporter_id:AUTH.user?AUTH.user.id:null,reason:reason});
+  closeReport();
   if(res.error){toast("신고 접수 실패: "+res.error.message);return;}
   toast("신고가 접수되었어요");
 }
