@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 const btnStyle = {
   background: 'linear-gradient(120deg,var(--brand),var(--grape))',
@@ -453,7 +453,7 @@ const BOARD_LABELS = {
   used: '중고 장비',
 };
 
-function Bar({ label, count, max }) {
+function SimpleBar({ label, count, max }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <div style={{ width: 90, fontSize: 12, color: 'var(--muted)', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -528,6 +528,14 @@ function StatsPanel() {
     () => bucketByDay(activityMetric === 'posts' ? postDates : commentDates, activityPeriod),
     [activityMetric, postDates, commentDates, activityPeriod]
   );
+
+  const hourly = useMemo(() => {
+    const counts = Array.from({ length: 24 }, () => 0);
+    postDates.forEach((iso) => {
+      counts[new Date(iso).getHours()] += 1;
+    });
+    return counts.map((count, hour) => ({ hour, count }));
+  }, [postDates]);
 
   useEffect(() => {
     load();
@@ -660,11 +668,31 @@ function StatsPanel() {
         </ResponsiveContainer>
       </div>
 
+      <h2 style={{ fontWeight: 800, fontSize: 16, marginBottom: 4 }}>시간대별 글 작성 분포</h2>
+      <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
+        최근 게시글 최대 3000개 기준 (0~23시, 한국 시간)
+      </p>
+      <div style={{ marginBottom: 28 }}>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={hourly} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e6d3df" />
+            <XAxis dataKey="hour" tickFormatter={(h) => `${h}시`} fontSize={11} stroke="#a294a0" interval={1} />
+            <YAxis allowDecimals={false} fontSize={11} stroke="#a294a0" />
+            <Tooltip
+              labelFormatter={(h) => `${h}시`}
+              formatter={(value) => [value, '게시글 수']}
+              contentStyle={{ borderRadius: 10, border: '1px solid #e6d3df', fontSize: 13 }}
+            />
+            <Bar dataKey="count" fill="#7cc3e0" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
       <h2 style={{ fontWeight: 800, fontSize: 16, marginBottom: 14 }}>게시판별 글 수</h2>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
         {byBoard.length === 0 && <p style={{ color: 'var(--muted)' }}>글이 없어요.</p>}
         {byBoard.map((b) => (
-          <Bar key={b.board} label={b.label} count={b.count} max={boardMax} />
+          <SimpleBar key={b.board} label={b.label} count={b.count} max={boardMax} />
         ))}
       </div>
     </div>
