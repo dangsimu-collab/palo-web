@@ -342,22 +342,31 @@ create trigger on_auth_user_created after insert on auth.users
 - **UI 일관성**: 브라우저 기본 `alert()`/`confirm()`/`prompt()`를 전부 사이트 디자인에 맞는 커스텀 모달로 교체(신고, 삭제 확인, 공지 팝업 등)
 - **이미지 없는 글의 썸네일 칸 숨김**: 글 작성 시 이미지를 첨부하지 않았으면 목록/상세에서 빈 이미지 칸이 안 보이게 처리(`post_images`가 비어있으면 관련 마크업 자체를 렌더 안 함).
 
-### 본문 서식 실제 저장 + 이미지/동영상 원하는 위치 배치 (2026-07-29 추가)
+### 본문 서식 실제 저장 + 이미지 원하는 위치 배치 (2026-07-29 추가)
 사용자가 "이미지가 항상 최상단에 올라가는데, 원하는 위치에 배치하고 싶다"고 요청 → 작업 중 **더 근본적인 기존 문제를 발견**: 글쓰기 에디터(`#wContent`, contentEditable)에서 굵게/기울임 등 서식을 넣어도 실제로 DB `posts.content`엔 순수 텍스트만 저장되고 있었음 — `submitPost()`가 `cEl.innerHTML`(서식 있는 버전)은 그 세션의 로컬 메모리(`np.html`/`ep.html`)에만 잠깐 담아뒀다가, DB엔 `cEl.textContent`(서식 없는 텍스트)만 보냈던 것. 그래서 서식은 **새로고침하면 항상 사라졌음**(아무도 몰랐던 이유: 그동안 작성자 본인이 새로고침 전까지만 보고 넘어갔을 가능성). 이번에 같이 고침:
 - **`posts.content_html`(text, nullable) 컬럼 추가** — 서식 있는 실제 HTML을 여기 저장. `content`(순수 텍스트)는 검색·구버전 폴백용으로 계속 유지.
-- **보안: dompurify 도입.** 이제 이 HTML이 모든 방문자에게 그대로 렌더링되므로(예전엔 저장 자체가 안 됐으니 위험이 없었음), **저장 시점과 렌더링 시점 둘 다** `sanitizePostHtml()`(`public/palo.js`)로 살균 — `<script>`, `onerror` 같은 위험 요소 제거 확인됨. 허용 태그: `b/strong/i/em/u/font/span/ul/ol/li/blockquote/br/div/p/img/video/source`, 허용 속성: `style/color/src/controls/alt`.
-- **이미지/동영상 인라인 배치**: 툴바에 "동영상" 버튼 추가(`pickVideo()`/`onVideoFile()`, 이미지와 같은 `post-images` 스토리지 버킷 재사용). 파일 선택 전 커서 위치를 `saveEditorSelection()`으로 저장해뒀다가, 업로드 완료 후 `restoreEditorSelection()`으로 그 위치를 복원한 다음 `document.execCommand("insertHTML",...)`로 정확히 그 자리에 삽입(`insertInlineMedia()`). 기존 "이미지 업로드 → 항상 맨 위 갤러리" 방식(`post_images` 테이블, 목록 썸네일용으로는 계속 유지)과 별개로 동작.
+- **보안: dompurify 도입.** 이제 이 HTML이 모든 방문자에게 그대로 렌더링되므로(예전엔 저장 자체가 안 됐으니 위험이 없었음), **저장 시점과 렌더링 시점 둘 다** `sanitizePostHtml()`(`public/palo.js`)로 살균 — `<script>`, `onerror` 같은 위험 요소 제거 확인됨. 허용 태그: `b/strong/i/em/u/font/span/ul/ol/li/blockquote/br/div/p/img/video/source`, 허용 속성: `style/color/src/controls/alt`. (`video`/`source`는 아래 "동영상·기타 파일 업로드는 결국 제거됨" 참고 — 업로드 경로는 없어졌지만 혹시 과거에 저장된 글이 있다면 안 깨지게 허용 태그는 남겨둠)
+- **이미지 인라인 배치**: 파일 선택 전 커서 위치를 `saveEditorSelection()`으로 저장해뒀다가, 업로드 완료 후 `restoreEditorSelection()`으로 그 위치를 복원한 다음 `document.execCommand("insertHTML",...)`로 정확히 그 자리에 삽입(`insertInlineMedia(url)`, 여러 개를 연달아 넣을 때도 순서대로 이어지도록 삽입 직후 `advanceSavedSelection()`으로 커서 위치 갱신). 기존 "이미지 업로드 → 항상 맨 위 갤러리" 방식(`post_images` 테이블, 목록 썸네일용으로는 계속 유지)과 별개로 동작.
 - **기존 글과의 호환성**: `renderPostDetail()`에서 본문 HTML에 이미 `<img>`/`<video>`가 있으면(새 글 방식) 예전의 "상단 캔버스 블록"을 생략해서 중복 표시를 막고, 본문에 인라인 미디어가 없는 예전 글은 기존처럼 상단 캔버스 블록을 그대로 보여줌(하위 호환, 회귀 없음).
 - **에디터 이미지 칩(`#edImages`) 제거 동기화**: 칩의 "×"를 누르면 `edState.images`뿐 아니라 본문에 삽입돼 있던 동일 URL의 `<img>`도 같이 제거되도록 `removeEdImage()` 수정(안 그러면 칩은 지웠는데 본문엔 이미지가 남아있는 불일치가 생김).
 
 ### 이미지 업로드 시 자동 압축·리사이즈 (2026-07-29 추가, DB 변경 없음)
-Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우저에서만** 처리(서버/DB 관여 없음) — `onImage()`가 원본 파일을 그대로 업로드하지 않고, `compressImage(file)`(`public/palo.js`)를 거친 결과물만 업로드함:
+Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우저에서만** 처리(서버/DB 관여 없음) — `onImage()`/드래그 앤 드롭 둘 다 원본 파일을 그대로 업로드하지 않고, `compressImage(file)`(`public/palo.js`)를 거친 결과물만 업로드함(공용 진입점: `uploadAndInsertImage(f)`):
 - `loadImageFromFile()`로 이미지를 `<img>`에 로드 → `<canvas>`에 그려서 리사이즈(긴 쪽이 1800px 넘으면 비율 유지하며 축소, 그 이하는 그대로) → `canvas.toBlob()`으로 `image/webp`(품질 0.8) 인코딩.
 - **WebP 미지원 환경 대응**: `canvas.toBlob`은 WebP를 못 만들면 조용히 다른 포맷(주로 PNG)으로 대체해버리는 브라우저별 특성이 있어서, 결과 `blob.type`이 실제로 `"image/webp"`인지 확인하고 아니면 `image/jpeg`로 다시 인코딩(`ext`도 `.webp`/`.jpg`로 맞춰 저장 경로에 반영).
 - **GIF는 압축을 건너뛰고 원본 그대로 업로드**(요청엔 없었지만 판단해서 추가) — Canvas 그리기는 첫 프레임만 캡처해서 애니메이션이 깨지기 때문. `file.type==="image/gif"`로 판별.
 - 압축 실패 시(드묾) 원본으로 폴백 업로드, 콘솔에 에러 로그.
 - 압축 전후 용량을 콘솔에 로그로 남김(`[이미지 압축] 파일명: XKB → YKB (Z% 감소)`), 업로드 전 "이미지 압축 중..." 토스트 표시.
-- 동영상 업로드(`onVideoFile()`)는 이 처리 대상이 아님(요청 범위 밖, 비디오 압축은 훨씬 복잡한 별개 작업).
+
+### 이미지 업로드 정책 — 형식/용량 제한 (2026-07-29 추가, DB 변경 없음)
+`uploadAndInsertImage(f)` 맨 앞에서 검사(브라우저 단 검증, Storage 정책 자체는 안 건드림 — 작정하고 API 직접 호출하면 우회 가능하다고 사용자에게 고지함):
+- **형식 허용 목록**: `ALLOWED_IMAGE_TYPES = ["image/jpeg","image/png","image/webp","image/gif","image/bmp"]` — 목록 밖(동영상, PDF, zip 등)이면 "이미지 파일만 올릴 수 있어요"로 거부. `#edFile`의 `accept` 속성도 이 목록과 맞춰서 OS 파일 선택 창에서부터 걸러지게 함.
+- **용량 상한**: `MAX_IMAGE_BYTES = 40*1024*1024`(40MB) — 넘으면 "40MB 이하 이미지만 올릴 수 있어요"로 거부(압축 전 원본 크기 기준으로 판단, 통과하면 그 후 위 압축 로직이 실제 저장 용량을 더 줄임).
+
+### PC 드래그 앤 드롭 업로드 (2026-07-29 추가, 이미지 전용으로 최종 확정)
+`#wContent`에 `ondragover`/`ondragleave`/`ondrop` 연결(`app/body-html.js`). `onEditorDrop()`이 드롭 지점의 정확한 좌표를 `document.caretRangeFromPoint`/`caretPositionFromPoint`(`rangeFromPoint()`)로 계산해서 그 위치에 커서를 옮긴 뒤, 드롭된 파일들을 순서대로 전부 `uploadAndInsertImage()`로 처리(위 이미지 정책 검사를 그대로 통과해야 함 — 동영상이나 다른 파일을 드롭하면 "이미지 파일만 올릴 수 있어요"로 거부). 드래그 중엔 `.ed-content.drag-over` CSS로 편집 영역을 살짝 강조 표시. 파일이 아닌 드롭(에디터 내부 텍스트 재배치 등)은 `e.preventDefault()`를 안 불러서 브라우저 기본 동작을 건드리지 않음.
+
+**⚠️ 같은 세션 안에서 만들었다가 곧바로 되돌린 것**: 처음엔 "동영상"도 툴바 버튼(`pickVideo`/`onVideoFile`)으로, "이미지·동영상도 아닌 파일"도 드래그 앤 드롭으로 업로드해서 📎 다운로드 링크로 삽입하는 기능(`uploadAndInsertFile`/`insertFileLink`, `sanitizePostHtml`에 `<a>` 태그 허용 포함)까지 만들었었음 — 그런데 바로 다음 요청에서 사용자가 "이미지 파일만 허용, 영상이나 다른 형식은 거부"하는 정책을 요청했고, 확인 결과 **동영상 업로드 기능 자체와 "기타 파일→링크" 기능 둘 다 완전히 삭제**하기로 확정함(둘 다 AskUserQuestion으로 명시적으로 확인받음). 그래서 관련 함수·버튼·`#edVideoFile` input·`sanitizePostHtml`의 `a`/`href`/`target`/`rel` 허용은 전부 되돌렸고, `video`/`source` 태그 허용만 "혹시 그 짧은 기간에 실제로 영상이 들어간 글이 저장됐을 경우를 대비한 하위 호환용"으로 남겨둠.
 
 ### 인기글 점수 공식 (사이트 "인기순" 정렬)
 목록 화면의 "인기순" 탭과 관리자 통계의 인기 글/작성자 TOP 10이 공유하는 점수 계산식. `public/palo.js`의 `hotMultiplier()`/`hotScore()`/`sortHot()`과 `app/admin/page.js`의 동일 이름 함수(중복 구현, 관리자 쪽엔 7일 제외 로직만 없음)로 존재.

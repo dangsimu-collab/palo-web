@@ -698,15 +698,16 @@ function restoreEditorSelection(){
     sel.addRange(r);
   }
 }
-function insertInlineMedia(kind,url){
+function advanceSavedSelection(){
+  var sel=window.getSelection();
+  if(sel&&sel.rangeCount>0)savedEditorRange=sel.getRangeAt(0).cloneRange();
+}
+function insertInlineMedia(url){
   restoreEditorSelection();
-  var html=kind==="img"
-    ? '<img src="'+esc(url)+'" style="max-width:100%;border-radius:10px;display:block;margin:10px 0">'
-    : '<video src="'+esc(url)+'" controls style="max-width:100%;border-radius:10px;display:block;margin:10px 0"></video>';
-  document.execCommand("insertHTML",false,html+"<br>");
+  document.execCommand("insertHTML",false,'<img src="'+esc(url)+'" style="max-width:100%;border-radius:10px;display:block;margin:10px 0"><br>');
+  advanceSavedSelection();
 }
 function pickImage(e){e.preventDefault();saveEditorSelection();document.getElementById("edFile").click()}
-function pickVideo(e){e.preventDefault();saveEditorSelection();document.getElementById("edVideoFile").click()}
 function loadImageFromFile(file){
   return new Promise(function(resolve,reject){
     var img=new Image();
@@ -742,11 +743,12 @@ async function compressImage(file){
   }
   return{blob:blob,ext:ext};
 }
-async function onImage(e){
-  var f=e.target.files[0];if(!f)return;
-  e.target.value="";
+var ALLOWED_IMAGE_TYPES=["image/jpeg","image/png","image/webp","image/gif","image/bmp"];
+var MAX_IMAGE_BYTES=40*1024*1024;
+async function uploadAndInsertImage(f){
   if(!window.supabase){toast("이미지 업로드를 사용할 수 없어요");return;}
-
+  if(ALLOWED_IMAGE_TYPES.indexOf(f.type)===-1){toast("이미지 파일만 올릴 수 있어요");return;}
+  if(f.size>MAX_IMAGE_BYTES){toast("40MB 이하 이미지만 올릴 수 있어요");return;}
   var uploadBlob=f,ext=(f.name.match(/\.([^.]+)$/)||[,"png"])[1],skippedCompression=false;
   if(f.type==="image/gif"){
     skippedCompression=true; // GIF는 애니메이션이 깨지니 압축 없이 원본 그대로 업로드
@@ -770,20 +772,49 @@ async function onImage(e){
   edState.images.push(pub.data.publicUrl);
   edState.img=true;
   renderEdImages();
-  insertInlineMedia("img",pub.data.publicUrl);
+  insertInlineMedia(pub.data.publicUrl);
   toast("이미지를 넣었어요");
 }
-async function onVideoFile(e){
+async function onImage(e){
   var f=e.target.files[0];if(!f)return;
   e.target.value="";
-  if(!window.supabase){toast("동영상 업로드를 사용할 수 없어요");return;}
-  toast("동영상 업로드 중...");
-  var path=Date.now()+"-"+f.name.replace(/[^a-zA-Z0-9_.-]/g,"_");
-  var up=await window.supabase.storage.from("post-images").upload(path,f);
-  if(up.error){toast("업로드 실패: "+up.error.message);return;}
-  var pub=window.supabase.storage.from("post-images").getPublicUrl(path);
-  insertInlineMedia("video",pub.data.publicUrl);
-  toast("동영상을 넣었어요");
+  await uploadAndInsertImage(f);
+}
+function rangeFromPoint(x,y){
+  if(document.caretRangeFromPoint)return document.caretRangeFromPoint(x,y);
+  if(document.caretPositionFromPoint){
+    var pos=document.caretPositionFromPoint(x,y);
+    if(!pos)return null;
+    var r=document.createRange();
+    r.setStart(pos.offsetNode,pos.offset);
+    r.collapse(true);
+    return r;
+  }
+  return null;
+}
+function onEditorDragOver(e){
+  e.preventDefault();
+  document.getElementById("wContent").classList.add("drag-over");
+}
+function onEditorDragLeave(){
+  document.getElementById("wContent").classList.remove("drag-over");
+}
+async function onEditorDrop(e){
+  var files=e.dataTransfer&&e.dataTransfer.files;
+  if(!files||!files.length)return; // 파일이 아니면(내부 텍스트 드래그 등) 브라우저 기본 동작을 그대로 둠
+  e.preventDefault();
+  document.getElementById("wContent").classList.remove("drag-over");
+  if(!window.supabase){toast("업로드를 사용할 수 없어요");return;}
+  var range=rangeFromPoint(e.clientX,e.clientY);
+  if(range){
+    var sel=window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  saveEditorSelection();
+  for(var i=0;i<files.length;i++){
+    await uploadAndInsertImage(files[i]);
+  }
 }
 function renderEdImages(){
   var el=document.getElementById("edImages");if(!el)return;
