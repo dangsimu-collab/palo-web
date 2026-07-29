@@ -103,7 +103,7 @@ DB 테이블이 아니라 **클라이언트 하드코딩 배열**(`var BOARDS=[.
 | 함께 | `challenge` | 챌린지 | |
 | 함께 | `tip` | 팁 · 강좌 | |
 | 거래 | `trade` | 커미션 구인구직 | |
-| 거래 | `review` | 커미션 후기 | 2026-07-29 신설 |
+| 거래 | `review` | 커미션 후기 | 2026-07-29 신설. 2026-07-30에 구직 글 연동·만족/불호 선택·앨범형 화면 등 전용 시스템으로 발전함(4절 "커미션 후기 시스템" 참고) |
 | 거래 | `used` | 중고 장비 | |
 | 기타 | `adult` | 에치치 | 2026-07-29 신설. 아이콘은 SVG 대신 🔞 이모지 문자를 그대로 씀. **"전체 글" 목록과 홈 "이글이글" 위젯에서만 제외**(`filteredPosts()`/`emberHTML()`에서 `p.board!=="adult"` 필터) — 게시판을 직접 클릭해서 들어가면 누구나 그대로 볼 수 있음, 로그인/연령 확인 등 추가 접근 제한은 없음(요청받지 않아서 안 넣음, 필요하면 추가 가능) |
 
@@ -122,7 +122,7 @@ Supabase 프로젝트: https://qabbdgfottbnapmyjudy.supabase.co
 | 테이블 | 주요 컬럼 | 비고 |
 |---|---|---|
 | `profiles` | `id`(uuid, PK, = auth.users.id), `nickname`(text), `level`(**integer**, 2026-07-29부터 — 예전엔 text였음), `score`(int, 누적 점수, 안 줄어듦), `ad_points`(int, 2026-07-29 추가 — 광고 포인트, 광고 집행 시 차감될 예정), `last_score_date`/`daily_score_earned`(글/댓글 일일 20점 상한 계산용, 좋아요·도움돼요는 예외), `last_activity_at`(timestamptz, 1분 연속 작성 제한용), `pinned_post_id`(FK→posts, nullable, `on delete set null`, 2026-07-29 추가 — 프로필 최상단에 보여줄 "대표 글" 지정용), `is_admin`(bool), `is_banned`(bool), `created_at` | `auth.users`에 새 유저 생기면 트리거로 자동 생성. **`score`/`level`/`ad_points`/`daily_score_earned`/`last_score_date`/`last_activity_at`은 `guard_profile_score_columns()` 트리거로 보호됨** — 신뢰된 서버 함수(`app.trusted_score_update` 세션 신호를 켠 함수)만 바꿀 수 있고, 유저가 직접 `.update()`로 건드리면 조용히 원래 값으로 되돌아감(2026-07-29, 유저 광고 시스템 작업 중 발견한 기존 구멍을 소급 적용해서 막음). **`pinned_post_id`는 별도 트리거(`guard_pinned_post()`)로 "본인 글만" 지정 가능하도록 보호됨**(아래 참고) |
-| `posts` | `id`(bigint PK), `author_id`(uuid, nullable), `board`(text), `category`(text, 말머리), `title`, `content`(text, 순수 텍스트 — 검색용), `content_html`(text, nullable, 2026-07-29 추가 — 서식·인라인 이미지/동영상 포함한 실제 렌더링용 HTML, DOMPurify로 살균 후 저장), `stage`(text, 러프/선화/채색/완성), `views`(int), `is_manager_pick`(bool, 2026-07-29 추가), `pick_position`(int, nullable, 2026-07-29 추가), `picked_at`(timestamptz, nullable, 2026-07-29 추가), `created_at` | `is_manager_pick`/`pick_position`/`picked_at`은 `guard_manager_pick_columns()` 트리거로 보호됨 — 관리자가 아니면 update 시 조용히 원래 값으로 되돌아감(아래 "매니저 픽" 절 참고) |
+| `posts` | `id`(bigint PK), `author_id`(uuid, nullable), `board`(text), `category`(text, 말머리), `title`, `content`(text, 순수 텍스트 — 검색용), `content_html`(text, nullable, 2026-07-29 추가 — 서식·인라인 이미지/동영상 포함한 실제 렌더링용 HTML, DOMPurify로 살균 후 저장), `stage`(text, 러프/선화/채색/완성), `views`(int), `is_manager_pick`(bool, 2026-07-29 추가), `pick_position`(int, nullable, 2026-07-29 추가), `picked_at`(timestamptz, nullable, 2026-07-29 추가), `reviewed_nickname`(text, nullable, 2026-07-30 추가 — 커미션 후기가 누구에 대한 건지), `commission_post_id`(FK→posts, nullable, `on delete set null`, 2026-07-30 추가 — 후기가 어느 구직 글에 대한 건지), `commission_sentiment`(text, nullable, `good`/`bad`만 허용하는 체크 제약, 2026-07-30 추가 — 만족/불호 후기), `created_at` | `is_manager_pick`/`pick_position`/`picked_at`은 `guard_manager_pick_columns()` 트리거로 보호됨 — 관리자가 아니면 update 시 조용히 원래 값으로 되돌아감(아래 "매니저 픽" 절 참고). `board='review'`인 글은 `guard_review_requires_login()` 트리거로 비로그인 작성이 막힘(아래 "커미션 후기" 절 참고) |
 | `comments` | `id`(bigint PK), `post_id`(FK→posts), `author_id`(uuid, nullable), `content`, `parent_id`(FK→comments, 대댓글용, **UI 미구현**), `created_at` | |
 | `likes` | `user_id`(uuid — 로그인 시 실제 계정, 비로그인 시 `palo_anon_id`), `post_id`(FK→posts), `created_at` | PK가 `(user_id, post_id)` 복합키 — 중복 방지의 핵심 |
 | `post_images` | `id`(bigint PK), `post_id`(FK→posts), `url`(text, Storage 공개 URL), `sort`(int) | |
@@ -476,6 +476,23 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **DB**: `profiles.pinned_post_id`(FK→posts, `on delete set null` — 글이 삭제되면 자동으로 고정 해제) + `guard_pinned_post()` BEFORE UPDATE 트리거(본인 글이 아닌 id로 바꾸려 하면 예외 발생). 별도 RPC 없이 기존 `profiles_update_own` RLS + 이 트리거 조합만으로 보호됨(관리자 승인 불필요, 매니저 픽/광고와 달리 유저 본인의 자율적인 선택이라 판단).
 - **지정 방법**: 특정 게시판 제한 없이 **본인의 아무 글**이나 상세 화면 액션 줄의 "📌 대표 글로 고정하기"/"📌 대표 글 해제" 토글 버튼으로 지정(`togglePinnedPost(id)`) — 새로 고정하면 이전 고정 글은 컬럼 값이 덮어써지며 자동으로 해제(항상 최대 1개).
 - **화면 노출**: `pinnedPostCardHTML(pinnedPostId)` 공용 헬퍼가 "📌 대표 글" 카드(썸네일+제목+카테고리+추천/댓글 수, 클릭 시 글 이동)를 만들고, 남의 프로필(`openUserProfile()`)과 내 프로필(`openProfile()`) 둘 다 `pf-stats`(통계) 바로 위, 최상단에 동일하게 표시.
+
+### 커미션 후기 시스템 (2026-07-30 추가)
+"커미션 후기" 게시판(`review`)에 글을 쓸 때, 실제 존재하는 "커미션 구인구직" 게시판의 "구직" 말머리 글과 반드시 연결하도록 만들어서 아무 닉네임이나 적어 넣는 걸 막고, 작성을 최대한 간단하게(만족/불호 선택 + 선택적 한 줄 후기) 만든 기능. 단계별로 사용자 피드백을 받아가며 여러 번 방향이 바뀜(별점 → 만족/불호로 최종 변경 등) — 아래는 최종 상태 기준.
+
+- **DB**: `posts.reviewed_nickname`(텍스트, 표시용), `posts.commission_post_id`(FK→posts, `on delete set null`), `posts.commission_sentiment`(`good`/`bad`만 허용하는 체크 제약). 세 컬럼 다 기존 `posts_update_own` 소유권 정책 안에서 다른 필드(제목·본문 등)와 동일하게 취급됨(별도 RLS 불필요).
+- **후기 작성 진입점 2가지**:
+  1. **직접 검색**: "커미션 후기" 게시판에서 글쓰기 → 제작자 닉네임을 입력하면 그 닉네임으로 작성된 "구직" 말머리 글 목록이 실시간으로 뜨고(`searchCommissionPosts()`, `POSTS` 배열에서 클라이언트 필터링 — 이미 전체 글이 로드돼 있어서 추가 쿼리 불필요), 그중 하나를 선택해야만(`selectCommissionPost()`) 등록 가능.
+  2. **원클릭**: "구직" 말머리 글 상세 화면에 "✍️ 이 커미션 후기 쓰기" 버튼(`openReviewFor()`) — 누르면 게시판·제작자·구직 글이 전부 자동으로 채워진 채 글쓰기 창이 열림. 본인 글에는 이 버튼이 안 뜸(셀프 후기 방지), 로그인 안 했으면도 버튼 자체가 안 보임.
+  - 둘 다 **로그인 필수**(비로그인 상태에서는 버튼도 안 보이고, 게시판을 수동으로 "커미션 후기"로 바꾸는 것도 막히고, 최종 등록 시점에도 한 번 더 막힘 — 클라이언트 3중 체크 + DB `guard_review_requires_login()` 트리거로 4중 방어). 다른 게시판은 여전히 비로그인 글쓰기 허용.
+- **작성 화면이 매우 단순함**: `board==='review'`일 때는 제목 입력칸이 아예 안 보이고, 대신 **"😊 만족 후기" / "😞 불호 후기"** 중 하나를 필수로 고르면(`setEdSentiment()`) 그 선택 자체가 제목이 됨(`sentimentTitle()` — 예: "😊 만족 후기"). 본문 내용은 완전히 선택사항이라 "한 줄 후기도 좋아요" 안내만 뜨고 비워둬도 등록됨.
+- **연결된 구직 글이 삭제돼도 후기는 안 사라짐**(`commission_post_id`가 `on delete set null`이라 연결만 풀림, `reviewed_nickname` 텍스트는 그대로 남아서 누구에 대한 후기였는지는 계속 알 수 있음).
+- **화면 노출 (2026-07-30, 여러 차례 요청으로 발전)**:
+  - **"커미션 후기" 게시판 자체를 볼 때**: 일반 게시판과 다르게 텍스트 목록이 아니라 **이미지 앨범형 그리드**(`reviewAlbumHTML()`/`reviewCardHTML()`, `renderList()`에서 `state.board==="review"`일 때 분기) — 이미지가 크게 보이고(없으면 💬 자리표시자), 아래에 만족/불호 배지+작성자+시간만 작게 표시. ("전부 제목이 '만족 후기'라 목록이 어색하다"는 피드백으로 제목 중심 목록에서 이미지 중심 앨범으로 변경함.)
+  - **구직 글 상세에 "📝 후기 보기 (N)" 버튼**(`openCommissionReviews()`) — 그 구직 글에 달린 후기만(다른 커미션 후기는 제외) 앨범형으로 모아 보여주고, 상단에 **"전체 / 😊 만족 / 😞 불호" 필터 버튼**(`setCommissionReviewFilter()`, 게시판 말머리 필터 바와 같은 `.tagbar` 스타일 재사용)으로 좁혀볼 수 있음. "글로 돌아가기"로 원래 구직 글로 이동.
+  - **프로필 화면의 "이 사람에 대한 커미션 후기" 섹션**(`reviewsAboutHTML()`, 대표 글 카드 바로 아래) — 후기를 **연결된 구직 글(커미션 타입)별로 그룹핑**해서 앨범형으로 보여줌. 그룹 제목은 그 구직 글의 **현재 제목을 매번 실시간으로 가져와서** 표시하므로, 작가가 나중에 글 제목을 바꾸면 그룹 이름도 자동으로 따라감(제목을 캐싱하지 않고 항상 `POSTS.find()`로 다시 조회하기 때문). 연결된 구직 글이 삭제된 그룹은 "🗑️ 삭제된 커미션 글"로 표시되며 **항상 맨 뒤로 정렬**.
+- **검색 연동**: "전체 글" 검색창에 제작자 닉네임을 입력하면 그 닉네임이 달린 후기 글도 결과에 포함됨(`filteredPosts()`가 `reviewedNickname`도 같이 검사).
+- **목록/썸네일 공용화 (2026-07-30)**: 기존에 게시판 목록에만 있던 이미지 미리보기 로직을 `postThumbHTML(p)` 공용 함수로 뽑아내서, 프로필 화면의 글 목록(`profileRow()`)에서도 이미지가 보이도록 함 — 원래 커미션 후기에 이미지를 올려도 프로필 쪽에서는 안 보이던 문제를 계기로 발견/수정.
 
 ### 1:1 채팅 (커미션 거래 상담용)
 설계·구현을 2단계로 나눠서 진행: 1단계(저장만 되는 채팅) → 2단계(실시간 + 채팅 목록 + 읽음 표시).

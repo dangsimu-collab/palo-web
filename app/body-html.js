@@ -122,6 +122,16 @@ export const BODY_HTML = `
 
       <!-- 제목 -->
       <input type="text" id="wTitle" class="ed-title-input" placeholder="제목을 입력해 주세요">
+      <input type="text" id="edReviewNickInput" class="ed-title-input" placeholder="커미션 제작자 닉네임으로 구직 글 검색" oninput="searchCommissionPosts()" style="display:none;margin-top:8px;font-size:14px">
+      <div class="ed-commission-list" id="edCommissionList" style="display:none"></div>
+      <div class="ed-commission-selected" id="edCommissionSelected" style="display:none"></div>
+      <div class="ed-rating-row" id="edRatingRow" style="display:none">
+        <span class="ed-rating-label">이 커미션, 어떠셨나요?</span>
+        <span class="ed-sentiment" id="edSentimentBtns">
+          <button type="button" class="ed-sentiment-btn good" onclick="setEdSentiment('good')">😊 만족 후기</button>
+          <button type="button" class="ed-sentiment-btn bad" onclick="setEdSentiment('bad')">😞 불호 후기</button>
+        </span>
+      </div>
 
       <!-- 서식 툴바 -->
       <div class="ed-toolbar" id="edToolbar">
@@ -139,6 +149,7 @@ export const BODY_HTML = `
       </div>
 
       <!-- 본문 (contenteditable) -->
+      <p class="ed-content-hint" id="edContentHint" style="display:none">한 줄 후기도 좋아요 — 내용 없이 별점만 남겨도 괜찮아요.</p>
       <div id="wContent" class="ed-content" contenteditable="true"
         ondragover="onEditorDragOver(event)" ondragleave="onEditorDragLeave(event)" ondrop="onEditorDrop(event)"
         data-ph="이야기를 자유롭게 적어 주세요. 커서를 원하는 위치에 두고 위 🖼 버튼으로 그림을 그 자리에 넣을 수 있어요. 이미지 파일을 끌어다 놓아도 돼요."></div>

@@ -203,6 +203,7 @@ async function loadRealPosts(){
       time:timeAgo(row.created_at),createdAt:row.created_at,likes:likers.length,_liked:likers.indexOf(myLikeId())>-1,
       views:row.views,thumb:"none",stage:row.stage,images:imagesByPost[row.id],
       isManagerPick:!!row.is_manager_pick,pickPosition:row.pick_position,pickedAt:row.picked_at,adLocked:!!adLockedIds[row.id],
+      reviewedNickname:row.reviewed_nickname||null,commissionPostId:row.commission_post_id||null,commissionSentiment:row.commission_sentiment||null,
       content:(row.content||"").split("\n").filter(Boolean),html:row.content_html||undefined,comments:commentsByPost[row.id]||[]};
   });
   POSTS=real.concat(POSTS);
@@ -279,6 +280,20 @@ async function logout(){
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
 function boardName(id){for(var g of BOARDS)for(var b of g.items)if(b.id===id)return b.name;return"전체 글"}
 function catFor(p){return CATMAP[p.board]||{label:"글",cls:"free-c"}}
+function postThumbHTML(p){
+  var imgCount=p.images?p.images.length:((p.thumb!=="none")?(Math.floor(p.likes/18)%6+1):0); // demo image-count badge
+  if(p.images&&p.images.length){
+    return '<div class="nthumb"><img src="'+esc(p.images[0])+'" alt="" style="width:100%;height:100%;object-fit:cover">'+
+      (p.stage?'<span class="nstage">'+p.stage+'</span>':'')+
+      (imgCount>1?'<span class="ncount">'+imgCount+'+</span>':'')+
+    '</div>';
+  }
+  if(p.thumb==="none")return"";
+  return '<div class="nthumb '+p.thumb+'">'+
+    (p.stage?'<span class="nstage">'+p.stage+'</span>':'')+
+    (imgCount>1?'<span class="ncount">'+imgCount+'+</span>':'')+
+  '</div>';
+}
 function fmtViews(n){return n>=1000?(n/1000).toFixed(1)+"k":n}
 
 function renderNav(el){
@@ -353,7 +368,7 @@ function filteredPosts(){
   if(state.board==="all")arr=arr.filter(function(p){return p.board!=="adult"});
   else arr=arr.filter(function(p){return p.board===state.board});
   if(state.tag)arr=arr.filter(function(p){return p.category===state.tag});
-  if(state.query){var q=state.query.toLowerCase();arr=arr.filter(function(p){var body=(p.content||[]).join(" ").toLowerCase();return p.title.toLowerCase().indexOf(q)>-1||p.author.toLowerCase().indexOf(q)>-1||body.indexOf(q)>-1})}
+  if(state.query){var q=state.query.toLowerCase();arr=arr.filter(function(p){var body=(p.content||[]).join(" ").toLowerCase();return p.title.toLowerCase().indexOf(q)>-1||p.author.toLowerCase().indexOf(q)>-1||body.indexOf(q)>-1||(p.reviewedNickname&&p.reviewedNickname.toLowerCase().indexOf(q)>-1)})}
   if(state.sort==="hot")arr=sortHot(arr);
   return arr;
 }
@@ -438,22 +453,17 @@ function renderList(){
   }
   var totalPages=Math.max(1,Math.ceil(arr.length/PER));if(page>totalPages)page=totalPages;var visible=arr.slice((page-1)*PER,page*PER);
   if(state.board==="all"&&!state.query&&state.sort==="new")h+=emberHTML();
+  if(state.board==="review"&&!state.query){
+    h+=reviewAlbumHTML(visible);
+    if(totalPages>1)h+=pagerHTML(totalPages);
+    main.innerHTML=h;
+    return;
+  }
   h+='<div class="list">';
   visible.forEach(function(p,idx){
     var c=catFor(p);
     var isHot=p.likes>=90;
-    var imgCount=p.images?p.images.length:((p.thumb!=="none")?(Math.floor(p.likes/18)%6+1):0); // demo image-count badge
-    var thumb = p.images&&p.images.length ?
-      '<div class="nthumb"><img src="'+esc(p.images[0])+'" alt="" style="width:100%;height:100%;object-fit:cover">'+
-        (p.stage?'<span class="nstage">'+p.stage+'</span>':'')+
-        (imgCount>1?'<span class="ncount">'+imgCount+'+</span>':'')+
-      '</div>' :
-      p.thumb==="none" ?
-      '' :
-      '<div class="nthumb '+p.thumb+'">'+
-        (p.stage?'<span class="nstage">'+p.stage+'</span>':'')+
-        (imgCount>1?'<span class="ncount">'+imgCount+'+</span>':'')+
-      '</div>';
+    var thumb=postThumbHTML(p);
     h+='<div class="post rip'+(isHot?' hot-post':'')+(READ.has(p.id)?' read':'')+(p.id===justAddedId?' justAdded':'')+'" tabindex="0" role="button" onclick="openPost('+p.id+')" onkeydown="if(event.key===\'Enter\')openPost('+p.id+')">'+
       '<div class="pmain">'+
         '<div class="ptitle">'+(p.isManagerPick?'<span class="pick-badge">📌 매니저 픽</span> ':'')+esc(p.title)+'</div>'+
@@ -463,6 +473,7 @@ function renderList(){
           '<span class="sep"></span><span class="mt">'+p.time+'</span>'+
           '<span class="sep"></span><span class="mv">조회 '+fmtViews(p.views)+'</span>'+
           (p.likes?'<span class="sep"></span><span class="ml">추천 '+p.likes+'</span>':'')+
+          (p.reviewedNickname?'<span class="sep"></span><span class="mv">@'+esc(p.reviewedNickname)+' 후기</span>':'')+
         '</div>'+
       '</div>'+
       thumb+
@@ -501,13 +512,15 @@ function renderPostDetail(id){
     (contentHasMedia||p.thumb==="none")?"":'<div class="d-canvas" style="background:linear-gradient(135deg,'+GRADS[p.thumb]+')">'+(p.stage?'<span class="stage-tag">'+p.stage+' 단계</span>':'')+'🎨 작품 이미지 영역</div>';
   var liked=p._liked?" liked":"";
   var h='<div class="detail"><div class="d-grip"></div><button class="d-back" onclick="renderList()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>목록으로</button>'+
-    '<div class="d-head"><div class="line1"><span class="cat '+c.cls+'">'+c.label+'</span>'+(p.isManagerPick?'<span class="pick-badge">📌 매니저 픽</span>':'')+'</div><h1 class="serif">'+esc(p.title)+'</h1>'+
+    '<div class="d-head"><div class="line1"><span class="cat '+c.cls+'">'+c.label+'</span>'+(p.isManagerPick?'<span class="pick-badge">📌 매니저 픽</span>':'')+(p.reviewedNickname?'<span class="pick-badge">🎨 @'+esc(p.reviewedNickname)+' 후기</span>':'')+'</div><h1 class="serif">'+esc(p.title)+'</h1>'+
     '<div class="d-author"><div class="d-ava serif">'+esc(dispName(p.author)[0])+'</div><div class="d-au-info"><div class="n"'+(p.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+levelBadgeHtml(p.authorLevel,"lv-badge")+'</div><div class="meta">'+p.time+' · 조회 '+fmtViews(p.views)+'</div></div>'+
     '<button class="d-follow'+(FOLLOW.has(p.author)?' following':'')+'" id="followBtn" onclick="toggleFollow(\''+esc(p.author)+'\','+p.id+')">'+(FOLLOW.has(p.author)?'팔로잉 ✓':'＋ 팔로우')+'</button></div></div>'+
     canvas+'<div class="d-content">'+(safeHtml?safeHtml:p.content.map(function(x){return'<p>'+esc(x)+'</p>'}).join(""))+'</div>'+
     '<div class="d-actions"><button class="d-act'+liked+'" id="likeBtn" onclick="toggleLike('+p.id+')">'+likeIconSvg(p._liked)+'좋아요 '+p.likes+'</button>'+
     '<button class="d-act" onclick="sharePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6"/><path d="M10 6l1-1a4 4 0 0 1 6 6l-1 1M14 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg>공유</button>'+
     '<button class="d-act" onclick="reportPost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>신고</button>'+
+    ((p.dbId&&p.board==="trade"&&p.category==="구직")?'<button class="d-act" onclick="openCommissionReviews('+p.id+')">📝 후기 보기 ('+POSTS.filter(function(r){return r.board==="review"&&r.commissionPostId===p.dbId}).length+')</button>':'')+
+    ((p.dbId&&p.board==="trade"&&p.category==="구직"&&AUTH.user&&AUTH.user.id!==p.authorId)?'<button class="d-act" onclick="openReviewFor('+p.id+')">✍️ 이 커미션 후기 쓰기</button>':'')+
     ((p.dbId&&AUTH.user&&p.authorId===AUTH.user.id)?(
     (p.adLocked?'<span class="d-act" style="opacity:.55;cursor:default" title="광고를 집행 중인 글은 수정할 수 없어요">🔒 수정 불가(광고 집행 중)</span>':
     '<button class="d-act" onclick="openEditPost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L20 8l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>수정</button>')+
@@ -862,11 +875,71 @@ function stripTag(title,cat){
   if(cat&&title.indexOf("["+cat+"] ")===0)return title.slice(cat.length+3);
   return title;
 }
+function sentimentTitle(s){return s==="good"?"😊 만족 후기":"😞 불호 후기";}
+function updateReviewNickField(){
+  var isReview=(edState.board==="review");
+  document.getElementById("edReviewNickInput").style.display=isReview?"block":"none";
+  document.getElementById("wTitle").style.display=isReview?"none":"block";
+  document.getElementById("edRatingRow").style.display=isReview?"flex":"none";
+  document.getElementById("edContentHint").style.display=isReview?"block":"none";
+  if(!isReview){
+    document.getElementById("edCommissionList").style.display="none";
+    document.getElementById("edCommissionList").innerHTML="";
+  }
+  renderCommissionSelected();
+  renderEdSentiment();
+}
+function setEdSentiment(v){edState.sentiment=v;renderEdSentiment();}
+function renderEdSentiment(){
+  var btns=document.querySelectorAll("#edSentimentBtns .ed-sentiment-btn");
+  btns.forEach(function(btn){
+    var isGood=btn.classList.contains("good");
+    btn.classList.toggle("on",edState.sentiment===(isGood?"good":"bad"));
+  });
+}
+function searchCommissionPosts(){
+  var q=document.getElementById("edReviewNickInput").value.trim();
+  var list=document.getElementById("edCommissionList");
+  if(!q){list.style.display="none";list.innerHTML="";return;}
+  var matches=POSTS.filter(function(p){
+    return p.board==="trade"&&p.category==="구직"&&p.author&&p.author.indexOf(q)>-1;
+  }).slice(0,8);
+  if(!matches.length){
+    list.innerHTML='<div class="ed-commission-empty">일치하는 구직 글이 없어요. 닉네임을 다시 확인해주세요.</div>';
+  }else{
+    list.innerHTML=matches.map(function(p){
+      return '<div class="ed-commission-item" onclick="selectCommissionPost('+p.id+')"><b>'+esc(p.author)+'</b> · '+esc(p.title)+'</div>';
+    }).join("");
+  }
+  list.style.display="block";
+}
+function selectCommissionPost(postId){
+  var p=POSTS.find(function(x){return x.id===postId});if(!p)return;
+  edState.commissionPostId=p.dbId;
+  edState.reviewedNick=p.author;
+  document.getElementById("edReviewNickInput").value="";
+  document.getElementById("edCommissionList").style.display="none";
+  document.getElementById("edCommissionList").innerHTML="";
+  renderCommissionSelected();
+}
+function clearCommissionSelection(){
+  edState.commissionPostId=null;edState.reviewedNick=null;
+  renderCommissionSelected();
+}
+function renderCommissionSelected(){
+  var el=document.getElementById("edCommissionSelected");
+  if(edState.board!=="review"||!edState.commissionPostId){el.style.display="none";el.innerHTML="";return;}
+  var p=POSTS.find(function(x){return x.dbId===edState.commissionPostId});
+  el.innerHTML='<span>✅ 확인됨: <b>'+esc(edState.reviewedNick||"")+'</b> · '+(p?esc(p.title):"(글 정보 없음)")+'</span><button type="button" onclick="clearCommissionSelection()">변경</button>';
+  el.style.display="flex";
+}
 function openWrite(){
   editingPostId=null;
-  edState={board:(state.board!=="all"&&state.board!=="sketch")?state.board:null,tag:null,img:false,images:[]};
+  edState={board:(state.board!=="all"&&state.board!=="sketch")?state.board:null,tag:null,img:false,images:[],commissionPostId:null,reviewedNick:null,sentiment:null};
   buildBoardMenu();refreshBoardLabel();renderEdTags();
   document.getElementById("wTitle").value="";
+  document.getElementById("edReviewNickInput").value="";
+  updateReviewNickField();
   document.getElementById("wContent").innerHTML="";
   document.getElementById("edImages").innerHTML="";
   document.getElementById("edCrit").checked=(edState.board==="crit");
@@ -880,9 +953,12 @@ function openEditPost(id){
   if(!p.dbId||!AUTH.user||p.authorId!==AUTH.user.id){toast("수정 권한이 없어요");return;}
   if(p.adLocked){toast("광고를 집행 중인 글은 수정할 수 없어요");return;}
   editingPostId=id;
-  edState={board:p.board,tag:p.category||null,img:!!(p.images&&p.images.length),images:p.images?p.images.slice():[]};
+  edState={board:p.board,tag:p.category||null,img:!!(p.images&&p.images.length),images:p.images?p.images.slice():[],commissionPostId:p.commissionPostId||null,reviewedNick:p.reviewedNickname||null,sentiment:p.commissionSentiment||null};
   buildBoardMenu();refreshBoardLabel();renderEdTags();
   document.getElementById("wTitle").value=stripTag(p.title,p.category);
+  document.getElementById("edReviewNickInput").value="";
+  document.getElementById("edCommissionList").style.display="none";
+  updateReviewNickField();
   document.getElementById("wContent").innerHTML=p.html?sanitizePostHtml(p.html):p.content.map(function(x){return"<p>"+esc(x)+"</p>"}).join("");
   renderEdImages();
   document.getElementById("edCrit").checked=(edState.board==="crit");
@@ -890,6 +966,45 @@ function openEditPost(id){
   document.getElementById("edSubmitBtn").textContent="수정 완료";
   document.getElementById("writeModal").classList.add("open");document.body.style.overflow="hidden";
   document.getElementById("edBoardMenu").classList.remove("open");
+}
+var commissionReviewFilter=null;
+function openCommissionReviews(postId){
+  commissionReviewFilter=null;
+  renderCommissionReviews(postId);
+}
+function setCommissionReviewFilter(postId,sentiment){
+  commissionReviewFilter=(sentiment===null)?null:(commissionReviewFilter===sentiment?null:sentiment);
+  renderCommissionReviews(postId);
+}
+function renderCommissionReviews(postId){
+  var p=POSTS.find(function(x){return x.id===postId});if(!p||!p.dbId)return;
+  var allReviews=POSTS.filter(function(r){return r.board==="review"&&r.commissionPostId===p.dbId});
+  var goodCount=allReviews.filter(function(r){return r.commissionSentiment==="good"}).length;
+  var badCount=allReviews.filter(function(r){return r.commissionSentiment==="bad"}).length;
+  var reviews=commissionReviewFilter?allReviews.filter(function(r){return r.commissionSentiment===commissionReviewFilter}):allReviews;
+  var h='<div class="profile"><button class="d-back" onclick="openPost('+postId+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>글로 돌아가기</button>'+
+    '<div class="pf-sec">📝 '+esc(stripTag(p.title,p.category))+' 후기 ('+allReviews.length+')</div>';
+  if(allReviews.length){
+    h+='<div class="tagbar">'+
+      '<button class="tagbar-btn'+(!commissionReviewFilter?' on':'')+'" onclick="setCommissionReviewFilter('+postId+',null)">전체 ('+allReviews.length+')</button>'+
+      '<button class="tagbar-btn'+(commissionReviewFilter==="good"?' on':'')+'" onclick="setCommissionReviewFilter('+postId+',\'good\')">😊 만족 ('+goodCount+')</button>'+
+      '<button class="tagbar-btn'+(commissionReviewFilter==="bad"?' on':'')+'" onclick="setCommissionReviewFilter('+postId+',\'bad\')">😞 불호 ('+badCount+')</button>'+
+    '</div>';
+  }
+  h+=reviews.length?reviewAlbumHTML(reviews):'<div class="pf-empty">'+(commissionReviewFilter?'해당하는 후기가 없어요.':'아직 이 커미션에 대한 후기가 없어요.')+'</div>';
+  h+='</div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function openReviewFor(postId){
+  if(!AUTH.user){toast("로그인 후 후기를 작성할 수 있어요");return;}
+  var p=POSTS.find(function(x){return x.id===postId});
+  if(!p||!p.dbId){toast("글 정보를 찾을 수 없어요");return;}
+  openWrite();
+  pickBoard("review");
+  edState.commissionPostId=p.dbId;
+  edState.reviewedNick=p.author;
+  renderCommissionSelected();
 }
 function closeWrite(){editingPostId=null;document.getElementById("writeModal").classList.remove("open");document.body.style.overflow=""}
 function buildBoardMenu(){
@@ -905,9 +1020,16 @@ function buildBoardMenu(){
   document.getElementById("edBoardMenu").innerHTML=h;
 }
 function toggleBoardMenu(e){e.stopPropagation();document.getElementById("edBoardMenu").classList.toggle("open")}
-function pickBoard(id){edState.board=id;edState.tag=null;buildBoardMenu();refreshBoardLabel();renderEdTags();
+function pickBoard(id){
+  if(id==="review"&&!AUTH.user){toast("로그인 후 후기를 작성할 수 있어요");return;}
+  edState.board=id;edState.tag=null;buildBoardMenu();refreshBoardLabel();renderEdTags();
   document.getElementById("edBoardMenu").classList.remove("open");
-  document.getElementById("edCrit").checked=(id==="crit");}
+  document.getElementById("edCrit").checked=(id==="crit");
+  if(id!=="review"){
+    document.getElementById("edReviewNickInput").value="";
+    edState.commissionPostId=null;edState.reviewedNick=null;edState.sentiment=null;
+  }
+  updateReviewNickField();}
 function refreshBoardLabel(){
   document.getElementById("edBoardLabel").textContent=edState.board?boardName(edState.board):"게시판 선택";
 }
@@ -1092,11 +1214,18 @@ async function submitPost(){
   var cEl=document.getElementById("wContent");
   var html=sanitizePostHtml(cEl.innerHTML.trim());
   var text=cEl.textContent.trim();
+  var isReview=edState.board==="review";
   if(!edState.board){toast("게시판을 선택해주세요");document.getElementById("edBoardMenu").classList.add("open");return}
-  if(!t){toast("제목을 입력해주세요");return}
-  if(!text&&!edState.img){toast("내용을 입력해주세요");return}
-  var title=(edState.tag?"["+edState.tag+"] ":"")+t;
+  if(isReview&&!AUTH.user){toast("로그인 후 후기를 작성할 수 있어요");return}
+  if(!isReview&&!t){toast("제목을 입력해주세요");return}
+  if(!isReview&&!text&&!edState.img){toast("내용을 입력해주세요");return}
+  if(isReview&&!edState.commissionPostId){toast("확인할 커미션 구직 글을 검색해서 선택해주세요");return}
+  if(isReview&&!edState.sentiment){toast("만족 후기인지 불호 후기인지 선택해주세요");return}
+  var sentiment=isReview?edState.sentiment:null;
+  var title=isReview?sentimentTitle(sentiment):((edState.tag?"["+edState.tag+"] ":"")+t);
   var stage=(["러프","선화","채색","완성"].indexOf(edState.tag)>-1)?edState.tag:null;
+  var reviewedNick=isReview?edState.reviewedNick:null;
+  var commissionPostId=isReview?edState.commissionPostId:null;
 
   if(editingPostId){
     var ep=POSTS.find(function(x){return x.id===editingPostId});
@@ -1104,7 +1233,8 @@ async function submitPost(){
     if(window.supabase&&ep.dbId){
       var upd=await window.supabase.from("posts").update({
         board:edState.board,category:edState.tag,title:title,content:text,content_html:html||null,
-        stage:edState.img?(stage||"완성"):null
+        stage:edState.img?(stage||"완성"):null,reviewed_nickname:reviewedNick,commission_post_id:commissionPostId,
+        commission_sentiment:sentiment
       }).eq("id",ep.dbId);
       if(upd.error){toast("수정 실패: "+upd.error.message);return;}
       var delImgs=await window.supabase.from("post_images").delete().eq("post_id",ep.dbId);
@@ -1118,6 +1248,9 @@ async function submitPost(){
     ep.board=edState.board;ep.category=edState.tag;ep.title=title;
     ep.stage=edState.img?(stage||"완성"):null;
     ep.images=edState.images.length?edState.images.slice():undefined;
+    ep.reviewedNickname=reviewedNick;
+    ep.commissionPostId=commissionPostId;
+    ep.commissionSentiment=sentiment;
     ep.html=html;ep.content=text.split("\n").filter(Boolean);
     editingPostId=null;
     closeWrite();
@@ -1134,7 +1267,10 @@ async function submitPost(){
       title:title,
       content:text,
       content_html:html||null,
-      stage:edState.img?(stage||"완성"):null
+      stage:edState.img?(stage||"완성"):null,
+      reviewed_nickname:reviewedNick,
+      commission_post_id:commissionPostId,
+      commission_sentiment:sentiment
     }).select().single();
     if(saved.error){
       console.error(saved.error);
@@ -1153,6 +1289,7 @@ async function submitPost(){
     thumb:edState.img?"t1":"none",stage:edState.img?(stage||"완성"):null,
     images:edState.images.length?edState.images.slice():undefined,
     dbId:saved&&saved.data?saved.data.id:undefined,authorId:saved&&saved.data?saved.data.author_id:undefined,
+    reviewedNickname:reviewedNick,commissionPostId:commissionPostId,commissionSentiment:sentiment,
     html:html,content:text.split("\n").filter(Boolean),comments:[]};
   justAddedId=np.id;setTimeout(function(){justAddedId=null},1800);POSTS.unshift(np);
   closeWrite();state.board=edState.board;state.query="";state.sort="new";state.shown=8;
@@ -1285,13 +1422,31 @@ function markAllRead(){
 }
 
 // ===== 내 정보 (프로필) =====
+function reviewCardHTML(p){
+  var isGood=p.commissionSentiment==="good";
+  var img=(p.images&&p.images.length)?p.images[0]:null;
+  return '<div class="review-card" onclick="openPost('+p.id+')">'+
+    (img?'<div class="review-img"><img src="'+esc(img)+'" alt="" loading="lazy"></div>':'<div class="review-img review-img-empty">💬</div>')+
+    '<div class="review-meta">'+
+      '<span class="review-sentiment '+(isGood?"good":"bad")+'">'+(isGood?"😊 만족":"😞 불호")+'</span>'+
+      '<span class="review-author">'+esc(dispName(p.author))+'</span>'+
+      '<span class="review-time">'+p.time+'</span>'+
+    '</div>'+
+  '</div>';
+}
+function reviewAlbumHTML(reviews){
+  if(!reviews.length)return"";
+  return '<div class="review-album">'+reviews.map(reviewCardHTML).join("")+'</div>';
+}
 function profileRow(p){
   var c=catFor(p);
   return '<div class="post rip" onclick="openPost('+p.id+')">'+
     '<div class="pmain"><div class="ptitle">'+esc(p.title)+'</div>'+
     '<div class="pmeta"><span class="cat '+c.cls+'">'+c.label+'</span>'+
     '<span class="mt">'+p.time+'</span><span class="sep"></span><span class="mv">조회 '+fmtViews(p.views)+'</span>'+
-    (p.likes?'<span class="sep"></span><span class="ml">추천 '+p.likes+'</span>':'')+'</div></div>'+
+    (p.likes?'<span class="sep"></span><span class="ml">추천 '+p.likes+'</span>':'')+
+    (p.reviewedNickname?'<span class="sep"></span><span class="mv">@'+esc(p.reviewedNickname)+' 후기</span>':'')+'</div></div>'+
+    postThumbHTML(p)+
     '<div class="pcmt"><span class="cn">'+p.comments.length+'</span><span class="cl">댓글</span></div></div>';
 }
 function pinnedPostCardHTML(pinnedPostId){
@@ -1306,6 +1461,30 @@ function pinnedPostCardHTML(pinnedPostId){
     '<div class="pinned-body"><div class="pinned-title">'+esc(p.title)+'</div>'+
     '<div class="pinned-meta"><span class="cat '+c.cls+'">'+c.label+'</span><span>추천 '+p.likes+' · 댓글 '+p.comments.length+'</span></div></div>'+
   '</div>';
+}
+function reviewsAboutHTML(nickname){
+  if(!nickname)return"";
+  var reviews=POSTS.filter(function(p){return p.board==="review"&&p.reviewedNickname===nickname});
+  if(!reviews.length)return"";
+  var groups=[],byKey={};
+  reviews.forEach(function(r){
+    var key=r.commissionPostId||"deleted";
+    if(!byKey[key]){
+      var cp=r.commissionPostId?POSTS.find(function(p){return p.dbId===r.commissionPostId}):null;
+      byKey[key]={title:cp?cp.title:"삭제된 커미션 글",deleted:!cp,posts:[]};
+      groups.push(byKey[key]);
+    }
+    byKey[key].posts.push(r);
+  });
+  groups.sort(function(a,b){return(a.deleted===b.deleted)?0:(a.deleted?1:-1)});
+  var h='<div class="pf-sec">📝 '+esc(nickname)+'님에 대한 커미션 후기 ('+reviews.length+')</div>';
+  groups.forEach(function(g){
+    h+='<div class="commission-group'+(g.deleted?' deleted':'')+'">'+
+      '<div class="commission-group-title">'+(g.deleted?'🗑️ ':'🎨 ')+esc(g.title)+' <span class="ccount">'+g.posts.length+'</span></div>'+
+      reviewAlbumHTML(g.posts)+
+    '</div>';
+  });
+  return h;
 }
 function setPfTab(t){pfTab=t;openProfile();}
 function listOrEmpty(arr,emptyMsg,cta){
@@ -1333,6 +1512,7 @@ async function openUserProfile(userId){
      '<div class="pf-name">'+esc(profile.nickname)+levelBadgeHtml(profile.level)+'</div>'+
      '</div>'+(canChat?'<button class="pf-edit" onclick="openChat(\''+userId+'\')">💬 채팅하기</button>':'')+'</div>';
   h+=pinnedPostCardHTML(profile.pinned_post_id);
+  h+=reviewsAboutHTML(profile.nickname);
   h+='<div class="pf-stats">'+
      '<div class="pf-st"><b>'+(profile.score||0)+'</b><span>활동 점수</span></div>'+
      '<div class="pf-st"><b>'+theirPosts.length+'</b><span>쓴 글</span></div>'+
@@ -1687,6 +1867,7 @@ function openProfile(){
        '</div>';
   }
   h+=pinnedPostCardHTML(AUTH.profile?AUTH.profile.pinned_post_id:null);
+  h+=reviewsAboutHTML(ME.nick);
   h+='<div class="pf-progress"><div class="pp-row"><span>'+lvName+'</span><span>'+
      (prog.maxed?'최고 등급 달성! 🎉':('다음 등급('+prog.nextName+')까지 '+prog.remain+'점'))+'</span></div>'+
      '<div class="pp-bar"><div class="pp-fill" style="width:'+prog.pct+'%"></div></div></div>';
