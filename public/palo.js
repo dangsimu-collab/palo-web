@@ -627,7 +627,7 @@ async function submitAd(){
   if(res.error){toast("광고 등록 실패: "+res.error.message);return;}
   closeAdModal();
   await refreshMyProfile();
-  toast("광고가 등록됐어요 📢");
+  toast("광고 신청이 접수됐어요. 관리자 승인 후 노출돼요 📋");
 }
 var reportingPostId=null;
 var reportingConversationId=null;
@@ -1599,6 +1599,7 @@ function openProfile(){
      '<button class="pf-edit" onclick="logout()">로그아웃</button>'+
      (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openAdminReports()">🛡 신고 목록</button>':'')+
      (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openAdminChatList()">🛡 전체 채팅 목록</button>':'')+
+     (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openAdminAdReview()">🛡 광고 심사</button>':'')+
      (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openAdminAdList()">🛡 전체 광고 목록</button>':'')+
      (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openManagerPickList()">📌 매니저 픽 관리</button>':'')+
      '</div>';
@@ -1724,20 +1725,53 @@ async function openAdminAdList(){
   var userIds=Array.from(new Set(ads.map(function(a){return a.user_id})));
   var profRes=userIds.length?await window.supabase.from("profiles").select("id,nickname").in("id",userIds):{data:[]};
   var nickById={};(profRes.data||[]).forEach(function(p){nickById[p.id]=p.nickname;});
-  var statusLabel={active:"진행중",expired:"기간 만료",removed_by_admin:"관리자 삭제"};
+  var statusLabel={active:"진행중",expired:"기간 만료",removed_by_admin:"관리자 삭제",pending:"심사 대기",rejected:"반려됨"};
   var h='<div class="profile"><div class="pf-sec">🛡 전체 광고 목록 ('+ads.length+')</div>';
   if(!ads.length){
     h+='<div class="pf-empty">등록된 광고가 없어요.</div>';
   }else{
     h+='<div class="list">';
     ads.forEach(function(a){
+      var actions="";
+      if(a.status==="pending"){
+        actions='<button class="d-act" onclick="approveUserAd('+a.id+',\'list\')">승인</button>'+
+          '<button class="d-act" onclick="rejectUserAd('+a.id+',\'list\')">거절</button>';
+      }else if(a.status==="active"){
+        actions='<button class="d-act" onclick="adminDeleteReportedAd(null,'+a.id+',true)">삭제+환수</button>'+
+          '<button class="d-act" onclick="adminDeleteReportedAd(null,'+a.id+',false)">삭제만</button>';
+      }
       h+='<div class="post rip"><div class="pmain" style="cursor:pointer" onclick="openPost('+(100000+a.linked_post_id)+')">'+
         '<img src="'+esc(a.image_url)+'" alt="" style="width:100%;max-width:220px;height:56px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:block">'+
         '<div class="ptitle">'+esc(nickById[a.user_id]||"알 수 없음")+' · '+(statusLabel[a.status]||a.status)+'</div>'+
         '<div class="pmeta"><span class="mt">'+timeAgo(a.created_at)+'</span><span class="sep"></span><span class="mv">'+a.points_spent+'P · '+a.duration_days+'일</span></div></div>'+
+        '<div style="display:flex;gap:8px;flex-shrink:0">'+actions+'</div></div>';
+    });
+    h+='</div>';
+  }
+  h+='<button class="pf-edit" onclick="openProfile()" style="margin-top:16px">내 정보로 돌아가기</button></div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+async function openAdminAdReview(){
+  var res=await window.supabase.from("user_ads").select("id,user_id,image_url,linked_post_id,points_spent,duration_days,created_at").eq("status","pending").order("created_at",{ascending:true});
+  if(res.error){toast("불러오기 실패: "+res.error.message);return;}
+  var ads=res.data;
+  var userIds=Array.from(new Set(ads.map(function(a){return a.user_id})));
+  var profRes=userIds.length?await window.supabase.from("profiles").select("id,nickname").in("id",userIds):{data:[]};
+  var nickById={};(profRes.data||[]).forEach(function(p){nickById[p.id]=p.nickname;});
+  var h='<div class="profile"><div class="pf-sec">🛡 광고 심사 ('+ads.length+')</div>';
+  if(!ads.length){
+    h+='<div class="pf-empty">심사할 광고가 없어요.</div>';
+  }else{
+    h+='<div class="list">';
+    ads.forEach(function(a){
+      h+='<div class="post rip"><div class="pmain" style="cursor:pointer" onclick="openPost('+(100000+a.linked_post_id)+')">'+
+        '<img src="'+esc(a.image_url)+'" alt="" style="width:100%;max-width:220px;height:56px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:block">'+
+        '<div class="ptitle">'+esc(nickById[a.user_id]||"알 수 없음")+'</div>'+
+        '<div class="pmeta"><span class="mt">'+timeAgo(a.created_at)+'</span><span class="sep"></span><span class="mv">'+a.points_spent+'P · '+a.duration_days+'일 신청</span></div></div>'+
         '<div style="display:flex;gap:8px;flex-shrink:0">'+
-          (a.status==="active"?'<button class="d-act" onclick="adminDeleteReportedAd(null,'+a.id+',true)">삭제+환수</button>'+
-          '<button class="d-act" onclick="adminDeleteReportedAd(null,'+a.id+',false)">삭제만</button>':'')+
+          '<button class="d-act" onclick="approveUserAd('+a.id+',\'queue\')">승인</button>'+
+          '<button class="d-act" onclick="rejectUserAd('+a.id+',\'queue\')">거절</button>'+
         '</div></div>';
     });
     h+='</div>';
@@ -1745,6 +1779,19 @@ async function openAdminAdList(){
   h+='<button class="pf-edit" onclick="openProfile()" style="margin-top:16px">내 정보로 돌아가기</button></div>';
   document.getElementById("main").innerHTML=h;
   window.scrollTo({top:0,behavior:"smooth"});
+}
+async function approveUserAd(adId,backTo){
+  var res=await window.supabase.rpc("approve_user_ad",{p_ad_id:adId});
+  if(res.error){toast("승인 실패: "+res.error.message);return;}
+  toast("광고를 승인했어요");
+  if(backTo==="list")openAdminAdList();else openAdminAdReview();
+}
+async function rejectUserAd(adId,backTo){
+  if(!(await confirmDialog("이 광고를 반려할까요? 포인트는 전액 환수돼요.")))return;
+  var res=await window.supabase.rpc("reject_user_ad",{p_ad_id:adId});
+  if(res.error){toast("반려 실패: "+res.error.message);return;}
+  toast("광고를 반려했어요");
+  if(backTo==="list")openAdminAdList();else openAdminAdReview();
 }
 async function adminViewConversation(conversationId,reportId,backTo){
   var convRes=await window.supabase.from("conversations").select("*").eq("id",conversationId).single();

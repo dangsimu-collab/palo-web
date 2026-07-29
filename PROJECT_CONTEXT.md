@@ -135,7 +135,7 @@ Supabase 프로젝트: https://qabbdgfottbnapmyjudy.supabase.co
 | `score_log` | `id`(bigint PK), `user_id`(FK→profiles), `amount`(int, 실제 지급된 양), `event`(text), `source_table`/`source_id`(어느 글/댓글에 귀속되는지), `created_at` | 등급 시스템의 지급 내역(2026-07-29 추가) — 글/댓글 삭제 시 정확한 회수의 근거. select는 본인만, insert/update/delete는 트리거만 |
 | `score_awarded_likes` | `user_id`, `post_id`(FK→posts) | PK가 `(user_id,post_id)`. "이 사람이 이 글로 추천 점수를 받은 적 있는지" 영구 기록(2026-07-29 추가, 좋아요 취소 후 재클릭 악용 방지) — RLS만 켜고 정책은 없음, 클라이언트 접근 완전 차단 |
 | `score_awarded_helpful` | `user_id`, `comment_id`(FK→comments) | 위와 동일한 목적, 도움돼요용 |
-| `user_ads` | `id`(bigint PK), `user_id`(FK→profiles), `image_url`(text), `linked_post_id`(FK→posts, `on delete cascade`), `points_spent`(int), `duration_days`(int), `status`(text: active/expired/removed_by_admin), `created_at`, `expires_at` | 유저 이미지 배너 광고(2026-07-29 추가). insert/update는 RLS 정책 없음 — `create_user_ad()`/`admin_remove_ad()` RPC로만 생성/삭제. 글이 삭제되면 광고도 cascade로 자동 삭제 |
+| `user_ads` | `id`(bigint PK), `user_id`(FK→profiles), `image_url`(text), `linked_post_id`(FK→posts, `on delete cascade`), `points_spent`(int), `duration_days`(int), `status`(text: pending/active/rejected/expired/removed_by_admin), `created_at`, `expires_at`(nullable — `pending` 상태일 땐 아직 안 채워짐) | 유저 이미지 배너 광고(2026-07-29 추가). insert/update는 RLS 정책 없음 — `create_user_ad()`(생성, `pending`)/`approve_user_ad()`/`reject_user_ad()`(관리자 사전 승인·거절)/`admin_remove_ad()`(사후 삭제) RPC로만 상태 변경. 글이 삭제되면 광고도 cascade로 자동 삭제 |
 
 ### Storage 버킷
 - `post-images` (Public) — 글 첨부 이미지. 업로드 경로는 `${Date.now()}-${파일명}` 형태(폴더 구분 없음).
@@ -405,8 +405,8 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **정렬·위치 삽입 로직**: `sortHot(arr)`(`public/palo.js`)가 (1) 매니저 픽을 먼저 분리 → 나머지만 기존 인기순 공식으로 정렬(픽은 7일 제외 규칙 등을 완전히 무시하고 항상 노출, 의도된 동작), (2) 픽들을 `pickPosition` 오름차순·동률이면 `pickedAt` 내림차순(최근 것 우선)으로 정렬, (3) 앞에서부터 훑으며 "요청 위치"와 "다음 빈 자리" 중 큰 값을 실제 배치 위치로 확정(같은 위치를 여러 픽이 요청하면 최근 것이 그 자리를 차지하고 나머지는 자동으로 다음 자리로 밀림), (4) 확정된 위치에 픽을 꽂고 그 사이사이 빈 자리는 일반 인기글로 순서대로 채움.
 - **화면**: 목록 행 제목 앞·글 상세 헤더에 "📌 매니저 픽" 뱃지(`.pick-badge`). 글 상세 액션 줄의 관리자 전용 토글 버튼(`toggleManagerPick()`)은 처음 픽할 때 "현재 픽 개수+1"번을 기본 위치로 지정. **"내 정보 → 📌 매니저 픽 관리"**(`openManagerPickList()`) 화면에서 모든 픽을 한눈에 보고 위치 숫자를 직접 입력해서 저장(`savePickPosition()`)하거나 해제(`unpickFromList()`)할 수 있음 — 픽할 때마다 팝업으로 숫자를 묻는 대신, 여러 개를 한 화면에서 조정하는 방식을 선택함(사용자에게 설명 후 진행).
 
-### 유저 광고 시스템 (아카라이브 스타일, 2026-07-29 시작, 1~4단계 전부 완료)
-유저가 활동 포인트를 모아서 이미지 배너 광고를 거는 기능. 배너 이미지 업로드 + 클릭 시 이동 링크 지정 → 목록 스크롤 중간 광고 자리에 여러 유저 광고가 순환 노출 → 관리자 심사/삭제/포인트 환수 + 유저 신고까지 전체 스펙 완료.
+### 유저 광고 시스템 (아카라이브 스타일, 2026-07-29 시작, 1~5단계 전부 완료)
+유저가 활동 포인트를 모아서 이미지 배너 광고를 거는 기능. 배너 이미지 업로드 + 클릭 시 이동 링크 지정 → 목록 스크롤 중간 광고 자리에 여러 유저 광고가 순환 노출 → 관리자 사전 승인이 있어야 실제 노출 시작 → 사후 심사/삭제/포인트 환수 + 유저 신고까지 전체 스펙 완료.
 
 **1단계 — 포인트 지갑·적립:**
 - **두 개의 별도 지갑**: `profiles.score`(등급 점수, 누적, 안 줄어듦) vs `profiles.ad_points`(광고 포인트, 광고 집행 시 차감됨). 같은 활동(글 +2/댓글 +1/추천받기 +5/크리틱 도움돼요 +20)이 **동시에 두 지갑에 똑같이 적립**되며, 기존 등급 시스템의 도배 방지 장치(일일 20점 상한, 1분 연속 작성 제한, 같은 글 댓글 1회 제한, 5자 미만 제외, 좋아요·도움돼요 평생 1회) 전부가 코드 중복 없이 그대로 적용됨 — 새 로직을 만들지 않고 기존 `award_score()`/`award_capped_post_comment_score()` 함수가 `score`와 `ad_points`를 **같은 트랜잭션에서 함께** 갱신하도록만 고쳤기 때문.
@@ -441,6 +441,13 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **관리자 화면 1 (신고 기반)**: 기존 "🛡 신고 목록"(`openAdminReports()`)에 `r.ad_id` 분기 추가 — "📢 광고 신고 — {닉네임}" 항목, 클릭하면 연결된 실제 글로 이동, "삭제+환수"/"삭제만"/"무시" 버튼(`adminDeleteReportedAd(reportId, adId, refund)`).
 - **관리자 화면 2 (전체 열람, 신규)**: "🛡 전체 광고 목록"(`openAdminAdList()`) — 신고 여부와 상관없이 모든 광고를(상태별로) 훑어보며 마찬가지로 클릭 시 연결 글 이동, 삭제+환수/삭제만 가능. "내 정보" 관리자 버튼 줄에 세 번째 버튼으로 추가(기존 "🛡 신고 목록", "🛡 전체 채팅 목록"과 같은 줄).
 - `adminDeleteReportedAd()`는 `reportId`가 있으면(신고함에서 호출) 신고를 resolved 처리하고 신고함으로, 없으면(전체 목록에서 호출) 전체 광고 목록으로 돌아가도록 분기.
+
+**5단계 — 광고 집행 전 관리자 사전 승인 (2026-07-29 완료):** 4단계까지는 광고를 등록하자마자 바로 노출(`active`)됐는데, 사용자가 "집행 전에 관리자 승인을 거치도록" 요청해서 사전 심사 단계를 추가.
+- **`create_user_ad`**: 이제 광고를 만들면 즉시 노출되지 않고 **`status='pending'`(심사 대기)**로만 생성됨. 포인트는 지금처럼 신청 시점에 바로 차감(사용자가 광고를 여러 개 동시에 신청해서 포인트를 묶어두는 것을 막기 위함, 거절되면 전액 환수됨). `user_ads.expires_at`은 이제 **승인 시점에야 채워지므로 NOT NULL 제약을 제거**해야 했음(`alter table user_ads alter column expires_at drop not null`) — 안 하면 "만료일이 없다"는 이유로 신청 자체가 막힘.
+- **`approve_user_ad(p_ad_id)` RPC(신규)**: 관리자 확인 → `status='pending'`인 광고만 → `status='active'`로 바꾸고 **이 시점부터 `duration_days`만큼의 만료일을 계산**(심사 대기 기간 동안 노출 일수를 손해 보지 않도록, 승인 시점을 기준으로 타이머 시작).
+- **`reject_user_ad(p_ad_id)` RPC(신규)**: 관리자 확인 → `status='rejected'`로 바꾸고 `points_spent` 전액을 `app.trusted_score_update` 신호를 켠 뒤 환수.
+- **클라이언트**: 광고 등록 완료 메시지가 "광고 신청이 접수됐어요. 관리자 승인 후 노출돼요"로 변경. 신규 "🛡 광고 심사"(`openAdminAdReview()`) 화면 — 심사 대기 중인 광고만 생성 순서(오래된 것 먼저)로 모아서 승인/거절 버튼 제공. 기존 "🛡 전체 광고 목록"(`openAdminAdList()`)에도 `pending`/`rejected` 상태 라벨 추가하고, `pending` 상태 항목엔 삭제+환수/삭제만 대신 승인/거절 버튼이 뜨도록 분기(`approveUserAd(adId, backTo)`/`rejectUserAd(adId, backTo)` — `backTo`가 `'queue'`면 심사 화면으로, `'list'`면 전체 목록으로 돌아감).
+- **⚠️ SQL 실행 시 겪은 함정 2가지 (교훈으로 기록)**: ① 기존 `create_user_ad`는 리턴 타입이 달라서 `create or replace`가 `cannot change return type of existing function` 에러를 냄 → `drop function` 먼저 하고 재생성해야 했음. ② Supabase SQL Editor는 한 번에 붙여넣은 여러 statement를 하나의 트랜잭션으로 실행하므로, **그 안의 한 statement가 에러 나면 그 앞에 이미 "성공"으로 보였던 statement까지 전부 롤백됨** — 실제로 `create_user_ad` 에러 때문에 같이 실행했던 `approve_user_ad`/`reject_user_ad`도 조용히 롤백돼서 나중에 "함수를 찾을 수 없다"는 에러로 뒤늦게 발견됨. **다음에 이 프로젝트에서 여러 함수를 한 번에 SQL로 보낼 때, 중간에 에러가 나면 그 배치 전체가 무효화됐을 가능성을 항상 의심하고 각 함수가 실제로 만들어졌는지 확인할 것.**
 
 ### 1:1 채팅 (커미션 거래 상담용)
 설계·구현을 2단계로 나눠서 진행: 1단계(저장만 되는 채팅) → 2단계(실시간 + 채팅 목록 + 읽음 표시).
