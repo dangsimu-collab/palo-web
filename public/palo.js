@@ -220,7 +220,7 @@ async function applySession(session){
   }else{
     ME.nick="나";
   }
-  if(document.getElementById("main")&&document.querySelector(".profile"))openProfile();
+  if(document.getElementById("myProfileView"))openProfile();
 }
 function loginWithGoogle(){
   window.supabase.auth.signInWithOAuth({provider:"google",options:{redirectTo:window.location.origin}});
@@ -332,6 +332,7 @@ function adRow(){
   '</div>';
 }
 function renderList(){
+  unsubscribeFromChat();
   if(location.pathname!=="/"){history.pushState({},"","/");document.title="Palo · 그림 그리는 사람들의 커뮤니티";}
   var main=document.getElementById("main");var arr=filteredPosts();
   var sub=state.query?('"'+esc(state.query)+'" 검색 결과 '+arr.length+'건'):(state.sort==="new"?"방금 올라온 이야기부터":"반응 많은 순으로");
@@ -384,6 +385,7 @@ function renderList(){
   main.innerHTML=h;
 }
 function openPost(id){
+  unsubscribeFromChat();
   var p=POSTS.find(function(x){return x.id===id});if(!p)return;p.views++;READ.add(id);
   if(p.dbId&&window.supabase)window.supabase.rpc("increment_post_views",{p_id:p.dbId}).then(function(){});
   if(p.dbId){
@@ -845,6 +847,7 @@ function listOrEmpty(arr,emptyMsg,cta){
 }
 async function openUserProfile(userId){
   if(!userId||!window.supabase)return;
+  unsubscribeFromChat();
   closeNotif();
   var res=await window.supabase.from("profiles").select("*").eq("id",userId).single();
   if(res.error||!res.data){
@@ -879,6 +882,32 @@ function getUserIdFromPath(){
 
 /* ---------- 1:1 채팅 ---------- */
 var currentConversationId=null;
+var chatChannel=null;
+function unsubscribeFromChat(){
+  if(chatChannel){window.supabase.removeChannel(chatChannel);chatChannel=null;}
+}
+function subscribeToChat(conversationId){
+  unsubscribeFromChat();
+  chatChannel=window.supabase.channel("chat-"+conversationId)
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:"conversation_id=eq."+conversationId},function(payload){
+      var m=payload.new;
+      if(m.sender_id===AUTH.user.id)return;
+      appendChatMessage(m);
+    })
+    .subscribe();
+}
+function appendChatMessage(m){
+  var box=document.getElementById("chatMessages");
+  if(!box)return;
+  var empty=box.querySelector(".pf-empty");if(empty)empty.remove();
+  var mine=m.sender_id===AUTH.user.id;
+  var div=document.createElement("div");
+  div.className="chat-msg"+(mine?" mine":"");
+  div.innerHTML='<div class="chat-bubble"></div>';
+  div.querySelector(".chat-bubble").textContent=m.content;
+  box.appendChild(div);
+  box.scrollTop=box.scrollHeight;
+}
 async function findOrCreateConversation(otherUserId){
   var q="and(user1_id.eq."+AUTH.user.id+",user2_id.eq."+otherUserId+"),and(user1_id.eq."+otherUserId+",user2_id.eq."+AUTH.user.id+")";
   var find=await window.supabase.from("conversations").select("*").or(q).maybeSingle();
@@ -906,6 +935,7 @@ async function openChat(otherUserId){
   var msgRes=await window.supabase.from("messages").select("*").eq("conversation_id",conv.id).order("created_at",{ascending:true});
   if(msgRes.error){toast("대화를 불러오지 못했어요: "+msgRes.error.message);return;}
   renderChatView(partnerName,msgRes.data||[]);
+  subscribeToChat(conv.id);
 }
 function chatMessagesHtml(messages){
   if(!messages.length)return '<div class="pf-empty">아직 대화가 없어요. 첫 메시지를 보내보세요!</div>';
@@ -945,10 +975,11 @@ async function sendChatMessage(){
 }
 
 function openProfile(){
+  unsubscribeFromChat();
   closeNotif();
   if(!AUTH.user){
     document.getElementById("main").innerHTML=
-      '<div class="profile"><div class="empty"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>'+
+      '<div class="profile" id="myProfileView"><div class="empty"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>'+
       '<h3>로그인이 필요해요</h3><p>로그인하면 내 닉네임으로 글을 쓰고 활동을 볼 수 있어요.</p>'+
       '<button onclick="loginWithGoogle()">구글로 로그인</button></div></div>';
     syncTabs("me");window.scrollTo({top:0,behavior:"smooth"});
@@ -964,7 +995,7 @@ function openProfile(){
   var nextLv=Math.max(0,3-mine.length);
   var lvName=mine.length>=3?"연필 견습":"새싹 작가";
   var pct=Math.min(100,Math.round(mine.length/3*100));
-  var h='<div class="profile">';
+  var h='<div class="profile" id="myProfileView">';
   h+='<div class="pf-card"><div class="pf-ava">'+esc(ME.nick[0])+'</div><div class="pf-info">'+
      '<div class="pf-name">'+esc(ME.nick)+'<span class="pf-lv">'+lvName+'</span></div>'+
      '<div class="pf-sub">Palo와 함께 그리는 중 · 팔로잉 '+FOLLOW.size+'명</div></div>'+
