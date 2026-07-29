@@ -1259,6 +1259,41 @@ function renderScoreLog(rows){
   document.getElementById("main").innerHTML=h;
   window.scrollTo({top:0,behavior:"smooth"});
 }
+async function openLeaderboard(period){
+  period=(period==="month")?"month":"week";
+  closeNotif();
+  document.getElementById("main").innerHTML='<div class="profile"><p style="padding:40px 0;text-align:center;color:var(--muted)">불러오는 중...</p></div>';
+  if(!window.supabase){toast("사용할 수 없어요");return;}
+  var days=period==="month"?30:7;
+  var res=await window.supabase.rpc("get_score_leaderboard",{p_days:days,p_limit:10});
+  if(res.error){toast("불러오기 실패: "+res.error.message);return;}
+  renderLeaderboard(res.data||[],period);
+}
+function renderLeaderboard(rows,period){
+  var h='<div class="profile">'+
+    '<button class="d-back" onclick="renderList()">← 목록으로</button>'+
+    '<div class="pf-sec">🏆 포인트 랭킹</div>'+
+    '<div style="display:flex;gap:8px;margin-bottom:14px">'+
+      '<button class="d-act'+(period==="week"?" liked":"")+'" onclick="openLeaderboard(\'week\')">이번 주</button>'+
+      '<button class="d-act'+(period==="month"?" liked":"")+'" onclick="openLeaderboard(\'month\')">이번 달</button>'+
+    '</div>';
+  if(!rows.length){
+    h+='<div class="pf-empty">아직 순위가 없어요.</div>';
+  }else{
+    h+='<div class="chat-room-list">';
+    rows.forEach(function(r,i){
+      h+='<div class="chat-room-row" style="cursor:pointer" onclick="openUserProfile(\''+r.user_id+'\')">'+
+        '<div class="pf-ava" style="width:40px;height:40px;font-size:15px;flex-shrink:0">'+(i+1)+'</div>'+
+        '<div class="chat-room-info"><div class="chat-room-name">'+esc(r.nickname)+levelBadgeHtml(r.level,"lv-badge")+'</div></div>'+
+        '<div class="chat-room-meta" style="color:var(--brand);font-weight:800">'+r.total_points+'점</div>'+
+      '</div>';
+    });
+    h+='</div>';
+  }
+  h+='</div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
+}
 function openProfile(){
   leaveChat();
   closeNotif();

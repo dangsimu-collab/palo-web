@@ -409,6 +409,11 @@ create trigger on_auth_user_created after insert on auth.users
 - **포인트 내역(선택 요청)**: **새 테이블을 만들지 않고 2단계 때 이미 만든 `score_log`를 그대로 재사용**함(이벤트별 실제 지급량이 이미 다 기록되고 있었으므로). "내 정보"에 "포인트 내역" 버튼 추가 → `openScoreLog()`가 본인 로그 최근 100건을 조회해서 `renderScoreLog()`로 표시(이벤트 종류는 `SCORE_EVENT_LABELS`로 한글 라벨 매핑: 글 작성/댓글 작성/글이 추천받음/댓글이 도움돼요 받음).
 - **관리자 회원 목록**(`app/admin/page.js`)도 `level_thresholds`에서 `emoji`까지 같이 불러와서 뱃지 형태로 표시하도록 갱신.
 
+**4단계 — 주간/월간 포인트 랭킹, 일반 유저 공개 (2026-07-29 완료):**
+- 헤더에 "🏆 랭킹" 아이콘 버튼 추가(`app/body-html.js`) → `openLeaderboard(period)` (`public/palo.js`, `period`는 `"week"`/`"month"`) → `renderLeaderboard()`. 상위 10명, 클릭하면 그 사람 공개 프로필로 이동.
+- **`score_log`는 본인만 조회 가능한 RLS라서(4절 참고), 이 표를 직접 쿼리해선 다른 사람 순위를 못 봄.** 그래서 "집계된 순위만" 안전하게 반환하는 security definer RPC `get_score_leaderboard(p_days, p_limit)`를 새로 만듦 — 개별 `score_log` 행은 절대 노출 안 되고, `user_id`/`nickname`/`level`/기간 합산 점수만 나감. `anon`에게도 execute 권한을 줘서 **로그인 안 해도 조회 가능**(요청한 "일반 유저도 볼 수 있게"를 문자 그대로 만족).
+- 7일/30일 두 기간 모두 이 함수 하나(`p_days` 값만 다르게)로 처리, 새 테이블·새 트리거 불필요.
+
 ---
 
 ## 6. 알려진 이슈 · 남은 보안 부채 · 의도적으로 미룬 것
