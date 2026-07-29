@@ -385,8 +385,9 @@ function adRow(){
   if(ACTIVE_ADS.length){
     var ad=ACTIVE_ADS[adRotationIndex%ACTIVE_ADS.length];
     adRotationIndex++;
-    return '<div class="ad ad-banner" role="complementary" aria-label="광고" style="cursor:pointer" onclick="openPost('+(100000+ad.linked_post_id)+')">'+
+    return '<div class="ad ad-banner" role="complementary" aria-label="광고" style="cursor:pointer;position:relative" onclick="openPost('+(100000+ad.linked_post_id)+')">'+
       '<span class="ad-label">AD</span>'+
+      '<button class="ad-report-btn" onclick="reportAd('+ad.id+',event)" title="이 광고 신고">🚩</button>'+
       '<img src="'+esc(ad.image_url)+'" alt="유저 광고">'+
     '</div>';
   }
@@ -631,6 +632,15 @@ async function submitAd(){
 var reportingPostId=null;
 var reportingConversationId=null;
 var reportingReportedUserId=null;
+var reportingAdId=null;
+function reportAd(adId,e){
+  if(e)e.stopPropagation();
+  if(!window.supabase){toast("사용할 수 없어요");return;}
+  reportingAdId=adId;
+  document.getElementById("reportReasonInput").value="";
+  document.getElementById("reportModal").classList.add("open");
+  setTimeout(function(){document.getElementById("reportReasonInput").focus()},60);
+}
 function reportPost(id){
   var p=POSTS.find(function(x){return x.id===id});if(!p)return;
   if(!p.dbId||!window.supabase){toast("신고가 접수되었어요");return;}
@@ -648,7 +658,7 @@ function reportChat(){
   setTimeout(function(){document.getElementById("reportReasonInput").focus()},60);
 }
 function closeReport(){
-  reportingPostId=null;reportingConversationId=null;reportingReportedUserId=null;
+  reportingPostId=null;reportingConversationId=null;reportingReportedUserId=null;reportingAdId=null;
   document.getElementById("reportModal").classList.remove("open");
 }
 async function submitReport(){
@@ -656,6 +666,14 @@ async function submitReport(){
   if(reportingConversationId){
     var convId=reportingConversationId,reportedUserId=reportingReportedUserId;
     var res=await window.supabase.from("reports").insert({conversation_id:convId,reported_user_id:reportedUserId,reporter_id:AUTH.user.id,reason:reason});
+    closeReport();
+    if(res.error){toast("신고 접수 실패: "+res.error.message);return;}
+    toast("신고가 접수되었어요");
+    return;
+  }
+  if(reportingAdId){
+    var adId=reportingAdId;
+    var res=await window.supabase.from("reports").insert({ad_id:adId,reporter_id:AUTH.user?AUTH.user.id:null,reason:reason});
     closeReport();
     if(res.error){toast("신고 접수 실패: "+res.error.message);return;}
     toast("신고가 접수되었어요");
@@ -1581,6 +1599,7 @@ function openProfile(){
      '<button class="pf-edit" onclick="logout()">로그아웃</button>'+
      (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openAdminReports()">🛡 신고 목록</button>':'')+
      (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openAdminChatList()">🛡 전체 채팅 목록</button>':'')+
+     (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openAdminAdList()">🛡 전체 광고 목록</button>':'')+
      (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openManagerPickList()">📌 매니저 픽 관리</button>':'')+
      '</div>';
   h+='<div class="pf-progress"><div class="pp-row"><span>'+lvName+'</span><span>'+
@@ -1624,7 +1643,12 @@ async function openAdminReports(){
   var postIds=Array.from(new Set(reports.filter(function(r){return r.post_id}).map(function(r){return r.post_id})));
   var postRes=postIds.length?await window.supabase.from("posts").select("id,title,board").in("id",postIds):{data:[]};
   var postById={};(postRes.data||[]).forEach(function(pr){postById[pr.id]=pr;});
+  var adIds=Array.from(new Set(reports.filter(function(r){return r.ad_id}).map(function(r){return r.ad_id})));
+  var adRes=adIds.length?await window.supabase.from("user_ads").select("id,user_id,image_url,status,linked_post_id").in("id",adIds):{data:[]};
+  var adById={};(adRes.data||[]).forEach(function(a){adById[a.id]=a;});
   var reportedUserIds=Array.from(new Set(reports.filter(function(r){return r.reported_user_id}).map(function(r){return r.reported_user_id})));
+  var adUserIds=(adRes.data||[]).map(function(a){return a.user_id});
+  reportedUserIds=Array.from(new Set(reportedUserIds.concat(adUserIds)));
   var profRes=reportedUserIds.length?await window.supabase.from("profiles").select("id,nickname").in("id",reportedUserIds):{data:[]};
   var nickById={};(profRes.data||[]).forEach(function(p){nickById[p.id]=p.nickname;});
   var h='<div class="profile"><div class="pf-sec">🛡 신고 목록 ('+reports.length+')</div>';
@@ -1639,6 +1663,18 @@ async function openAdminReports(){
           '<div class="pmeta"><span class="mt">'+timeAgo(r.created_at)+'</span>'+(r.reason?'<span class="sep"></span><span class="mv">사유: '+esc(r.reason)+'</span>':'')+'</div></div>'+
           '<div style="display:flex;gap:8px;flex-shrink:0">'+
             '<button class="d-act" onclick="adminViewConversation('+r.conversation_id+','+r.id+',\'reports\')">대화 보기</button>'+
+            '<button class="d-act" onclick="dismissReport('+r.id+')">무시</button>'+
+          '</div></div>';
+      }else if(r.ad_id){
+        var ad=adById[r.ad_id];
+        var adName=ad?(nickById[ad.user_id]||"알 수 없음"):null;
+        h+='<div class="post rip"><div class="pmain"'+(ad?' style="cursor:pointer" onclick="openPost('+(100000+ad.linked_post_id)+')"':'')+'>'+
+          (ad?'<img src="'+esc(ad.image_url)+'" alt="" style="width:100%;max-width:220px;height:56px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:block">':'')+
+          '<div class="ptitle">📢 광고 신고 — '+(ad?esc(adName):"(이미 삭제된 광고)")+'</div>'+
+          '<div class="pmeta"><span class="mt">'+timeAgo(r.created_at)+'</span>'+(r.reason?'<span class="sep"></span><span class="mv">사유: '+esc(r.reason)+'</span>':'')+'</div></div>'+
+          '<div style="display:flex;gap:8px;flex-shrink:0">'+
+            (ad&&ad.status==="active"?'<button class="d-act" onclick="adminDeleteReportedAd('+r.id+','+r.ad_id+',true)">삭제+환수</button>'+
+            '<button class="d-act" onclick="adminDeleteReportedAd('+r.id+','+r.ad_id+',false)">삭제만</button>':'')+
             '<button class="d-act" onclick="dismissReport('+r.id+')">무시</button>'+
           '</div></div>';
       }else{
@@ -1671,6 +1707,44 @@ async function adminDeleteReportedPost(reportId,postDbId){
   POSTS=POSTS.filter(function(x){return x.dbId!==postDbId});
   toast("글을 삭제했어요");
   openAdminReports();
+}
+async function adminDeleteReportedAd(reportId,adId,refund){
+  if(!(await confirmDialog(refund?"이 광고를 삭제하고 포인트를 환수할까요?":"이 광고를 삭제할까요? (환수 없음)")))return;
+  var res=await window.supabase.rpc("admin_remove_ad",{p_ad_id:adId,p_refund:refund});
+  if(res.error){toast("삭제 실패: "+res.error.message);return;}
+  if(reportId)await window.supabase.from("reports").update({resolved:true}).eq("id",reportId);
+  ACTIVE_ADS=ACTIVE_ADS.filter(function(a){return a.id!==adId});
+  toast("광고를 삭제했어요");
+  if(reportId)openAdminReports();else openAdminAdList();
+}
+async function openAdminAdList(){
+  var res=await window.supabase.from("user_ads").select("id,user_id,image_url,status,points_spent,duration_days,created_at,expires_at,linked_post_id").order("created_at",{ascending:false});
+  if(res.error){toast("불러오기 실패: "+res.error.message);return;}
+  var ads=res.data;
+  var userIds=Array.from(new Set(ads.map(function(a){return a.user_id})));
+  var profRes=userIds.length?await window.supabase.from("profiles").select("id,nickname").in("id",userIds):{data:[]};
+  var nickById={};(profRes.data||[]).forEach(function(p){nickById[p.id]=p.nickname;});
+  var statusLabel={active:"진행중",expired:"기간 만료",removed_by_admin:"관리자 삭제"};
+  var h='<div class="profile"><div class="pf-sec">🛡 전체 광고 목록 ('+ads.length+')</div>';
+  if(!ads.length){
+    h+='<div class="pf-empty">등록된 광고가 없어요.</div>';
+  }else{
+    h+='<div class="list">';
+    ads.forEach(function(a){
+      h+='<div class="post rip"><div class="pmain" style="cursor:pointer" onclick="openPost('+(100000+a.linked_post_id)+')">'+
+        '<img src="'+esc(a.image_url)+'" alt="" style="width:100%;max-width:220px;height:56px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:block">'+
+        '<div class="ptitle">'+esc(nickById[a.user_id]||"알 수 없음")+' · '+(statusLabel[a.status]||a.status)+'</div>'+
+        '<div class="pmeta"><span class="mt">'+timeAgo(a.created_at)+'</span><span class="sep"></span><span class="mv">'+a.points_spent+'P · '+a.duration_days+'일</span></div></div>'+
+        '<div style="display:flex;gap:8px;flex-shrink:0">'+
+          (a.status==="active"?'<button class="d-act" onclick="adminDeleteReportedAd(null,'+a.id+',true)">삭제+환수</button>'+
+          '<button class="d-act" onclick="adminDeleteReportedAd(null,'+a.id+',false)">삭제만</button>':'')+
+        '</div></div>';
+    });
+    h+='</div>';
+  }
+  h+='<button class="pf-edit" onclick="openProfile()" style="margin-top:16px">내 정보로 돌아가기</button></div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
 }
 async function adminViewConversation(conversationId,reportId,backTo){
   var convRes=await window.supabase.from("conversations").select("*").eq("id",conversationId).single();

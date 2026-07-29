@@ -188,8 +188,8 @@ grant execute on function public.increment_post_views(bigint) to anon, authentic
 - insert: `images_bucket_insert_all_temp` — `bucket_id='post-images'`이면 **누구나** (마찬가지로 아직 안 좁혀짐)
 
 **`reports`:**
-- 컬럼: 원래 글 신고 전용(`post_id`)이었는데, **채팅 신고 기능 추가로 `conversation_id`(FK→conversations)와 `reported_user_id`(FK→profiles) 컬럼 추가**. `post_id`/`conversation_id` 중 정확히 하나만 채워지도록 체크 제약(`reports_target_check`)이 걸려있음.
-- insert: `reports_insert_all_temp` — 글 신고는 누구나(익명 포함, 기존 그대로). 채팅 신고는 `reporter_id = auth.uid()`이고 `is_conversation_participant(conversation_id)`가 true일 때만(그 대화 참여자 본인만 신고 가능)
+- 컬럼: 원래 글 신고 전용(`post_id`)이었는데, **채팅 신고 기능 추가로 `conversation_id`(FK→conversations)와 `reported_user_id`(FK→profiles) 컬럼 추가**, **이후 광고 신고 기능 추가로 `ad_id`(FK→user_ads, on delete cascade) 컬럼 추가**. `post_id`/`conversation_id`/`ad_id` 중 정확히 하나만 채워지도록 체크 제약(`reports_target_check`)이 걸려있음.
+- insert: `reports_insert_all_temp` — 글 신고·광고 신고는 누구나(익명 포함). 채팅 신고는 `reporter_id = auth.uid()`이고 `is_conversation_participant(conversation_id)`가 true일 때만(그 대화 참여자 본인만 신고 가능)
 - select/update: `reports_select_admin` / `reports_update_admin` — `is_admin()`만
 - **(2026-07-29, 이후 "신고된 대화만" → "전체 대화 열람"으로 확장됨. 아래 `conversations`/`messages` 절 참고)**
 
@@ -405,8 +405,8 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **정렬·위치 삽입 로직**: `sortHot(arr)`(`public/palo.js`)가 (1) 매니저 픽을 먼저 분리 → 나머지만 기존 인기순 공식으로 정렬(픽은 7일 제외 규칙 등을 완전히 무시하고 항상 노출, 의도된 동작), (2) 픽들을 `pickPosition` 오름차순·동률이면 `pickedAt` 내림차순(최근 것 우선)으로 정렬, (3) 앞에서부터 훑으며 "요청 위치"와 "다음 빈 자리" 중 큰 값을 실제 배치 위치로 확정(같은 위치를 여러 픽이 요청하면 최근 것이 그 자리를 차지하고 나머지는 자동으로 다음 자리로 밀림), (4) 확정된 위치에 픽을 꽂고 그 사이사이 빈 자리는 일반 인기글로 순서대로 채움.
 - **화면**: 목록 행 제목 앞·글 상세 헤더에 "📌 매니저 픽" 뱃지(`.pick-badge`). 글 상세 액션 줄의 관리자 전용 토글 버튼(`toggleManagerPick()`)은 처음 픽할 때 "현재 픽 개수+1"번을 기본 위치로 지정. **"내 정보 → 📌 매니저 픽 관리"**(`openManagerPickList()`) 화면에서 모든 픽을 한눈에 보고 위치 숫자를 직접 입력해서 저장(`savePickPosition()`)하거나 해제(`unpickFromList()`)할 수 있음 — 픽할 때마다 팝업으로 숫자를 묻는 대신, 여러 개를 한 화면에서 조정하는 방식을 선택함(사용자에게 설명 후 진행).
 
-### 유저 광고 시스템 (아카라이브 스타일, 2026-07-29 시작, 1·2·3단계 완료)
-유저가 활동 포인트를 모아서 이미지 배너 광고를 거는 기능. **최종 목표**(전체 스펙, 4단계는 아직): 배너 이미지 업로드 + 클릭 시 이동 링크 지정(완료) → 목록 스크롤 중간 광고 자리에 여러 유저 광고가 순환 노출(완료, 아래) → 관리자 심사/삭제/포인트 환수 + 유저 신고(4단계 예정).
+### 유저 광고 시스템 (아카라이브 스타일, 2026-07-29 시작, 1~4단계 전부 완료)
+유저가 활동 포인트를 모아서 이미지 배너 광고를 거는 기능. 배너 이미지 업로드 + 클릭 시 이동 링크 지정 → 목록 스크롤 중간 광고 자리에 여러 유저 광고가 순환 노출 → 관리자 심사/삭제/포인트 환수 + 유저 신고까지 전체 스펙 완료.
 
 **1단계 — 포인트 지갑·적립:**
 - **두 개의 별도 지갑**: `profiles.score`(등급 점수, 누적, 안 줄어듦) vs `profiles.ad_points`(광고 포인트, 광고 집행 시 차감됨). 같은 활동(글 +2/댓글 +1/추천받기 +5/크리틱 도움돼요 +20)이 **동시에 두 지갑에 똑같이 적립**되며, 기존 등급 시스템의 도배 방지 장치(일일 20점 상한, 1분 연속 작성 제한, 같은 글 댓글 1회 제한, 5자 미만 제외, 좋아요·도움돼요 평생 1회) 전부가 코드 중복 없이 그대로 적용됨 — 새 로직을 만들지 않고 기존 `award_score()`/`award_capped_post_comment_score()` 함수가 `score`와 `ad_points`를 **같은 트랜잭션에서 함께** 갱신하도록만 고쳤기 때문.
@@ -432,8 +432,15 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **순환 방식**: `adRotationIndex`(새로고침마다 랜덤한 시작점) 하나를 두고, `adRow()`가 불릴 때마다 `ACTIVE_ADS[adRotationIndex % 길이]`를 꺼내고 인덱스를 1 증가 — 화면 안에 광고 자리가 여러 개면 서로 다른 광고가 순서대로 나오고("순환"), 새로고침마다 시작 순서가 달라짐("랜덤" 요소).
 - 클릭하면 연결된 실제 글로 이동(로컬 id 변환 `100000+linked_post_id` 적용, 3절 "POSTS 이중 구조" 패턴 그대로).
 - **배너 크기**: 처음엔 원본 이미지 비율 그대로 올라가서 기존 광고 자리보다 훨씬 커 보이는 문제가 있었음 — `.ad.ad-banner img{height:84px;object-fit:cover}`로 기존 "광고 문의 환영" 자리와 비슷한 높이에 맞춰 자르도록 고침. 광고 등록 모달에 "권장 크기: 800×200px(4:1)" 안내 문구 추가(정사각형·세로로 긴 이미지는 잘릴 수 있음을 미리 알림).
-- **현재 이 광고 자리는 PC/모바일 구분 없이 동일하게 노출됨**(원래 있던 자리를 그대로 재사용했기 때문) — 사용자가 "모바일에서"라고 표현했었는데 PC 전용으로 숨길지는 아직 결정 안 됨(물어봤지만 아직 답 없음, 필요하면 나중에 CSS로 쉽게 조정 가능).
-- **다음 단계 예정**: 4단계 관리자 심사 화면(`admin_remove_ad` RPC는 이미 준비됨) + 유저 신고 기능.
+- **이 광고 자리는 PC/모바일 구분 없이 동일하게 노출됨**(원래 있던 자리를 그대로 재사용) — 사용자가 최종 확인함(별도 제한 불필요).
+
+**4단계 — 관리자 심사/삭제/환수 + 유저 신고 (2026-07-29 완료):**
+- **DB**: 기존 `reports` 테이블에 `ad_id`(FK→`user_ads`, `on delete cascade`) 컬럼 추가. "신고 대상은 글/채팅/광고 중 정확히 하나만" 체크 제약(`reports_target_check`)을 세 갈래로 재작성. `reports_insert_all_temp` insert 정책도 광고 신고를 글 신고와 동일하게(익명 포함 누구나) 허용하도록 갱신.
+- **`admin_remove_ad(p_ad_id, p_refund)` RPC**: 2단계에서 미리 준비해둔 함수를 명확한 파라미터 이름으로 재정의(`관리자 확인 → 상태를 removed_by_admin으로 변경 → refund=true면 app.trusted_score_update 신호 켜고 ad_points 환수`).
+- **유저 신고**: 광고 배너 좌상단에 작은 🚩 버튼(`reportAd(adId,event)`, `event.stopPropagation()`으로 배너 자체의 클릭-이동과 분리) → 기존 신고 모달(`reportPost`/`reportChat`과 같은 모달 재사용) → `submitReport()`에 `reportingAdId` 분기 추가, `{ad_id, reporter_id, reason}` insert.
+- **관리자 화면 1 (신고 기반)**: 기존 "🛡 신고 목록"(`openAdminReports()`)에 `r.ad_id` 분기 추가 — "📢 광고 신고 — {닉네임}" 항목, 클릭하면 연결된 실제 글로 이동, "삭제+환수"/"삭제만"/"무시" 버튼(`adminDeleteReportedAd(reportId, adId, refund)`).
+- **관리자 화면 2 (전체 열람, 신규)**: "🛡 전체 광고 목록"(`openAdminAdList()`) — 신고 여부와 상관없이 모든 광고를(상태별로) 훑어보며 마찬가지로 클릭 시 연결 글 이동, 삭제+환수/삭제만 가능. "내 정보" 관리자 버튼 줄에 세 번째 버튼으로 추가(기존 "🛡 신고 목록", "🛡 전체 채팅 목록"과 같은 줄).
+- `adminDeleteReportedAd()`는 `reportId`가 있으면(신고함에서 호출) 신고를 resolved 처리하고 신고함으로, 없으면(전체 목록에서 호출) 전체 광고 목록으로 돌아가도록 분기.
 
 ### 1:1 채팅 (커미션 거래 상담용)
 설계·구현을 2단계로 나눠서 진행: 1단계(저장만 되는 채팅) → 2단계(실시간 + 채팅 목록 + 읽음 표시).
