@@ -637,6 +637,13 @@
   .np-item:hover .np-del{display:flex}
   .np-del:hover{background:var(--line);color:var(--ink)}
   /* ===== 고도화: 프로필 탭/진행바/팔로잉 ===== */
+  .pinned-post{display:flex;align-items:center;gap:12px;background:linear-gradient(120deg,var(--brand-soft),#f3e8ff);border:1.5px solid var(--line-2);border-radius:var(--r-lg);padding:14px 16px;cursor:pointer;position:relative;transition:.14s}
+  .pinned-post:hover{transform:translateY(-1px);box-shadow:var(--sh)}
+  .pinned-label{position:absolute;top:-9px;left:14px;background:linear-gradient(120deg,var(--brand),var(--grape));color:#fff;font-size:10.5px;font-weight:800;padding:3px 10px;border-radius:8px}
+  .pinned-thumb{width:56px;height:56px;border-radius:12px;object-fit:cover;flex-shrink:0}
+  .pinned-body{flex:1;min-width:0}
+  .pinned-title{font-size:14.5px;font-weight:800;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pinned-meta{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-top:5px}
   .pf-progress{background:var(--surface);border:1.5px solid var(--line-2);border-radius:var(--r);padding:14px 16px}
   .pf-progress .pp-row{display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--ink-2);margin-bottom:8px}
   .pf-progress .pp-bar{height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden}

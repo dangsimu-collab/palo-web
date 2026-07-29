@@ -121,7 +121,7 @@ Supabase 프로젝트: https://qabbdgfottbnapmyjudy.supabase.co
 
 | 테이블 | 주요 컬럼 | 비고 |
 |---|---|---|
-| `profiles` | `id`(uuid, PK, = auth.users.id), `nickname`(text), `level`(**integer**, 2026-07-29부터 — 예전엔 text였음), `score`(int, 누적 점수, 안 줄어듦), `ad_points`(int, 2026-07-29 추가 — 광고 포인트, 광고 집행 시 차감될 예정), `last_score_date`/`daily_score_earned`(글/댓글 일일 20점 상한 계산용, 좋아요·도움돼요는 예외), `last_activity_at`(timestamptz, 1분 연속 작성 제한용), `is_admin`(bool), `is_banned`(bool), `created_at` | `auth.users`에 새 유저 생기면 트리거로 자동 생성. **`score`/`level`/`ad_points`/`daily_score_earned`/`last_score_date`/`last_activity_at`은 `guard_profile_score_columns()` 트리거로 보호됨** — 신뢰된 서버 함수(`app.trusted_score_update` 세션 신호를 켠 함수)만 바꿀 수 있고, 유저가 직접 `.update()`로 건드리면 조용히 원래 값으로 되돌아감(2026-07-29, 유저 광고 시스템 작업 중 발견한 기존 구멍을 소급 적용해서 막음) |
+| `profiles` | `id`(uuid, PK, = auth.users.id), `nickname`(text), `level`(**integer**, 2026-07-29부터 — 예전엔 text였음), `score`(int, 누적 점수, 안 줄어듦), `ad_points`(int, 2026-07-29 추가 — 광고 포인트, 광고 집행 시 차감될 예정), `last_score_date`/`daily_score_earned`(글/댓글 일일 20점 상한 계산용, 좋아요·도움돼요는 예외), `last_activity_at`(timestamptz, 1분 연속 작성 제한용), `pinned_post_id`(FK→posts, nullable, `on delete set null`, 2026-07-29 추가 — 프로필 최상단에 보여줄 "대표 글" 지정용), `is_admin`(bool), `is_banned`(bool), `created_at` | `auth.users`에 새 유저 생기면 트리거로 자동 생성. **`score`/`level`/`ad_points`/`daily_score_earned`/`last_score_date`/`last_activity_at`은 `guard_profile_score_columns()` 트리거로 보호됨** — 신뢰된 서버 함수(`app.trusted_score_update` 세션 신호를 켠 함수)만 바꿀 수 있고, 유저가 직접 `.update()`로 건드리면 조용히 원래 값으로 되돌아감(2026-07-29, 유저 광고 시스템 작업 중 발견한 기존 구멍을 소급 적용해서 막음). **`pinned_post_id`는 별도 트리거(`guard_pinned_post()`)로 "본인 글만" 지정 가능하도록 보호됨**(아래 참고) |
 | `posts` | `id`(bigint PK), `author_id`(uuid, nullable), `board`(text), `category`(text, 말머리), `title`, `content`(text, 순수 텍스트 — 검색용), `content_html`(text, nullable, 2026-07-29 추가 — 서식·인라인 이미지/동영상 포함한 실제 렌더링용 HTML, DOMPurify로 살균 후 저장), `stage`(text, 러프/선화/채색/완성), `views`(int), `is_manager_pick`(bool, 2026-07-29 추가), `pick_position`(int, nullable, 2026-07-29 추가), `picked_at`(timestamptz, nullable, 2026-07-29 추가), `created_at` | `is_manager_pick`/`pick_position`/`picked_at`은 `guard_manager_pick_columns()` 트리거로 보호됨 — 관리자가 아니면 update 시 조용히 원래 값으로 되돌아감(아래 "매니저 픽" 절 참고) |
 | `comments` | `id`(bigint PK), `post_id`(FK→posts), `author_id`(uuid, nullable), `content`, `parent_id`(FK→comments, 대댓글용, **UI 미구현**), `created_at` | |
 | `likes` | `user_id`(uuid — 로그인 시 실제 계정, 비로그인 시 `palo_anon_id`), `post_id`(FK→posts), `created_at` | PK가 `(user_id, post_id)` 복합키 — 중복 방지의 핵심 |
@@ -470,6 +470,12 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 관리자 전용 버튼이 늘어나면서(신고 목록/전체 채팅 목록/광고 심사/전체 광고 목록/매니저 픽 관리) "내 정보" 상단 카드 한 줄에 버튼이 9개까지 몰려 화면 밖으로 넘칠 뻔한 문제를 정리.
 - 일반 계정 버튼(닉네임 변경/채팅 목록/포인트 내역/로그아웃) 4개는 `.pf-card` 안 `.pf-actions` 래퍼로 묶어서 좁은 화면에서 자동 줄바꿈되게 함(`.pf-card`/`.pf-actions` 둘 다 `flex-wrap:wrap`).
 - 관리자 전용 5개 버튼은 프로필 카드에서 완전히 분리해서 카드 아래 별도 **"🛡 관리자 메뉴"** 섹션으로 이동(각 버튼 텍스트에서 반복되던 🛡 이모지는 섹션 제목에만 남기고 제거). 모바일 375px/데스크톱 폭 둘 다 가로 스크롤·넘침 없음을 브라우저에서 확인함.
+
+### 프로필 대표 글 고정 (2026-07-29 추가)
+사용자가 "상대방 프로필을 클릭했을 때 최상단(활동 점수·쓴 글·받은 추천 통계보다 위)에 고정 글을 하나 보여주고 싶다, 커미션 글 홍보용으로"라고 요청.
+- **DB**: `profiles.pinned_post_id`(FK→posts, `on delete set null` — 글이 삭제되면 자동으로 고정 해제) + `guard_pinned_post()` BEFORE UPDATE 트리거(본인 글이 아닌 id로 바꾸려 하면 예외 발생). 별도 RPC 없이 기존 `profiles_update_own` RLS + 이 트리거 조합만으로 보호됨(관리자 승인 불필요, 매니저 픽/광고와 달리 유저 본인의 자율적인 선택이라 판단).
+- **지정 방법**: 특정 게시판 제한 없이 **본인의 아무 글**이나 상세 화면 액션 줄의 "📌 대표 글로 고정하기"/"📌 대표 글 해제" 토글 버튼으로 지정(`togglePinnedPost(id)`) — 새로 고정하면 이전 고정 글은 컬럼 값이 덮어써지며 자동으로 해제(항상 최대 1개).
+- **화면 노출**: `pinnedPostCardHTML(pinnedPostId)` 공용 헬퍼가 "📌 대표 글" 카드(썸네일+제목+카테고리+추천/댓글 수, 클릭 시 글 이동)를 만들고, 남의 프로필(`openUserProfile()`)과 내 프로필(`openProfile()`) 둘 다 `pf-stats`(통계) 바로 위, 최상단에 동일하게 표시.
 
 ### 1:1 채팅 (커미션 거래 상담용)
 설계·구현을 2단계로 나눠서 진행: 1단계(저장만 되는 채팅) → 2단계(실시간 + 채팅 목록 + 읽음 표시).

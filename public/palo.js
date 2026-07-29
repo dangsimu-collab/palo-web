@@ -512,7 +512,8 @@ function renderPostDetail(id){
     (p.adLocked?'<span class="d-act" style="opacity:.55;cursor:default" title="광고를 집행 중인 글은 수정할 수 없어요">🔒 수정 불가(광고 집행 중)</span>':
     '<button class="d-act" onclick="openEditPost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L20 8l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>수정</button>')+
     '<button class="d-act" onclick="deletePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>삭제</button>'+
-    '<button class="d-act" onclick="openCreateAd('+p.id+')">📢 이 글 광고하기</button>'):'')+
+    '<button class="d-act" onclick="openCreateAd('+p.id+')">📢 이 글 광고하기</button>'+
+    '<button class="d-act'+((AUTH.profile&&AUTH.profile.pinned_post_id===p.dbId)?' liked':'')+'" onclick="togglePinnedPost('+p.id+')">📌 '+((AUTH.profile&&AUTH.profile.pinned_post_id===p.dbId)?"대표 글 해제":"대표 글로 고정하기")+'</button>'):'')+
     ((p.dbId&&AUTH.profile&&AUTH.profile.is_admin)?('<button class="d-act'+(p.isManagerPick?' liked':'')+'" onclick="toggleManagerPick('+p.id+')">📌 '+(p.isManagerPick?"매니저 픽 해제":"매니저 픽 지정")+'</button>'):'')+
     '</div>'+
     '<div class="comments"><div class="cm-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>훈수 · 크리틱 '+p.comments.length+'</div>'+
@@ -546,6 +547,15 @@ async function toggleManagerPick(id){
   p.pickPosition=newState?position:null;
   p.pickedAt=newState?new Date().toISOString():null;
   toast(newState?("매니저 픽으로 지정했어요 📌 (위치 "+position+", \"매니저 픽 관리\"에서 조정 가능)"):"매니저 픽을 해제했어요");
+  renderPostDetail(id);
+}
+async function togglePinnedPost(id){
+  var p=POSTS.find(function(x){return x.id===id});if(!p||!p.dbId||!AUTH.user||!window.supabase)return;
+  var newVal=(AUTH.profile&&AUTH.profile.pinned_post_id===p.dbId)?null:p.dbId;
+  var res=await window.supabase.from("profiles").update({pinned_post_id:newVal}).eq("id",AUTH.user.id);
+  if(res.error){toast("처리 실패: "+res.error.message);return;}
+  AUTH.profile.pinned_post_id=newVal;
+  toast(newVal?"프로필 대표 글로 고정했어요 📌":"대표 글을 해제했어요");
   renderPostDetail(id);
 }
 async function openManagerPickList(){
@@ -1284,6 +1294,19 @@ function profileRow(p){
     (p.likes?'<span class="sep"></span><span class="ml">추천 '+p.likes+'</span>':'')+'</div></div>'+
     '<div class="pcmt"><span class="cn">'+p.comments.length+'</span><span class="cl">댓글</span></div></div>';
 }
+function pinnedPostCardHTML(pinnedPostId){
+  if(!pinnedPostId)return"";
+  var p=POSTS.find(function(x){return x.dbId===pinnedPostId});
+  if(!p)return"";
+  var c=catFor(p);
+  var thumb=p.images&&p.images.length?p.images[0]:null;
+  return '<div class="pinned-post" onclick="openPost('+p.id+')">'+
+    '<span class="pinned-label">📌 대표 글</span>'+
+    (thumb?'<img src="'+esc(thumb)+'" alt="" class="pinned-thumb">':'')+
+    '<div class="pinned-body"><div class="pinned-title">'+esc(p.title)+'</div>'+
+    '<div class="pinned-meta"><span class="cat '+c.cls+'">'+c.label+'</span><span>추천 '+p.likes+' · 댓글 '+p.comments.length+'</span></div></div>'+
+  '</div>';
+}
 function setPfTab(t){pfTab=t;openProfile();}
 function listOrEmpty(arr,emptyMsg,cta){
   if(arr.length)return '<div class="list">'+arr.map(profileRow).join("")+'</div>';
@@ -1309,6 +1332,7 @@ async function openUserProfile(userId){
   h+='<div class="pf-card"><div class="pf-ava">'+esc(profile.nickname[0])+'</div><div class="pf-info">'+
      '<div class="pf-name">'+esc(profile.nickname)+levelBadgeHtml(profile.level)+'</div>'+
      '</div>'+(canChat?'<button class="pf-edit" onclick="openChat(\''+userId+'\')">💬 채팅하기</button>':'')+'</div>';
+  h+=pinnedPostCardHTML(profile.pinned_post_id);
   h+='<div class="pf-stats">'+
      '<div class="pf-st"><b>'+(profile.score||0)+'</b><span>활동 점수</span></div>'+
      '<div class="pf-st"><b>'+theirPosts.length+'</b><span>쓴 글</span></div>'+
@@ -1662,6 +1686,7 @@ function openProfile(){
          '<button class="pf-edit" onclick="openManagerPickList()">📌 매니저 픽 관리</button>'+
        '</div>';
   }
+  h+=pinnedPostCardHTML(AUTH.profile?AUTH.profile.pinned_post_id:null);
   h+='<div class="pf-progress"><div class="pp-row"><span>'+lvName+'</span><span>'+
      (prog.maxed?'최고 등급 달성! 🎉':('다음 등급('+prog.nextName+')까지 '+prog.remain+'점'))+'</span></div>'+
      '<div class="pp-bar"><div class="pp-fill" style="width:'+prog.pct+'%"></div></div></div>';
