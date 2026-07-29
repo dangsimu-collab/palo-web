@@ -135,6 +135,9 @@ async function loadRealPosts(){
   var noticeRes=await window.supabase.from("notices").select("*").order("created_at",{ascending:false}).limit(1);
   if(!noticeRes.error&&noticeRes.data.length)LATEST_NOTICE=noticeRes.data[0];
 
+  var lvRes=await window.supabase.from("level_thresholds").select("*").order("level");
+  if(!lvRes.error)LEVEL_THRESHOLDS=lvRes.data||[];
+
   var res=await window.supabase.from("posts").select("*").order("created_at",{ascending:false});
   if(res.error){console.error(res.error);return;}
   var dbIds=res.data.map(function(row){return row.id});
@@ -145,9 +148,16 @@ async function loadRealPosts(){
   function nameFor(uid){return uid&&nickById[uid]?nickById[uid]:"익명";}
 
   var cmRes=dbIds.length?await window.supabase.from("comments").select("*").in("post_id",dbIds).order("created_at"):{data:[]};
+  var commentIds=(cmRes.data||[]).map(function(c){return c.id});
+  var helpfulRes=commentIds.length?await window.supabase.from("comment_helpful").select("comment_id,user_id").in("comment_id",commentIds):{data:[]};
+  var helpfulCountByComment={},helpfulMine={};
+  (helpfulRes.data||[]).forEach(function(hf){
+    helpfulCountByComment[hf.comment_id]=(helpfulCountByComment[hf.comment_id]||0)+1;
+    if(AUTH.user&&hf.user_id===AUTH.user.id)helpfulMine[hf.comment_id]=true;
+  });
   var commentsByPost={};
   (cmRes.data||[]).forEach(function(c){
-    (commentsByPost[c.post_id]=commentsByPost[c.post_id]||[]).push({n:nameFor(c.author_id),t:timeAgo(c.created_at),txt:c.content,dbId:c.id,authorId:c.author_id});
+    (commentsByPost[c.post_id]=commentsByPost[c.post_id]||[]).push({n:nameFor(c.author_id),t:timeAgo(c.created_at),txt:c.content,dbId:c.id,authorId:c.author_id,h:helpfulCountByComment[c.id]||0,_me:!!helpfulMine[c.id]});
   });
 
   var likeRes=dbIds.length?await window.supabase.from("likes").select("post_id,user_id").in("post_id",dbIds):{data:[]};
@@ -532,6 +542,7 @@ async function addComment(id){
     var res=await window.supabase.from("comments").insert({post_id:p.dbId,author_id:AUTH.user?AUTH.user.id:null,content:v}).select().single();
     if(res.error){toast("저장 실패: "+res.error.message);return;}
     newComment.dbId=res.data.id;newComment.authorId=res.data.author_id;
+    refreshMyProfile();
   }
   p.comments.push(newComment);
   document.getElementById("cmList").innerHTML=renderComments(p);
@@ -800,6 +811,7 @@ async function submitPost(){
       var savedImgs=await window.supabase.from("post_images").insert(imgRows);
       if(savedImgs.error)console.error(savedImgs.error);
     }
+    refreshMyProfile();
   }
 
   var np={id:Date.now(),board:edState.board,title:title,author:"나",time:"방금",createdAt:new Date().toISOString(),likes:0,views:1,
@@ -963,9 +975,10 @@ async function openUserProfile(userId){
   var canChat=AUTH.user&&AUTH.user.id!==userId;
   var h='<div class="profile">';
   h+='<div class="pf-card"><div class="pf-ava">'+esc(profile.nickname[0])+'</div><div class="pf-info">'+
-     '<div class="pf-name">'+esc(profile.nickname)+'<span class="pf-lv">'+esc(profile.level||"새싹 작가")+'</span></div>'+
+     '<div class="pf-name">'+esc(profile.nickname)+'<span class="pf-lv">'+esc(levelName(profile.level))+'</span></div>'+
      '</div>'+(canChat?'<button class="pf-edit" onclick="openChat(\''+userId+'\')">💬 채팅하기</button>':'')+'</div>';
   h+='<div class="pf-stats">'+
+     '<div class="pf-st"><b>'+(profile.score||0)+'</b><span>활동 점수</span></div>'+
      '<div class="pf-st"><b>'+theirPosts.length+'</b><span>쓴 글</span></div>'+
      '<div class="pf-st"><b>'+likeSum+'</b><span>받은 추천</span></div></div>';
   h+='<div class="pf-sec">쓴 글 ('+theirPosts.length+')</div>';
@@ -1185,6 +1198,27 @@ async function sendChatMessage(){
   if(box){box.innerHTML=chatMessagesHtml(msgRes.data||[]);box.scrollTop=box.scrollHeight;}
 }
 
+/* ---------- 등급 시스템 (점수·등급은 서버 트리거가 계산 — profiles.score/level 그대로 신뢰) ---------- */
+var LEVEL_THRESHOLDS=[]; // {level,min_score,name}[], loadRealPosts()에서 DB로부터 채워짐 — 기준을 바꾸려면 level_thresholds 테이블만 수정하면 됨
+function levelName(lv){
+  var t=LEVEL_THRESHOLDS.find(function(x){return x.level===lv});
+  return t?t.name:"새싹 작가";
+}
+function levelProgress(score,level){
+  var sorted=LEVEL_THRESHOLDS.slice().sort(function(a,b){return a.level-b.level});
+  var cur=sorted.find(function(x){return x.level===level});
+  var next=sorted.find(function(x){return x.level===level+1});
+  if(!next)return{pct:100,remain:0,nextName:null,maxed:true};
+  var span=next.min_score-(cur?cur.min_score:0);
+  var progressed=score-(cur?cur.min_score:0);
+  var pct=span>0?Math.max(0,Math.min(100,Math.round(progressed/span*100))):100;
+  return{pct:pct,remain:Math.max(0,next.min_score-score),nextName:next.name,maxed:false};
+}
+async function refreshMyProfile(){
+  if(!AUTH.user||!window.supabase)return;
+  var res=await window.supabase.from("profiles").select("*").eq("id",AUTH.user.id).single();
+  if(!res.error)AUTH.profile=res.data;
+}
 function openProfile(){
   leaveChat();
   closeNotif();
@@ -1203,9 +1237,10 @@ function openProfile(){
   recent=recent.slice(0,10);
   var likeSum=mine.reduce(function(a,p){return a+p.likes},0);
   var cmSum=mine.reduce(function(a,p){return a+p.comments.length},0);
-  var nextLv=Math.max(0,3-mine.length);
-  var lvName=mine.length>=3?"연필 견습":"새싹 작가";
-  var pct=Math.min(100,Math.round(mine.length/3*100));
+  var myScore=AUTH.profile?(AUTH.profile.score||0):0;
+  var myLevel=AUTH.profile?(AUTH.profile.level||1):1;
+  var lvName=levelName(myLevel);
+  var prog=levelProgress(myScore,myLevel);
   var h='<div class="profile" id="myProfileView">';
   h+='<div class="pf-card"><div class="pf-ava">'+esc(ME.nick[0])+'</div><div class="pf-info">'+
      '<div class="pf-name">'+esc(ME.nick)+'<span class="pf-lv">'+lvName+'</span></div>'+
@@ -1217,13 +1252,13 @@ function openProfile(){
      (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openAdminChatList()">🛡 전체 채팅 목록</button>':'')+
      '</div>';
   h+='<div class="pf-progress"><div class="pp-row"><span>'+lvName+'</span><span>'+
-     (nextLv?('다음 등급까지 글 '+nextLv+'개'):'등급 달성! 🎉')+'</span></div>'+
-     '<div class="pp-bar"><div class="pp-fill" style="width:'+pct+'%"></div></div></div>';
+     (prog.maxed?'최고 등급 달성! 🎉':('다음 등급('+prog.nextName+')까지 '+prog.remain+'점'))+'</span></div>'+
+     '<div class="pp-bar"><div class="pp-fill" style="width:'+prog.pct+'%"></div></div></div>';
   h+='<div class="pf-stats">'+
+     '<div class="pf-st"><b>'+myScore+'</b><span>활동 점수</span></div>'+
      '<div class="pf-st"><b>'+mine.length+'</b><span>쓴 글</span></div>'+
      '<div class="pf-st"><b>'+likeSum+'</b><span>받은 추천</span></div>'+
-     '<div class="pf-st"><b>'+cmSum+'</b><span>받은 댓글</span></div>'+
-     '<div class="pf-st"><b>'+READ.size+'</b><span>읽은 글</span></div></div>';
+     '<div class="pf-st"><b>'+cmSum+'</b><span>받은 댓글</span></div></div>';
   if(FOLLOW.size){
     h+='<div class="pf-sec">팔로잉</div><div class="pf-follow">';
     Array.from(FOLLOW).forEach(function(n){
@@ -1416,15 +1451,21 @@ function toggleFollow(name,pid){
 }
 
 // ===== 댓글 상호작용 =====
-function helpful(pid,ci,el){
+async function helpful(pid,ci,el){
   var p=POSTS.find(function(x){return x.id===pid});if(!p)return;
   var c=p.comments[ci];
+  if(!c.dbId||!window.supabase){toast("이 댓글엔 지원하지 않아요");return;}
+  if(!AUTH.user){toast("로그인이 필요해요");loginWithGoogle();return;}
   var b=el.querySelector("b");
   if(c._me){
+    var del=await window.supabase.from("comment_helpful").delete().eq("comment_id",c.dbId).eq("user_id",AUTH.user.id);
+    if(del.error){toast("처리 실패: "+del.error.message);return;}
     c.h=Math.max(0,(c.h||1)-1);c._me=false;
     if(c.h<=0&&b)b.remove();else if(b)b.textContent=c.h;
     toast("도움돼요를 취소했어요");return;
   }
+  var ins=await window.supabase.from("comment_helpful").insert({comment_id:c.dbId,user_id:AUTH.user.id});
+  if(ins.error){toast("처리 실패: "+ins.error.message);return;}
   c.h=(c.h||0)+1;c._me=true;
   if(!b){b=document.createElement("b");b.style.marginLeft="3px";el.appendChild(b);}
   b.textContent=c.h;

@@ -212,12 +212,13 @@ function UserManagement() {
   const [query, setQuery] = useState('');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [levelNames, setLevelNames] = useState({});
 
   async function load(q) {
     setLoading(true);
     let req = supabase
       .from('profiles')
-      .select('id,nickname,level,is_admin,is_banned,created_at')
+      .select('id,nickname,level,score,is_admin,is_banned,created_at')
       .order('created_at', { ascending: false })
       .limit(50);
     if (q) req = req.ilike('nickname', `%${q}%`);
@@ -228,6 +229,17 @@ function UserManagement() {
 
   useEffect(() => {
     load('');
+    supabase
+      .from('level_thresholds')
+      .select('level,name')
+      .then(({ data, error }) => {
+        if (error || !data) return;
+        const map = {};
+        data.forEach((row) => {
+          map[row.level] = row.name;
+        });
+        setLevelNames(map);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -279,7 +291,7 @@ function UserManagement() {
                   )}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                  {u.level} · 가입 {new Date(u.created_at).toLocaleDateString('ko-KR')}
+                  {levelNames[u.level] || `${u.level}등급`} · {u.score ?? 0}점 · 가입 {new Date(u.created_at).toLocaleDateString('ko-KR')}
                 </div>
               </div>
               {!u.is_admin && (
