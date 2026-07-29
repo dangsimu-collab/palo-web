@@ -161,8 +161,32 @@ grant execute on function public.increment_post_views(bigint) to anon, authentic
 - insert: `images_bucket_insert_all_temp` — `bucket_id='post-images'`이면 **누구나** (마찬가지로 아직 안 좁혀짐)
 
 **`reports`:**
-- insert: `reports_insert_all_temp` — 누구나 (신고 접수는 익명 허용이 맞음)
+- 컬럼: 원래 글 신고 전용(`post_id`)이었는데, **채팅 신고 기능 추가로 `conversation_id`(FK→conversations)와 `reported_user_id`(FK→profiles) 컬럼 추가**. `post_id`/`conversation_id` 중 정확히 하나만 채워지도록 체크 제약(`reports_target_check`)이 걸려있음.
+- insert: `reports_insert_all_temp` — 글 신고는 누구나(익명 포함, 기존 그대로). 채팅 신고는 `reporter_id = auth.uid()`이고 `is_conversation_participant(conversation_id)`가 true일 때만(그 대화 참여자 본인만 신고 가능)
 - select/update: `reports_select_admin` / `reports_update_admin` — `is_admin()`만
+- **관리자가 신고된 대화 내용을 볼 수 있게** `conversations`/`messages`에 아래 정책 추가(둘 다 "신고가 실제로 접수된 대화방"에만 적용 — 신고 안 된 다른 사람들의 채팅은 관리자도 못 봄):
+  - `conversations_select_admin_reported`, `messages_select_admin_reported`
+
+**RLS 순환 참조(recursion) 주의 — 실제로 겪은 버그:** 위 정책들을 처음 만들 때 `conversations`/`messages` 조회 여부를 `reports` 서브쿼리로 확인하고, 반대로 `reports` INSERT는 `conversations` 서브쿼리로 참여자를 확인하도록 짰더니 `reports → conversations → reports → ...`로 서로가 서로를 참조하는 순환이 생겨 `infinite recursion detected in policy for relation "reports"` 에러가 났음(실제로 신고 접수 시 발생, `CREATE POLICY` 시점엔 에러 없이 통과해서 뒤늦게 발견됨). **고친 방법**: `is_admin()`과 똑같은 패턴으로, 테이블을 직접 서브쿼리하는 대신 **security definer 함수로 감싸서 그 함수를 호출**하도록 정책을 다시 씀 — security definer 함수 내부의 쿼리는 RLS를 우회하기 때문에 순환이 끊김:
+
+```sql
+-- 대화 참여자인지 확인 (RLS 우회)
+create or replace function public.is_conversation_participant(p_conversation_id bigint) returns boolean as $$
+  select exists(
+    select 1 from public.conversations c
+    where c.id = p_conversation_id
+      and (c.user1_id = auth.uid() or c.user2_id = auth.uid())
+  );
+$$ language sql stable security definer set search_path = public;
+grant execute on function public.is_conversation_participant(bigint) to authenticated;
+
+-- 신고 접수된 대화인지 확인 (RLS 우회)
+create or replace function public.conversation_is_reported(p_conversation_id bigint) returns boolean as $$
+  select exists(select 1 from public.reports where conversation_id = p_conversation_id);
+$$ language sql stable security definer set search_path = public;
+grant execute on function public.conversation_is_reported(bigint) to authenticated;
+```
+`reports_insert_all_temp`은 `public.is_conversation_participant(conversation_id)`를, `conversations_select_admin_reported`/`messages_select_admin_reported`는 `public.is_admin() and public.conversation_is_reported(...)`를 쓰도록 재작성함. **교훈**: 정책 A가 테이블 B를 서브쿼리하고, 테이블 B의 정책이 다시 테이블 A를 서브쿼리하는 "맞물리는 관계"를 새 RLS 정책에 추가할 때는, 처음부터 서브쿼리 대신 security definer 함수로 감싸는 걸 기본으로 고려할 것 — `CREATE POLICY` 자체는 에러 없이 성공하고 실제 쿼리 실행 시점에야 recursion 에러가 나서 뒤늦게 발견되기 쉬움.
 
 **`notices`:**
 - select: 누구나
@@ -248,7 +272,7 @@ create trigger on_auth_user_created after insert on auth.users
    - 시간대별(0~23시) 글 작성 분포 (막대), 게시판별 글 수 (가로 막대)
    - 인기 글 TOP 10 / 인기 작성자 TOP 10 (사이트 "인기순" 정렬 공식 재사용 — 아래 "인기글 점수 공식" 참고. 관리자 통계는 고정 TOP 10이라 7일 제외 규칙은 적용 안 함)
    - **날짜 집계는 전부 로컬(한국) 시간 기준** (`localDateKey` 헬퍼) — UTC로 하면 새벽 시간대에 하루씩 어긋나는 버그가 있었음(수정됨)
-5. **신고 처리** — 신고 목록 조회, 글 삭제 처리/무시, 신고된 글 제목 클릭 시 상세로 이동
+5. **신고 처리** — 신고 목록 조회, 글 삭제 처리/무시, 신고된 글 제목 클릭 시 상세로 이동. **채팅 신고도 같은 화면에서 처리**(아래 "채팅 신고" 참고) — "💬 채팅 신고 — 닉네임"으로 구분 표시되고 "대화 보기" 클릭 시 읽기 전용으로 전체 메시지 확인 가능
 
 ### 부가 기능
 - **글 수정** — 글쓰기 모달을 재사용(`editingPostId`로 새 글/수정 모드 구분), 이미지도 교체 가능
@@ -278,7 +302,7 @@ create trigger on_auth_user_created after insert on auth.users
 - **채팅 목록(받은함)**: `openChatList()` — 내가 참여한 모든 대화를 `last_message_at` 최신순으로, 상대 닉네임·마지막 메시지 미리보기·안 읽은 개수(뱃지)와 함께 표시.
 - **읽음 표시**: 내가 보낸 메시지 옆에 상대가 읽으면 "읽음" 텍스트가 뜸(`is_read` 컬럼 + realtime UPDATE 구독으로 실시간 반영).
 - 채팅 UI 전용 CSS 클래스가 `app/globals.css`에 추가됨: `.chat-list`, `.chat-msg`, `.chat-bubble`, `.chat-inputrow`, `.chat-send`, `.chat-read-status`, `.chat-room-list`, `.chat-room-row`, `.chat-unread-badge`.
-
+- **채팅 신고(2026-07-29 추가)**: 채팅방 헤더에 "🚩 신고" 버튼(`reportChat()`) — 기존 글 신고용 `#reportModal`을 그대로 재사용하고, `reportingConversationId`/`reportingReportedUserId` 전역 변수로 "지금 신고 중인 게 글인지 채팅인지" 구분(`submitReport()`가 분기 처리). 관리자 신고 목록(`openAdminReports()`)에서 채팅 신고는 별도 표시되고, "대화 보기" 클릭 시 `adminViewReportedChat()`이 해당 대화의 메시지 전체를 읽기 전용으로 보여줌(`닉네임: 내용` 형태, 실제 채팅 화면과 다른 별도 렌더 함수 `renderAdminChatView()`). DB/RLS는 4절 "reports" 항목과 "RLS 순환 참조 주의" 참고.
 ---
 
 ## 6. 알려진 이슈 · 남은 보안 부채 · 의도적으로 미룬 것

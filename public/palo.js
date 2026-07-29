@@ -437,6 +437,8 @@ async function deletePost(id){
   renderList();
 }
 var reportingPostId=null;
+var reportingConversationId=null;
+var reportingReportedUserId=null;
 function reportPost(id){
   var p=POSTS.find(function(x){return x.id===id});if(!p)return;
   if(!p.dbId||!window.supabase){toast("신고가 접수되었어요");return;}
@@ -445,10 +447,29 @@ function reportPost(id){
   document.getElementById("reportModal").classList.add("open");
   setTimeout(function(){document.getElementById("reportReasonInput").focus()},60);
 }
-function closeReport(){reportingPostId=null;document.getElementById("reportModal").classList.remove("open");}
+function reportChat(){
+  if(!AUTH.user||!currentConversationId){toast("로그인이 필요해요");return;}
+  reportingConversationId=currentConversationId;
+  reportingReportedUserId=currentChatPartnerId;
+  document.getElementById("reportReasonInput").value="";
+  document.getElementById("reportModal").classList.add("open");
+  setTimeout(function(){document.getElementById("reportReasonInput").focus()},60);
+}
+function closeReport(){
+  reportingPostId=null;reportingConversationId=null;reportingReportedUserId=null;
+  document.getElementById("reportModal").classList.remove("open");
+}
 async function submitReport(){
-  var id=reportingPostId;var p=POSTS.find(function(x){return x.id===id});if(!p)return;
   var reason=document.getElementById("reportReasonInput").value.trim()||null;
+  if(reportingConversationId){
+    var convId=reportingConversationId,reportedUserId=reportingReportedUserId;
+    var res=await window.supabase.from("reports").insert({conversation_id:convId,reported_user_id:reportedUserId,reporter_id:AUTH.user.id,reason:reason});
+    closeReport();
+    if(res.error){toast("신고 접수 실패: "+res.error.message);return;}
+    toast("신고가 접수되었어요");
+    return;
+  }
+  var id=reportingPostId;var p=POSTS.find(function(x){return x.id===id});if(!p)return;
   var res=await window.supabase.from("reports").insert({post_id:p.dbId,reporter_id:AUTH.user?AUTH.user.id:null,reason:reason});
   closeReport();
   if(res.error){toast("신고 접수 실패: "+res.error.message);return;}
@@ -882,6 +903,7 @@ function getUserIdFromPath(){
 
 /* ---------- 1:1 채팅 ---------- */
 var currentConversationId=null;
+var currentChatPartnerId=null;
 var chatChannel=null;
 function unsubscribeFromChat(){
   if(chatChannel){window.supabase.removeChannel(chatChannel);chatChannel=null;}
@@ -937,6 +959,7 @@ async function openChat(otherUserId){
   var conv=await findOrCreateConversation(otherUserId);
   if(!conv)return;
   currentConversationId=conv.id;
+  currentChatPartnerId=otherUserId;
 
   var profRes=await window.supabase.from("profiles").select("nickname").eq("id",otherUserId).single();
   var partnerName=profRes.data?profRes.data.nickname:"상대방";
@@ -1013,7 +1036,9 @@ function renderChatList(convs,partnerIds,nickById,lastMsgByConv,unreadByConv){
 function renderChatView(partnerName,messages){
   var h='<div class="profile">'+
     '<button class="d-back" onclick="renderList()">← 목록으로</button>'+
-    '<div class="pf-card"><div class="pf-ava">'+esc(partnerName[0])+'</div><div class="pf-info"><div class="pf-name">'+esc(partnerName)+'</div></div></div>'+
+    '<div class="pf-card"><div class="pf-ava">'+esc(partnerName[0])+'</div><div class="pf-info"><div class="pf-name">'+esc(partnerName)+'</div></div>'+
+      '<button class="d-act" onclick="reportChat()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>신고</button>'+
+    '</div>'+
     '<div id="chatMessages" class="chat-list">'+chatMessagesHtml(messages)+'</div>'+
     '<div class="chat-inputrow">'+
       '<textarea id="chatInput" placeholder="메시지를 입력하세요" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendChatMessage();}"></textarea>'+
@@ -1106,22 +1131,35 @@ async function openAdminReports(){
   var res=await window.supabase.from("reports").select("*").eq("resolved",false).order("created_at",{ascending:false});
   if(res.error){toast("불러오기 실패: "+res.error.message);return;}
   var reports=res.data;
-  var postIds=Array.from(new Set(reports.map(function(r){return r.post_id})));
+  var postIds=Array.from(new Set(reports.filter(function(r){return r.post_id}).map(function(r){return r.post_id})));
   var postRes=postIds.length?await window.supabase.from("posts").select("id,title,board").in("id",postIds):{data:[]};
   var postById={};(postRes.data||[]).forEach(function(pr){postById[pr.id]=pr;});
-  var h='<div class="profile"><div class="pf-sec">🛡 신고된 글 ('+reports.length+')</div>';
+  var reportedUserIds=Array.from(new Set(reports.filter(function(r){return r.reported_user_id}).map(function(r){return r.reported_user_id})));
+  var profRes=reportedUserIds.length?await window.supabase.from("profiles").select("id,nickname").in("id",reportedUserIds):{data:[]};
+  var nickById={};(profRes.data||[]).forEach(function(p){nickById[p.id]=p.nickname;});
+  var h='<div class="profile"><div class="pf-sec">🛡 신고 목록 ('+reports.length+')</div>';
   if(!reports.length){
     h+='<div class="pf-empty">처리할 신고가 없어요.</div>';
   }else{
     h+='<div class="list">';
     reports.forEach(function(r){
-      var post=postById[r.post_id];
-      h+='<div class="post rip"><div class="pmain"'+(post?' style="cursor:pointer" onclick="openPost('+(100000+post.id)+')"':'')+'><div class="ptitle">'+(post?esc(post.title):"(이미 삭제된 글)")+'</div>'+
-        '<div class="pmeta"><span class="mt">'+timeAgo(r.created_at)+'</span>'+(r.reason?'<span class="sep"></span><span class="mv">사유: '+esc(r.reason)+'</span>':'')+'</div></div>'+
-        '<div style="display:flex;gap:8px;flex-shrink:0">'+
-          (post?'<button class="d-act" onclick="adminDeleteReportedPost('+r.id+','+post.id+')">글 삭제</button>':'')+
-          '<button class="d-act" onclick="dismissReport('+r.id+')">무시</button>'+
-        '</div></div>';
+      if(r.conversation_id){
+        var name=nickById[r.reported_user_id]||"알 수 없음";
+        h+='<div class="post rip"><div class="pmain" style="cursor:pointer" onclick="adminViewReportedChat('+r.conversation_id+')"><div class="ptitle">💬 채팅 신고 — '+esc(name)+'</div>'+
+          '<div class="pmeta"><span class="mt">'+timeAgo(r.created_at)+'</span>'+(r.reason?'<span class="sep"></span><span class="mv">사유: '+esc(r.reason)+'</span>':'')+'</div></div>'+
+          '<div style="display:flex;gap:8px;flex-shrink:0">'+
+            '<button class="d-act" onclick="adminViewReportedChat('+r.conversation_id+')">대화 보기</button>'+
+            '<button class="d-act" onclick="dismissReport('+r.id+')">무시</button>'+
+          '</div></div>';
+      }else{
+        var post=postById[r.post_id];
+        h+='<div class="post rip"><div class="pmain"'+(post?' style="cursor:pointer" onclick="openPost('+(100000+post.id)+')"':'')+'><div class="ptitle">'+(post?esc(post.title):"(이미 삭제된 글)")+'</div>'+
+          '<div class="pmeta"><span class="mt">'+timeAgo(r.created_at)+'</span>'+(r.reason?'<span class="sep"></span><span class="mv">사유: '+esc(r.reason)+'</span>':'')+'</div></div>'+
+          '<div style="display:flex;gap:8px;flex-shrink:0">'+
+            (post?'<button class="d-act" onclick="adminDeleteReportedPost('+r.id+','+post.id+')">글 삭제</button>':'')+
+            '<button class="d-act" onclick="dismissReport('+r.id+')">무시</button>'+
+          '</div></div>';
+      }
     });
     h+='</div>';
   }
@@ -1143,6 +1181,28 @@ async function adminDeleteReportedPost(reportId,postDbId){
   POSTS=POSTS.filter(function(x){return x.dbId!==postDbId});
   toast("글을 삭제했어요");
   openAdminReports();
+}
+async function adminViewReportedChat(conversationId){
+  var convRes=await window.supabase.from("conversations").select("*").eq("id",conversationId).single();
+  if(convRes.error){toast("대화를 불러오지 못했어요: "+convRes.error.message);return;}
+  var conv=convRes.data;
+  var profRes=await window.supabase.from("profiles").select("id,nickname").in("id",[conv.user1_id,conv.user2_id]);
+  var nickById={};(profRes.data||[]).forEach(function(p){nickById[p.id]=p.nickname;});
+  var msgRes=await window.supabase.from("messages").select("*").eq("conversation_id",conversationId).order("created_at",{ascending:true});
+  if(msgRes.error){toast("메시지를 불러오지 못했어요: "+msgRes.error.message);return;}
+  renderAdminChatView(conv,nickById,msgRes.data||[]);
+}
+function renderAdminChatView(conv,nickById,messages){
+  var h='<div class="profile">'+
+    '<button class="d-back" onclick="openAdminReports()">← 신고 목록으로</button>'+
+    '<div class="pf-sec">🛡 신고된 대화 (읽기 전용)</div>'+
+    '<div class="pf-card"><div class="pf-info"><div class="pf-name">'+esc(nickById[conv.user1_id]||"알 수 없음")+' ↔ '+esc(nickById[conv.user2_id]||"알 수 없음")+'</div></div></div>'+
+    '<div class="chat-list">'+(messages.length?messages.map(function(m){
+      return '<div class="chat-msg"><div class="chat-bubble">'+esc(nickById[m.sender_id]||"알 수 없음")+': '+esc(m.content)+'</div></div>';
+    }).join(""):'<div class="pf-empty">메시지가 없어요.</div>')+'</div>'+
+  '</div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
 }
 function openNickModal(){
   document.getElementById("nickInput").value=ME.nick==="나"?"":ME.nick;
