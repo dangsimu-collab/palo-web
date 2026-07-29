@@ -217,7 +217,8 @@ export const BODY_HTML = `
     <h3>📢 이 글 광고하기</h3>
     <div id="adBannerPreview" style="margin-bottom:10px"></div>
     <input type="file" id="adBannerFile" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="onAdBannerFile(event)">
-    <button class="pf-edit" onclick="document.getElementById('adBannerFile').click()" style="width:100%;margin-bottom:10px;justify-content:center">배너 이미지 선택</button>
+    <button class="pf-edit" onclick="document.getElementById('adBannerFile').click()" style="width:100%;margin-bottom:6px;justify-content:center">배너 이미지 선택</button>
+    <p class="nick-hint">권장 크기: 가로 800 × 세로 200px (4:1 비율). 이보다 정사각형이거나 세로로 긴 이미지는 위아래가 잘려서 보일 수 있어요.</p>
     <input type="number" id="adPointsInput" class="nick-in" min="500" step="1" placeholder="사용할 광고 포인트 (최소 500)" oninput="updateAdPreview()">
     <p class="nick-hint" id="adPreviewText">포인트를 입력하면 노출 기간이 계산돼요.</p>
     <button class="r-ok" onclick="submitAd()">광고 등록</button>

@@ -127,6 +127,8 @@ function timeAgo(iso){
   return Math.floor(diff/86400)+"일 전";
 }
 var LATEST_NOTICE=null;
+var ACTIVE_ADS=[];
+var adRotationIndex=Math.floor(Math.random()*1000);
 function showNotice(){
   if(!LATEST_NOTICE)return;
   document.getElementById("noticeModalTitle").textContent="📢 "+LATEST_NOTICE.title;
@@ -141,6 +143,9 @@ async function loadRealPosts(){
 
   var lvRes=await window.supabase.from("level_thresholds").select("*").order("level");
   if(!lvRes.error)LEVEL_THRESHOLDS=lvRes.data||[];
+
+  var adRes=await window.supabase.from("user_ads").select("id,image_url,linked_post_id").eq("status","active").gt("expires_at",new Date().toISOString());
+  if(!adRes.error)ACTIVE_ADS=adRes.data||[];
 
   var res=await window.supabase.from("posts").select("*").order("created_at",{ascending:false});
   if(res.error){console.error(res.error);return;}
@@ -377,6 +382,14 @@ function skeletonHTML(){
   return r+'</div>';
 }
 function adRow(){
+  if(ACTIVE_ADS.length){
+    var ad=ACTIVE_ADS[adRotationIndex%ACTIVE_ADS.length];
+    adRotationIndex++;
+    return '<div class="ad ad-banner" role="complementary" aria-label="광고" style="cursor:pointer" onclick="openPost('+(100000+ad.linked_post_id)+')">'+
+      '<span class="ad-label">AD</span>'+
+      '<img src="'+esc(ad.image_url)+'" alt="유저 광고">'+
+    '</div>';
+  }
   return '<div class="ad" role="complementary" aria-label="광고">'+
     '<span class="ad-label">AD</span>'+
     '<div class="ad-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="width:22px;height:22px"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 18 5-5 4 3 3-2 4 4"/></svg></div>'+
