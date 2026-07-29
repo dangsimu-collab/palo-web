@@ -126,6 +126,8 @@
   .post .body{flex:1;min-width:0}
   .post .line1{display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap}
   .cat{font-size:11px;font-weight:800;padding:3.5px 10px;border-radius:9px;flex-shrink:0}
+  .pick-badge{font-size:11px;font-weight:800;padding:3.5px 10px;border-radius:9px;flex-shrink:0;background:#f6eddb;color:#a5760f;white-space:nowrap}
+  .ptitle .pick-badge{margin-right:7px;vertical-align:1px}
   .cat.talk-c{background:#e7f0f6;color:#5a8bad}
   .cat.help-c{background:#efe9f6;color:#8878b8}
   .cat.crit-c{background:var(--brand-soft);color:var(--brand-2)}
