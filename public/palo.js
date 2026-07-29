@@ -936,7 +936,13 @@ var mSearch=document.getElementById("searchInputM");if(mSearch)mSearch.addEventL
 document.addEventListener("keydown",function(e){if(e.key==="Escape"){closeWrite();closeDrawer();closeSheet()}});
 
 renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
-if(!getPostIdFromPath()&&!getUserIdFromPath()){renderChips();renderHot();renderTrend();renderList();}
+if(!getPostIdFromPath()&&!getUserIdFromPath()){
+  renderChips();renderHot();renderTrend();
+  // 실제 글은 loadRealPosts()가 곧 채워줌 — 여기서 더미 글로 renderList()를 한 번 더 돌리면
+  // "더미 글이 잠깐 보였다 실제 글로 바뀌는" 깜빡임과 그로 인한 스크롤 튐이 생김.
+  // Supabase 연동이 없는 로컬 데모 환경 등에서만 폴백으로 더미 글을 보여줌.
+  if(!window.supabase)renderList();
+}
 
 var toTop=document.getElementById('toTop');
 if(toTop){
