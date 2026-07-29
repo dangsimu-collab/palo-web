@@ -106,6 +106,10 @@
   .sortbar{margin-left:auto;display:flex;gap:3px;background:var(--surface);border:1.5px solid var(--line-2);border-radius:13px;padding:3px}
   .sortbar button{background:none;border:none;font-size:12.5px;font-weight:800;color:var(--muted);padding:7px 14px;border-radius:10px;cursor:pointer;transition:.12s}
   .sortbar button.on{background:linear-gradient(120deg,var(--brand),var(--grape));color:#fff}
+  .tagbar{display:flex;flex-wrap:wrap;gap:7px;margin:-8px 0 16px}
+  .tagbar-btn{background:var(--surface);border:1.5px solid var(--line-2);border-radius:10px;padding:6px 13px;font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit;transition:.12s}
+  .tagbar-btn:hover{border-color:var(--brand);color:var(--brand)}
+  .tagbar-btn.on{background:linear-gradient(120deg,var(--brand),var(--grape));border-color:transparent;color:#fff}
 
   .notice{display:flex;align-items:center;gap:10px;background:linear-gradient(120deg,var(--brand-soft),#f3e8ff);border:1.5px solid var(--line-2);border-radius:var(--r);padding:14px 17px;margin-bottom:14px;cursor:pointer;transition:.14s}
   .notice:hover{transform:translateY(-1px);box-shadow:var(--sh)}

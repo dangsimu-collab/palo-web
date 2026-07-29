@@ -93,7 +93,7 @@ var TREND=[
   {name:"AI 정책 투표",tag:"토론 뜨거움",thumb:"t5",sub:"댓글 214"}
 ];
 var GRADS={t1:"#6b7d63,#414f3a",t2:"#7a5a8a,#493a58",t3:"#c2410c,#8a2f08",t4:"#3a5674,#26384c",t5:"#b08968,#7a5c42"};
-var state={board:"all",sort:"new",query:"",shown:8};
+var state={board:"all",sort:"new",query:"",shown:8,tag:null};
 var PER=15;var page=1;var READ=new Set();var FOLLOW=new Set();
 var ME={nick:"나"};
 var AUTH={user:null,profile:null};
@@ -352,6 +352,7 @@ function filteredPosts(){
   var arr=POSTS.slice();
   if(state.board==="all")arr=arr.filter(function(p){return p.board!=="adult"});
   else arr=arr.filter(function(p){return p.board===state.board});
+  if(state.tag)arr=arr.filter(function(p){return p.category===state.tag});
   if(state.query){var q=state.query.toLowerCase();arr=arr.filter(function(p){var body=(p.content||[]).join(" ").toLowerCase();return p.title.toLowerCase().indexOf(q)>-1||p.author.toLowerCase().indexOf(q)>-1||body.indexOf(q)>-1})}
   if(state.sort==="hot")arr=sortHot(arr);
   return arr;
@@ -426,6 +427,7 @@ function renderList(){
   var sub=state.query?('"'+esc(state.query)+'" 검색 결과 '+arr.length+'건'):(state.sort==="new"?"방금 올라온 이야기부터":"반응 많은 순으로");
   var h='<div class="board-head"><h1 class="serif">'+esc(state.query?"검색":boardName(state.board))+'</h1><span class="sub">'+sub+'</span>'+
     '<div class="sortbar"><button class="'+(state.sort==="new"?"on":"")+'" onclick="setSort(\'new\')">최신</button><button class="'+(state.sort==="hot"?"on":"")+'" onclick="setSort(\'hot\')">인기</button></div></div>';
+  h+=tagFilterBarHTML();
   if(state.board==="all"&&!state.query){
     if(LATEST_NOTICE)h+='<div class="notice" onclick="showNotice()"><span class="pin">공지</span><span class="nt">📢 '+esc(LATEST_NOTICE.title)+'</span></div>';
     h+='<div class="notice" onclick="openRules()"><span class="pin">공지</span><span class="nt">📌 Palo 이용 규칙 & 크리틱 매너 안내 (처음 오셨다면 꼭!)</span></div>';
@@ -799,7 +801,7 @@ async function toggleLike(id){
   if(wasLiked)toast("좋아요를 눌렀어요","♥");
 }
 function selectBoard(id){
-  state.board=id;state.query="";page=1;
+  state.board=id;state.query="";state.tag=null;page=1;
   document.getElementById("searchInput").value="";var m=document.getElementById("searchInputM");if(m)m.value="";
   renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
   renderChips();closeDrawer();closeSheet();syncTabs(id);
@@ -807,6 +809,22 @@ function selectBoard(id){
   main.innerHTML=skeletonHTML();
   window.scrollTo({top:0,behavior:"smooth"});
   setTimeout(renderList,200);
+}
+function tagFilterBarHTML(){
+  var tags=TAGS_BY_BOARD[state.board];
+  if(!tags||state.query)return"";
+  var h='<div class="tagbar">';
+  h+='<button class="tagbar-btn'+(!state.tag?' on':'')+'" onclick="toggleTagFilter(null)">전체</button>';
+  tags.forEach(function(t){
+    h+='<button class="tagbar-btn'+(state.tag===t?' on':'')+'" onclick="toggleTagFilter(\''+esc(t)+'\')">'+esc(t)+'</button>';
+  });
+  return h+'</div>';
+}
+function toggleTagFilter(tag,e){
+  if(e)e.stopPropagation();
+  state.tag=(tag===null?null:(state.tag===tag?null:tag));
+  page=1;renderList();
+  window.scrollTo({top:0,behavior:"smooth"});
 }
 function setSort(s){state.sort=s;page=1;renderList()}
 function showMore(){state.shown+=6;renderList()}
