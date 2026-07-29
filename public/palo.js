@@ -93,7 +93,7 @@ var TREND=[
   {name:"AI 정책 투표",tag:"토론 뜨거움",thumb:"t5",sub:"댓글 214"}
 ];
 var GRADS={t1:"#6b7d63,#414f3a",t2:"#7a5a8a,#493a58",t3:"#c2410c,#8a2f08",t4:"#3a5674,#26384c",t5:"#b08968,#7a5c42"};
-var state={board:"all",sort:"new",query:"",shown:8,tag:null};
+var state={board:"all",sort:"new",query:"",shown:8,tag:null,viewMode:"list"};
 var PER=15;var page=1;var READ=new Set();var FOLLOW=new Set();
 var ME={nick:"나"};
 var AUTH={user:null,profile:null};
@@ -446,7 +446,9 @@ function renderList(){
   var main=document.getElementById("main");var arr=filteredPosts();
   var sub=state.query?('"'+esc(state.query)+'" 검색 결과 '+arr.length+'건'):(state.sort==="new"?"방금 올라온 이야기부터":"반응 많은 순으로");
   var h='<div class="board-head"><h1 class="serif">'+esc(state.query?"검색":boardName(state.board))+'</h1><span class="sub">'+sub+'</span>'+
-    '<div class="sortbar"><button class="'+(state.sort==="new"?"on":"")+'" onclick="setSort(\'new\')">최신</button><button class="'+(state.sort==="hot"?"on":"")+'" onclick="setSort(\'hot\')">인기</button></div></div>';
+    '<div class="sortbar"><button class="'+(state.sort==="new"?"on":"")+'" onclick="setSort(\'new\')">최신</button><button class="'+(state.sort==="hot"?"on":"")+'" onclick="setSort(\'hot\')">인기</button></div>'+
+    (state.board!=="review"?('<div class="sortbar viewbar"><button class="'+(state.viewMode==="list"?"on":"")+'" onclick="setViewMode(\'list\')">☰ 목록형</button><button class="'+(state.viewMode==="album"?"on":"")+'" onclick="setViewMode(\'album\')">▦ 앨범형</button></div>'):'')+
+    '</div>';
   h+=tagFilterBarHTML();
   if(state.board==="all"&&!state.query){
     if(LATEST_NOTICE)h+='<div class="notice" onclick="showNotice()"><span class="pin">공지</span><span class="nt">📢 '+esc(LATEST_NOTICE.title)+'</span></div>';
@@ -461,6 +463,19 @@ function renderList(){
   if(state.board==="review"&&!state.query){
     h+=reviewAlbumHTML(visible);
     if(totalPages>1)h+=pagerHTML(totalPages);
+    main.innerHTML=h;
+    return;
+  }
+  if(state.viewMode==="album"){
+    var albumArr=arr.filter(function(p){return p.images&&p.images.length});
+    var albumTotalPages=Math.max(1,Math.ceil(albumArr.length/PER));if(page>albumTotalPages)page=albumTotalPages;
+    var albumVisible=albumArr.slice((page-1)*PER,page*PER);
+    if(!albumArr.length){
+      h+='<div class="empty"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg><h3>이미지가 있는 글이 없어요</h3><p>앨범형은 이미지가 첨부된 글만 보여줘요.</p></div>';
+    }else{
+      h+=postAlbumHTML(albumVisible);
+      if(albumTotalPages>1)h+=pagerHTML(albumTotalPages);
+    }
     main.innerHTML=h;
     return;
   }
@@ -887,6 +902,23 @@ function toggleTagFilter(tag,e){
   window.scrollTo({top:0,behavior:"smooth"});
 }
 function setSort(s){state.sort=s;page=1;renderList()}
+function setViewMode(m){state.viewMode=m;page=1;renderList()}
+function postCardHTML(p){
+  var c=catFor(p);
+  return '<div class="post-card" onclick="openPost('+p.id+')">'+
+    '<div class="post-card-img"><img src="'+esc(p.images[0])+'" alt="" loading="lazy"></div>'+
+    '<div class="post-card-body">'+
+      (p.isManagerPick?'<span class="pick-badge">📌 매니저 픽</span> ':'')+
+      '<div class="post-card-title">'+esc(p.title)+'</div>'+
+      '<div class="post-card-meta"><span class="cat '+c.cls+'">'+c.label+'</span><span class="post-card-author">'+esc(dispName(p.author))+'</span></div>'+
+      '<div class="post-card-stats"><span>👁 '+fmtViews(p.views)+'</span><span>♥ '+p.likes+'</span><span>💬 '+p.comments.length+'</span></div>'+
+    '</div>'+
+  '</div>';
+}
+function postAlbumHTML(posts){
+  if(!posts.length)return"";
+  return '<div class="post-album">'+posts.map(postCardHTML).join("")+'</div>';
+}
 function showMore(){state.shown+=6;renderList()}
 function goHome(){selectBoard("all")}
 var _searchT;
