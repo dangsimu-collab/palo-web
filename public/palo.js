@@ -94,7 +94,7 @@ var TREND=[
 ];
 var GRADS={t1:"#6b7d63,#414f3a",t2:"#7a5a8a,#493a58",t3:"#c2410c,#8a2f08",t4:"#3a5674,#26384c",t5:"#b08968,#7a5c42"};
 var state={board:"all",sort:"new",query:"",shown:8,tag:null,viewMode:"list"};
-var PER=15;var page=1;var READ=new Set();var FOLLOW=new Set();
+var PER=40;var page=1;var READ=new Set();var FOLLOW=new Set();
 var ME={nick:"나"};
 var AUTH={user:null,profile:null};
 var SETTINGS={cm:true,like:true,notice:true,chat:true};
