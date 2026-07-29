@@ -893,16 +893,25 @@ function subscribeToChat(conversationId){
       var m=payload.new;
       if(m.sender_id===AUTH.user.id)return;
       appendChatMessage(m);
+      window.supabase.rpc("mark_messages_read",{p_conversation_id:conversationId}).then(function(){});
+    })
+    .on("postgres_changes",{event:"UPDATE",schema:"public",table:"messages",filter:"conversation_id=eq."+conversationId},function(payload){
+      var m=payload.new;
+      if(m.sender_id===AUTH.user.id&&m.is_read)markBubbleAsRead(m.id);
     })
     .subscribe();
+}
+function markBubbleAsRead(messageId){
+  var el=document.querySelector('[data-msg-id="'+messageId+'"] .chat-read-status');
+  if(el)el.textContent="읽음";
 }
 function appendChatMessage(m){
   var box=document.getElementById("chatMessages");
   if(!box)return;
   var empty=box.querySelector(".pf-empty");if(empty)empty.remove();
-  var mine=m.sender_id===AUTH.user.id;
   var div=document.createElement("div");
-  div.className="chat-msg"+(mine?" mine":"");
+  div.className="chat-msg";
+  div.setAttribute("data-msg-id",m.id);
   div.innerHTML='<div class="chat-bubble"></div>';
   div.querySelector(".chat-bubble").textContent=m.content;
   box.appendChild(div);
@@ -936,13 +945,70 @@ async function openChat(otherUserId){
   if(msgRes.error){toast("대화를 불러오지 못했어요: "+msgRes.error.message);return;}
   renderChatView(partnerName,msgRes.data||[]);
   subscribeToChat(conv.id);
+  window.supabase.rpc("mark_messages_read",{p_conversation_id:conv.id}).then(function(){});
 }
 function chatMessagesHtml(messages){
   if(!messages.length)return '<div class="pf-empty">아직 대화가 없어요. 첫 메시지를 보내보세요!</div>';
   return messages.map(function(m){
     var mine=m.sender_id===AUTH.user.id;
-    return '<div class="chat-msg'+(mine?' mine':'')+'"><div class="chat-bubble">'+esc(m.content)+'</div></div>';
+    return '<div class="chat-msg'+(mine?' mine':'')+'" data-msg-id="'+m.id+'">'+
+      '<div class="chat-bubble">'+esc(m.content)+'</div>'+
+      (mine?'<span class="chat-read-status">'+(m.is_read?'읽음':'')+'</span>':'')+
+    '</div>';
   }).join("");
+}
+async function openChatList(){
+  if(!AUTH.user){toast("로그인이 필요해요");loginWithGoogle();return;}
+  unsubscribeFromChat();
+  closeNotif();
+  document.getElementById("main").innerHTML='<div class="profile"><p style="padding:40px 0;text-align:center;color:var(--muted)">불러오는 중...</p></div>';
+
+  var convRes=await window.supabase.from("conversations").select("*")
+    .or("user1_id.eq."+AUTH.user.id+",user2_id.eq."+AUTH.user.id)
+    .order("last_message_at",{ascending:false});
+  if(convRes.error){toast("채팅 목록을 불러오지 못했어요: "+convRes.error.message);return;}
+  var convs=convRes.data||[];
+  var partnerIds=convs.map(function(c){return c.user1_id===AUTH.user.id?c.user2_id:c.user1_id;});
+  var convIds=convs.map(function(c){return c.id;});
+
+  var profRes=partnerIds.length?await window.supabase.from("profiles").select("id,nickname").in("id",partnerIds):{data:[]};
+  var nickById={};(profRes.data||[]).forEach(function(p){nickById[p.id]=p.nickname;});
+
+  var msgRes=convIds.length?await window.supabase.from("messages").select("*").in("conversation_id",convIds).order("created_at",{ascending:true}):{data:[]};
+  var lastMsgByConv={},unreadByConv={};
+  (msgRes.data||[]).forEach(function(m){
+    lastMsgByConv[m.conversation_id]=m;
+    if(m.sender_id!==AUTH.user.id&&!m.is_read)unreadByConv[m.conversation_id]=(unreadByConv[m.conversation_id]||0)+1;
+  });
+
+  renderChatList(convs,partnerIds,nickById,lastMsgByConv,unreadByConv);
+}
+function renderChatList(convs,partnerIds,nickById,lastMsgByConv,unreadByConv){
+  var h='<div class="profile">'+
+    '<button class="d-back" onclick="renderList()">← 목록으로</button>'+
+    '<div class="pf-sec">💬 채팅</div>';
+  if(!convs.length){
+    h+='<div class="pf-empty">아직 채팅한 사람이 없어요.<br>회원 프로필에서 "채팅하기"로 시작해보세요.</div>';
+  }else{
+    h+='<div class="chat-room-list">';
+    convs.forEach(function(c,i){
+      var partnerId=partnerIds[i];
+      var name=nickById[partnerId]||"알 수 없음";
+      var last=lastMsgByConv[c.id];
+      var unread=unreadByConv[c.id]||0;
+      h+='<div class="chat-room-row" onclick="openChat(\''+partnerId+'\')">'+
+        '<div class="pf-ava" style="width:44px;height:44px;font-size:16px;flex-shrink:0">'+esc(name[0])+'</div>'+
+        '<div class="chat-room-info"><div class="chat-room-name">'+esc(name)+'</div>'+
+        '<div class="chat-room-preview">'+(last?esc(last.content):"")+'</div></div>'+
+        '<div class="chat-room-meta">'+(last?timeAgo(last.created_at):'')+
+        (unread>0?'<span class="chat-unread-badge">'+unread+'</span>':'')+'</div>'+
+      '</div>';
+    });
+    h+='</div>';
+  }
+  h+='</div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
 }
 function renderChatView(partnerName,messages){
   var h='<div class="profile">'+
@@ -1000,6 +1066,7 @@ function openProfile(){
      '<div class="pf-name">'+esc(ME.nick)+'<span class="pf-lv">'+lvName+'</span></div>'+
      '<div class="pf-sub">Palo와 함께 그리는 중 · 팔로잉 '+FOLLOW.size+'명</div></div>'+
      '<button class="pf-edit" onclick="openNickModal()">닉네임 변경</button>'+
+     '<button class="pf-edit" onclick="openChatList()">💬 채팅 목록</button>'+
      '<button class="pf-edit" onclick="logout()">로그아웃</button>'+
      (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openAdminReports()">🛡 신고 목록</button>':'')+
      '</div>';
