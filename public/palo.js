@@ -1516,6 +1516,7 @@ function openProfile(){
      '<div class="pp-bar"><div class="pp-fill" style="width:'+prog.pct+'%"></div></div></div>';
   h+='<div class="pf-stats">'+
      '<div class="pf-st"><b>'+myScore+'</b><span>활동 점수</span></div>'+
+     '<div class="pf-st"><b>'+(AUTH.profile?(AUTH.profile.ad_points||0):0)+'</b><span>광고 포인트</span></div>'+
      '<div class="pf-st"><b>'+mine.length+'</b><span>쓴 글</span></div>'+
      '<div class="pf-st"><b>'+likeSum+'</b><span>받은 추천</span></div>'+
      '<div class="pf-st"><b>'+cmSum+'</b><span>받은 댓글</span></div></div>';
