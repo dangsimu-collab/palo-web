@@ -93,9 +93,8 @@ var state={board:"all",sort:"new",query:"",shown:8};
 var PER=15;var page=1;var READ=new Set();var FOLLOW=new Set();
 var ME={nick:"나"};
 var AUTH={user:null,profile:null};
-var SETTINGS={cm:true,like:true,notice:true};
+var SETTINGS={cm:true,like:true,notice:true,chat:true};
 var notifFilter="all";var pfTab="mine";
-var MEMBERS=["달빛초","뎃생왕","연필깎이","붓끝","노을공방","먹구름"];
 function dispName(a){return a==="나"?ME.nick:a}
 var NOTIFS=[
   {type:"cm",icon:"💬",txt:"뎃생왕님이 회원님의 글에 훈수를 남겼어요",time:"5분 전",post:15,read:false},
@@ -210,6 +209,7 @@ async function initAuth(){
     applySession(session);
   });
 }
+var globalChatNotifUserId=null;
 async function applySession(session){
   AUTH.user=session?session.user:null;
   AUTH.profile=null;
@@ -217,8 +217,16 @@ async function applySession(session){
     var res=await window.supabase.from("profiles").select("*").eq("id",AUTH.user.id).single();
     if(!res.error)AUTH.profile=res.data;
     ME.nick=AUTH.profile?AUTH.profile.nickname:"새싹 작가";
+    if(globalChatNotifUserId!==AUTH.user.id){
+      globalChatNotifUserId=AUTH.user.id;
+      initGlobalChatNotifications();
+    }
   }else{
     ME.nick="나";
+    globalChatNotifUserId=null;
+    unsubscribeFromNotifications();
+    NOTIFS=NOTIFS.filter(function(n){return !n.dbId});
+    syncNotifBadge();
   }
   if(document.getElementById("myProfileView"))openProfile();
 }
@@ -332,7 +340,7 @@ function adRow(){
   '</div>';
 }
 function renderList(){
-  unsubscribeFromChat();
+  leaveChat();
   if(location.pathname!=="/"){history.pushState({},"","/");document.title="Palo · 그림 그리는 사람들의 커뮤니티";}
   var main=document.getElementById("main");var arr=filteredPosts();
   var sub=state.query?('"'+esc(state.query)+'" 검색 결과 '+arr.length+'건'):(state.sort==="new"?"방금 올라온 이야기부터":"반응 많은 순으로");
@@ -385,7 +393,7 @@ function renderList(){
   main.innerHTML=h;
 }
 function openPost(id){
-  unsubscribeFromChat();
+  leaveChat();
   var p=POSTS.find(function(x){return x.id===id});if(!p)return;p.views++;READ.add(id);
   if(p.dbId&&window.supabase)window.supabase.rpc("increment_post_views",{p_id:p.dbId}).then(function(){});
   if(p.dbId){
@@ -738,7 +746,7 @@ async function submitPost(){
     images:edState.images.length?edState.images.slice():undefined,
     dbId:saved&&saved.data?saved.data.id:undefined,authorId:saved&&saved.data?saved.data.author_id:undefined,
     html:html,content:text.split("\n").filter(Boolean),comments:[]};
-  justAddedId=np.id;setTimeout(function(){justAddedId=null},1800);POSTS.unshift(np);scheduleLiveReply(np.id);
+  justAddedId=np.id;setTimeout(function(){justAddedId=null},1800);POSTS.unshift(np);
   closeWrite();state.board=edState.board;state.query="";state.sort="new";state.shown=8;
   renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
   page=1;renderChips();renderList();toast("글을 올렸어요! ✏️");window.scrollTo({top:0,behavior:"smooth"});
@@ -819,10 +827,14 @@ function syncNotifBadge(){
   if(bd){bd.textContent=un;bd.style.display=un?"flex":"none";}
 }
 function setNotifFilter(f){notifFilter=f;renderNotifs();}
-function delNotif(i){NOTIFS.splice(i,1);renderNotifs();syncNotifBadge();toast("알림을 삭제했어요");}
+function delNotif(i){
+  var n=NOTIFS[i];
+  if(n&&n.dbId)window.supabase.from("notifications").delete().eq("id",n.dbId).then(function(){});
+  NOTIFS.splice(i,1);renderNotifs();syncNotifBadge();toast("알림을 삭제했어요");
+}
 function renderNotifs(){
   var el=document.getElementById("npList");if(!el)return;
-  var tabs=[["all","전체"],["cm","댓글"],["like","좋아요"],["sys","공지"]];
+  var tabs=[["all","전체"],["cm","댓글"],["like","좋아요"],["chat","채팅"],["sys","공지"]];
   var th='<div class="np-tabs">'+tabs.map(function(t){
     return '<button class="np-tab'+(notifFilter===t[0]?' on':'')+'" onclick="event.stopPropagation();setNotifFilter(\''+t[0]+'\')">'+t[1]+'</button>';
   }).join("")+'</div>';
@@ -847,9 +859,15 @@ function toggleNotif(e){
 function closeNotif(){document.getElementById("notifPanel").classList.remove("open");}
 function notifClick(i){
   var n=NOTIFS[i];n.read=true;syncNotifBadge();closeNotif();
-  if(n.post)openPost(n.post);else openRules();
+  if(n.dbId)window.supabase.from("notifications").update({is_read:true}).eq("id",n.dbId).then(function(){});
+  if(n.chatUser)openChat(n.chatUser);
+  else if(n.post)openPost(n.post);
+  else openRules();
 }
-function markAllRead(){NOTIFS.forEach(function(n){n.read=true});renderNotifs();syncNotifBadge();toast("모든 알림을 읽음 처리했어요");}
+function markAllRead(){
+  NOTIFS.forEach(function(n){n.read=true});renderNotifs();syncNotifBadge();toast("모든 알림을 읽음 처리했어요");
+  if(AUTH.user&&window.supabase)window.supabase.from("notifications").update({is_read:true}).eq("user_id",AUTH.user.id).eq("is_read",false).then(function(){});
+}
 
 // ===== 내 정보 (프로필) =====
 function profileRow(p){
@@ -868,7 +886,7 @@ function listOrEmpty(arr,emptyMsg,cta){
 }
 async function openUserProfile(userId){
   if(!userId||!window.supabase)return;
-  unsubscribeFromChat();
+  leaveChat();
   closeNotif();
   var res=await window.supabase.from("profiles").select("*").eq("id",userId).single();
   if(res.error||!res.data){
@@ -907,6 +925,47 @@ var currentChatPartnerId=null;
 var chatChannel=null;
 function unsubscribeFromChat(){
   if(chatChannel){window.supabase.removeChannel(chatChannel);chatChannel=null;}
+}
+function leaveChat(){
+  unsubscribeFromChat();
+  currentConversationId=null;
+  currentChatPartnerId=null;
+}
+/* ---------- 알림 (DB 저장, notifications 테이블) ---------- */
+var globalNotifChannel=null;
+function dbRowToNotif(row){
+  return {dbId:row.id,type:row.type,icon:row.icon||"🔔",txt:row.content,time:timeAgo(row.created_at),chatUser:row.link_chat_user,post:row.link_post_id?100000+row.link_post_id:null,read:row.is_read};
+}
+async function loadNotificationsFromDB(){
+  var res=await window.supabase.from("notifications").select("*").eq("user_id",AUTH.user.id).order("created_at",{ascending:false}).limit(50);
+  if(res.error)return;
+  var dbNotifs=(res.data||[]).map(dbRowToNotif);
+  NOTIFS=dbNotifs.concat(NOTIFS.filter(function(n){return !n.dbId}));
+  syncNotifBadge();
+}
+async function initGlobalChatNotifications(){
+  if(!AUTH.user||!window.supabase)return;
+  await loadNotificationsFromDB();
+  subscribeToNotifications();
+}
+function subscribeToNotifications(){
+  unsubscribeFromNotifications();
+  globalNotifChannel=window.supabase.channel("notifications-"+AUTH.user.id)
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications",filter:"user_id=eq."+AUTH.user.id},function(payload){
+      var row=payload.new;
+      if(row.type==="chat"){
+        if(!SETTINGS.chat)return;
+        if(row.link_conversation_id===currentConversationId)return;
+      }else if(row.type==="cm"&&!SETTINGS.cm)return;
+      else if(row.type==="like"&&!SETTINGS.like)return;
+      NOTIFS.unshift(dbRowToNotif(row));
+      syncNotifBadge();
+      toast(row.content,row.icon||"🔔");
+    })
+    .subscribe();
+}
+function unsubscribeFromNotifications(){
+  if(globalNotifChannel){window.supabase.removeChannel(globalNotifChannel);globalNotifChannel=null;}
 }
 function subscribeToChat(conversationId){
   unsubscribeFromChat();
@@ -982,7 +1041,7 @@ function chatMessagesHtml(messages){
 }
 async function openChatList(){
   if(!AUTH.user){toast("로그인이 필요해요");loginWithGoogle();return;}
-  unsubscribeFromChat();
+  leaveChat();
   closeNotif();
   document.getElementById("main").innerHTML='<div class="profile"><p style="padding:40px 0;text-align:center;color:var(--muted)">불러오는 중...</p></div>';
 
@@ -1066,7 +1125,7 @@ async function sendChatMessage(){
 }
 
 function openProfile(){
-  unsubscribeFromChat();
+  leaveChat();
   closeNotif();
   if(!AUTH.user){
     document.getElementById("main").innerHTML=
@@ -1122,7 +1181,8 @@ function openProfile(){
   h+='<div class="pf-sec">알림 설정</div><div class="pf-set">'+
      '<label class="pf-toggle"><span>내 글에 댓글이 달리면 알림</span><input type="checkbox" '+(SETTINGS.cm?'checked':'')+' onchange="SETTINGS.cm=this.checked;toast(this.checked?\'댓글 알림을 켰어요\':\'댓글 알림을 껐어요\')"></label>'+
      '<label class="pf-toggle"><span>좋아요 알림</span><input type="checkbox" '+(SETTINGS.like?'checked':'')+' onchange="SETTINGS.like=this.checked;toast(this.checked?\'좋아요 알림을 켰어요\':\'좋아요 알림을 껐어요\')"></label>'+
-     '<label class="pf-toggle"><span>공지·챌린지 알림</span><input type="checkbox" '+(SETTINGS.notice?'checked':'')+' onchange="SETTINGS.notice=this.checked;toast(this.checked?\'공지 알림을 켰어요\':\'공지 알림을 껐어요\')"></label></div>';
+     '<label class="pf-toggle"><span>공지·챌린지 알림</span><input type="checkbox" '+(SETTINGS.notice?'checked':'')+' onchange="SETTINGS.notice=this.checked;toast(this.checked?\'공지 알림을 켰어요\':\'공지 알림을 껐어요\')"></label>'+
+     '<label class="pf-toggle"><span>채팅 알림</span><input type="checkbox" '+(SETTINGS.chat?'checked':'')+' onchange="SETTINGS.chat=this.checked;toast(this.checked?\'채팅 알림을 켰어요\':\'채팅 알림을 껐어요\')"></label></div>';
   h+='</div>';
   document.getElementById("main").innerHTML=h;
   syncTabs("me");window.scrollTo({top:0,behavior:"smooth"});
@@ -1278,18 +1338,6 @@ async function saveNick(){
   ME.nick=v;closeNick();toast("닉네임을 \'"+v+"\'(으)로 바꿨어요","✓");
   openProfile();
 }
-function scheduleLiveReply(pid){
-  if(!SETTINGS.cm)return;
-  setTimeout(function(){
-    var p=POSTS.find(function(x){return x.id===pid});if(!p)return;
-    var who=MEMBERS[Math.floor(Math.random()*MEMBERS.length)];
-    p.comments.push({n:who,t:"방금",txt:"오 잘 보고 가요! 다음 글도 기대할게요 🎨"});
-    NOTIFS.unshift({type:"cm",icon:"💬",txt:who+"님이 회원님의 글 「"+p.title.slice(0,14)+"…」에 훈수를 남겼어요",time:"방금",post:pid,read:false});
-    syncNotifBadge();
-    toast("새 알림이 도착했어요","🔔");
-  },7000);
-}
-
 // ===== 이용규칙 =====
 function openRules(){document.getElementById("rulesModal").classList.add("open");document.body.style.overflow="hidden";}
 function closeRules(){document.getElementById("rulesModal").classList.remove("open");document.body.style.overflow="";}

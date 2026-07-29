@@ -110,6 +110,7 @@ Supabase 프로젝트: https://qabbdgfottbnapmyjudy.supabase.co
 | `conversations` | `id`(bigint PK), `user1_id`(uuid), `user2_id`(uuid), `last_message_at`(timestamptz), `created_at` | 1:1 채팅방 1개 = row 1개. 두 참여자를 어느 순서로 넣었는지 정해져 있지 않아서 조회할 땐 항상 `.or()`로 양방향 매칭 (아래 참고) |
 | `messages` | `id`(bigint PK), `conversation_id`(FK→conversations), `sender_id`(uuid), `content`(text), `is_read`(bool, default false), `created_at` | |
 | `chat_admin_access_logs` | `id`(bigint PK), `admin_id`(uuid, FK→profiles), `conversation_id`(FK→conversations), `report_id`(FK→reports, nullable), `accessed_at` | 관리자가 채팅을 열람할 때마다 자동 기록. **update/delete 정책 없음(append-only)** — 아무도 못 고치고 못 지움, 감사 로그의 신뢰성 확보용 |
+| `notifications` | `id`(bigint PK), `user_id`(uuid, FK→profiles, 알림 받는 사람), `type`(text: `chat`/`cm`/`like`), `icon`(text), `content`(text), `link_chat_user`(uuid, nullable), `link_conversation_id`(FK→conversations, nullable), `link_post_id`(FK→posts, nullable), `is_read`(bool), `created_at` | 실제 저장되는 알림함(2026-07-29 추가). **일반 유저는 insert 자체가 불가능** — 오직 DB 트리거(security definer)만 생성 가능 |
 
 ### Storage 버킷
 - `post-images` (Public) — 글 첨부 이미지. 업로드 경로는 `${Date.now()}-${파일명}` 형태(폴더 구분 없음).
@@ -201,12 +202,6 @@ grant execute on function public.conversation_is_reported(bigint) to authenticat
 - select: `messages_select_participant` — 자신이 속한 대화(`conversation_id`)의 메시지만, `conversations` 테이블을 서브쿼리로 조인해서 참여자인지 확인
 - insert: `messages_insert_participant` — `auth.uid() = sender_id`이고 본인이 그 대화의 참여자일 때만
 - select(관리자): `messages_select_admin_all` — `is_admin()`이면 전체 메시지 조회 가능 (2026-07-29 추가, 위 conversations와 동일한 이유)
-
-**`chat_admin_access_logs`** (2026-07-29 추가 — 관리자 채팅 열람 감사 로그):
-- insert: `chat_admin_access_logs_insert_admin` — `is_admin()`이고 `admin_id = auth.uid()`(본인 명의로만 기록 가능)
-- select: `chat_admin_access_logs_select_admin` — `is_admin()`이면 누구나(관리자끼리 서로의 열람 기록도 볼 수 있어야 상호 견제가 됨 = 운영 투명성)
-- **update/delete 정책 자체를 만들지 않음** — 한번 쌓인 로그는 관리자 본인도 고치거나 지울 수 없음(의도적, "증거"로서의 신뢰성이 목적)
-- 클라이언트에서 `adminViewConversation()`이 대화를 성공적으로 불러올 때마다 자동으로 insert(신고 목록을 통해 열람한 경우 `report_id`도 같이 기록, 전체 목록에서 열람한 경우는 `report_id=null`)
 - **update는 RLS 정책 없음 — 의도적으로 없앰.** 처음엔 "읽음 처리"를 위해 `messages_update_participant`(대화 참여자면 아무 필드나 update 가능)를 만들었는데, 이러면 상대방이 **내가 보낸 메시지의 content까지 마음대로 바꿀 수 있는** 구멍이 생김. 이를 배포 전에 발견해서 정책 자체를 삭제하고, 아래의 좁은 RPC로 대체함:
 
 ```sql
@@ -223,9 +218,40 @@ $$ language plpgsql security definer set search_path = public;
 grant execute on function public.mark_messages_read(bigint) to authenticated;
 ```
 
-**Realtime**: `messages` 테이블은 Supabase Realtime의 `postgres_changes`(INSERT/UPDATE) 이벤트로 상대 메시지 실시간 수신·읽음 표시 갱신에 쓰임. 아래 SQL로 퍼블리케이션에 등록되어 있어야 함(안 하면 구독해도 이벤트가 안 옴):
+**`chat_admin_access_logs`** (2026-07-29 추가 — 관리자 채팅 열람 감사 로그):
+- insert: `chat_admin_access_logs_insert_admin` — `is_admin()`이고 `admin_id = auth.uid()`(본인 명의로만 기록 가능)
+- select: `chat_admin_access_logs_select_admin` — `is_admin()`이면 누구나(관리자끼리 서로의 열람 기록도 볼 수 있어야 상호 견제가 됨 = 운영 투명성)
+- **update/delete 정책 자체를 만들지 않음** — 한번 쌓인 로그는 관리자 본인도 고치거나 지울 수 없음(의도적, "증거"로서의 신뢰성이 목적)
+- 클라이언트에서 `adminViewConversation()`이 대화를 성공적으로 불러올 때마다 자동으로 insert(신고 목록을 통해 열람한 경우 `report_id`도 같이 기록, 전체 목록에서 열람한 경우는 `report_id=null`)
+
+**`notifications`** (2026-07-29 추가 — 실제 저장되는 알림함):
+- select/update/delete: 전부 `auth.uid() = user_id`(본인 알림만)
+- **insert 정책은 아예 없음** — 일반 유저는 자기 자신 앞으로도 알림을 직접 못 만듦. 오직 아래 3개의 security definer 트리거만 삽입 가능(스팸성 가짜 알림을 남에게 심는 걸 원천 차단)
+- **채팅 메시지 → 알림** (`messages` INSERT 시 자동 실행):
+```sql
+create or replace function public.notify_new_message() returns trigger as $$
+declare recipient_id uuid; sender_nick text;
+begin
+  select case when c.user1_id = new.sender_id then c.user2_id else c.user1_id end
+    into recipient_id
+    from public.conversations c where c.id = new.conversation_id;
+  select nickname into sender_nick from public.profiles where id = new.sender_id;
+  insert into public.notifications (user_id, type, icon, content, link_chat_user, link_conversation_id)
+  values (recipient_id, 'chat', '💬',
+    coalesce(sender_nick,'알 수 없음') || '님이 채팅을 보냈어요: ' || left(new.content, 24),
+    new.sender_id, new.conversation_id);
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+create trigger on_message_insert_notify after insert on public.messages for each row execute function public.notify_new_message();
+```
+- **댓글/좋아요 → 알림** (`comments`/`likes` INSERT 시 자동 실행): `notify_new_comment()`/`notify_new_like()`가 같은 패턴 — 글 작성자(`posts.author_id`)에게 알림 생성. **본인 글에 본인이 댓글/좋아요 남기면 알림 생략**, **작성자가 없는 익명 글이면 알림 대상이 없으니 생략**(둘 다 함수 맨 앞의 `if post_author is null or post_author = new.author_id/new.user_id then return new;`로 처리). 좋아요는 비로그인도 가능해서(브라우저별 익명 id, `likes.user_id`가 `profiles`에 없는 경우) 닉네임 조회가 실패하면 "누군가"로 표시(`coalesce`).
+- **중요 — `link_post_id`는 진짜 DB의 `posts.id`(예: 6)이지 화면에서 쓰는 로컬 id(예: 100006)가 아님.** `public/palo.js`의 실제 DB 글은 항상 `100000 + posts.id`로 참조하는 관례(3절 "POSTS 배열의 이중 구조" 참고)라서, 클라이언트가 알림을 눌러 `openPost()`를 호출할 때 `100000`을 더해줘야 함 — 처음엔 이걸 빠뜨려서 **알림을 클릭하면 엉뚱한 글로 이동하는 버그**가 있었음(우연히 로컬 id가 같은 다른 데모 글로 감). `dbRowToNotif()`(`public/palo.js`)에서 `post: row.link_post_id ? 100000+row.link_post_id : null`로 변환해서 고침. **교훈**: 이 프로젝트에서 게시글 id를 다루는 새 코드를 쓸 때마다 "지금 다루는 게 로컬 id인지 실제 DB id인지" 매번 확인할 것 — 헷갈리기 쉬운 함정이라 이미 여러 번 반복됨.
+
+**Realtime**: `messages`와 `notifications` 테이블 모두 Supabase Realtime의 `postgres_changes` 이벤트를 씀 — 아래 SQL로 퍼블리케이션에 등록되어 있어야 함(안 하면 구독해도 이벤트가 안 옴). `conversations` 테이블은 한때 등록을 요청했다가(전역 채팅 알림 1차 구현) `notifications` 테이블 기반으로 재설계하면서 불필요해짐 — 등록했어도 무해하지만 굳이 필요 없음:
 ```sql
 alter publication supabase_realtime add table public.messages;
+alter publication supabase_realtime add table public.notifications;
 ```
 
 ### 회원가입 트리거
@@ -313,6 +339,16 @@ create trigger on_auth_user_created after insert on auth.users
 - **채팅 신고(2026-07-29 추가)**: 채팅방 헤더에 "🚩 신고" 버튼(`reportChat()`) — 기존 글 신고용 `#reportModal`을 그대로 재사용하고, `reportingConversationId`/`reportingReportedUserId` 전역 변수로 "지금 신고 중인 게 글인지 채팅인지" 구분(`submitReport()`가 분기 처리). DB/RLS는 4절 "reports" 항목과 "RLS 순환 참조 주의" 참고.
 - **관리자 채팅 열람(2026-07-29 추가)**: "내 정보" 탭에 관리자 전용 버튼 두 개 — "🛡 신고 목록"(기존)과 "🛡 전체 채팅 목록"(신규, `openAdminChatList()`). 신고 목록에서든 전체 목록에서든 대화를 열면 공통 함수 `adminViewConversation(conversationId, reportId, backTo)`가 처리: 메시지 전체를 읽기 전용으로 보여주고(`renderAdminChatView()`, `닉네임: 내용` 형태), **열람할 때마다 `chat_admin_access_logs`에 자동으로 기록**(누가·언제·어느 대화를, 신고를 통해 열람했다면 어느 신고 건인지). `openAdminChatList(searchTerm)`은 닉네임으로 대화 상대를 검색할 수 있음(profiles를 `ilike` 검색 → 그 유저가 낀 대화만 필터링). RLS: `conversations_select_admin_all`/`messages_select_admin_all`(관리자는 전체 대화 조회 가능), 로그 테이블은 4절 "chat_admin_access_logs" 참고 — **관리자 본인도 로그를 고치거나 지울 수 없음**(update/delete 정책 없음).
 - **이용약관/개인정보처리방침 문구**: 채팅 열람 기능에 대한 고지 조항 초안을 세션 대화 중에 작성해서 사용자에게 전달함(파일로 저장하지 않음) — 실제 약관/방침 페이지 자체는 아직 미구현(6절 "아직 안 한 것" 참고), 페이지를 만들 때 그 문구를 넣을 것.
+
+### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
+기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:
+1. **1차(채팅만, 이후 폐기된 설계)**: `messages` 테이블을 직접 실시간 구독해서 클라이언트가 알림을 만드는 방식으로 시작 — 그런데 이러면 "지금 내가 참여 중인 대화방 id 목록"을 클라이언트가 직접 관리해야 하고, 새로 생긴 대화방을 놓치는 등 허점이 많았음.
+2. **2차(현재, 트리거 기반)**: `notifications` 테이블 + 3개의 security definer 트리거(`notify_new_message`/`notify_new_comment`/`notify_new_like`)로 재설계 — 서버가 이벤트 발생 즉시 알림을 만들고, 클라이언트는 그냥 "내 알림"만 실시간 구독하면 끝. 훨씬 단순하고 놓칠 일이 없음.
+- 클라이언트 로직(`public/palo.js`): `loadNotificationsFromDB()`(로그인 시 최근 50개 로드, 기존 가짜 `NOTIFS`의 `sys` 데모 항목과 합침) + `subscribeToNotifications()`(realtime INSERT 구독, `SETTINGS.chat/cm/like` 토글 존중) + `dbRowToNotif()`(DB row → 화면용 객체 변환). 알림 클릭(`notifClick`)/삭제(`delNotif`)/전체읽음(`markAllRead`)이 실제 DB에도 반영되도록 함께 고침(`dbId`가 있는 항목만).
+- **로그아웃 시 실제 알림은 지우고 데모 `sys` 항목만 남김**(다른 계정으로 로그인했을 때 이전 사람 알림이 남아있으면 안 되니까).
+- **버그 하나 발견·수정**: 알림을 클릭하면 엉뚱한 글로 이동하는 문제가 있었음 — `notifications.link_post_id`는 실제 DB의 `posts.id`인데, `openPost()`는 `100000+posts.id` 형태의 로컬 id를 기대함(3절 "POSTS 배열의 이중 구조" 참고). `dbRowToNotif()`에서 변환을 안 해줘서 생긴 문제, `post: row.link_post_id?100000+row.link_post_id:null`로 고침. **이 프로젝트에서 게시글 id를 다루는 코드를 새로 쓸 때마다 반복적으로 발생하는 함정이라 특히 주의할 것.**
+- **정리한 것**: 진짜 댓글 알림이 생기면서, 예전 프로토타입 데모 코드 `scheduleLiveReply()`(글 쓰고 7초 뒤 가짜 회원이 가짜 댓글을 다는 척하며 가짜 알림을 띄우던 코드, `MEMBERS` 배열도 같이)를 완전히 제거함 — 실제 알림과 뒤섞이면 혼란스러웠을 것.
+- **댓글/좋아요 "sys"(공지·챌린지) 알림은 여전히 미구현** — `notices`는 실제 테이블이지만 새 공지 작성 시 전체 회원에게 알림을 뿌리는 트리거는 아직 없음(원한다면 같은 패턴으로 추가 가능).
 
 ---
 
