@@ -457,12 +457,14 @@ const BOARD_LABELS = {
   talk: '수다 광장',
   ask: '물어보기',
   wip: '작업 과정',
-  crit: '봐주세요',
-  sketch: '스케치북',
+  crit: '피드백 해주세요',
+  sketch: '그림공부',
   challenge: '챌린지',
   tip: '팁 · 강좌',
   trade: '커미션 구인구직',
   used: '중고 장비',
+  review: '커미션 후기',
+  adult: '에치치',
 };
 
 const ACTIVITY_METRIC_LABELS = { posts: '게시글 수', comments: '댓글 수', signups: '신규 가입' };
