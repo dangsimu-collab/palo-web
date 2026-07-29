@@ -445,7 +445,8 @@ function renderList(){
   if(location.pathname!=="/"){history.pushState({},"","/");document.title="Palo · 그림 그리는 사람들의 커뮤니티";}
   var main=document.getElementById("main");var arr=filteredPosts();
   var sub=state.query?('"'+esc(state.query)+'" 검색 결과 '+arr.length+'건'):(state.sort==="new"?"방금 올라온 이야기부터":"반응 많은 순으로");
-  var h='<div class="board-head"><h1 class="serif">'+esc(state.query?"검색":boardName(state.board))+'</h1><span class="sub">'+sub+'</span>'+
+  var h='<div class="board-head">'+
+    '<div class="bh-title"><h1 class="serif">'+esc(state.query?"검색":boardName(state.board))+'</h1><span class="sub">'+sub+'</span></div>'+
     '<div class="bh-controls">'+
       '<div class="sortbar"><button class="'+(state.sort==="new"?"on":"")+'" onclick="setSort(\'new\')">최신</button><button class="'+(state.sort==="hot"?"on":"")+'" onclick="setSort(\'hot\')">인기</button></div>'+
       (state.board!=="review"?('<div class="sortbar viewbar"><button class="'+(state.viewMode==="list"?"on":"")+'" onclick="setViewMode(\'list\')">☰ 목록형</button><button class="'+(state.viewMode==="album"?"on":"")+'" onclick="setViewMode(\'album\')">▦ 앨범형</button></div>'):'')+
