@@ -584,7 +584,8 @@
   /* ===== 내 정보 (프로필) ===== */
   .profile{display:flex;flex-direction:column;gap:16px}
   .pf-card{display:flex;align-items:center;flex-wrap:wrap;gap:14px;background:var(--surface);border:1.5px solid var(--line-2);border-radius:var(--r-lg);padding:20px}
-  .pf-ava{width:56px;height:56px;border-radius:18px;background:linear-gradient(135deg,var(--brand),var(--grape));color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;flex-shrink:0}
+  .pf-ava{width:56px;height:56px;border-radius:18px;background:linear-gradient(135deg,var(--brand),var(--grape));color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;flex-shrink:0;position:relative;overflow:visible}
+  .pf-ava-edit{position:absolute;bottom:-6px;right:-6px;width:24px;height:24px;border-radius:50%;background:var(--surface);border:2px solid var(--bg);box-shadow:var(--sh-xs);display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;padding:0}
   .pf-info{flex:1;min-width:160px}
   .pf-name{font-size:17px;font-weight:900;display:flex;align-items:center;gap:8px}
   .pf-lv{font-size:10.5px;font-weight:800;color:var(--brand);background:var(--brand-soft);padding:3px 9px;border-radius:8px;white-space:nowrap}

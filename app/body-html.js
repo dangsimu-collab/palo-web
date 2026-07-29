@@ -279,6 +279,7 @@ export const BODY_HTML = `
     <button class="r-ok" onclick="saveNick()">저장</button>
   </div>
 </div>
+<input type="file" id="avatarFile" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="onAvatarFile(event)">
 <div class="toast" id="toast"></div>
 <button class="toTop" id="toTop" aria-label="맨 위로"><span class="sr-only">맨 위로</span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
 

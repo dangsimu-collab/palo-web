@@ -100,6 +100,10 @@ var AUTH={user:null,profile:null};
 var SETTINGS={cm:true,like:true,notice:true,chat:true};
 var notifFilter="all";var pfTab="mine";
 function dispName(a){return a==="나"?ME.nick:a}
+function avatarHTML(name,avatarUrl){
+  if(avatarUrl)return '<img src="'+esc(avatarUrl)+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block">';
+  return esc(dispName(name)[0]);
+}
 var NOTIFS=[
   {type:"cm",icon:"💬",txt:"뎃생왕님이 회원님의 글에 훈수를 남겼어요",time:"5분 전",post:15,read:false},
   {type:"like",icon:"❤️",txt:"달빛초님 외 3명이 회원님의 글을 좋아해요",time:"30분 전",post:14,read:false},
@@ -166,11 +170,12 @@ async function loadRealPosts(){
   if(res.error){console.error(res.error);return;}
   var dbIds=res.data.map(function(row){return row.id});
 
-  var profRes=await window.supabase.from("profiles").select("id,nickname,level");
+  var profRes=await window.supabase.from("profiles").select("id,nickname,level,avatar_url");
   var profById={};
-  if(!profRes.error)profRes.data.forEach(function(row){profById[row.id]={nickname:row.nickname,level:row.level};});
+  if(!profRes.error)profRes.data.forEach(function(row){profById[row.id]={nickname:row.nickname,level:row.level,avatarUrl:row.avatar_url};});
   function nameFor(uid){return uid&&profById[uid]?profById[uid].nickname:"익명";}
   function levelFor(uid){return uid&&profById[uid]?profById[uid].level:null;}
+  function avatarFor(uid){return uid&&profById[uid]?profById[uid].avatarUrl:null;}
 
   var cmRes=dbIds.length?await window.supabase.from("comments").select("*").in("post_id",dbIds).order("created_at"):{data:[]};
   var commentIds=(cmRes.data||[]).map(function(c){return c.id});
@@ -182,7 +187,7 @@ async function loadRealPosts(){
   });
   var commentsByPost={};
   (cmRes.data||[]).forEach(function(c){
-    (commentsByPost[c.post_id]=commentsByPost[c.post_id]||[]).push({n:nameFor(c.author_id),t:timeAgo(c.created_at),txt:c.content,dbId:c.id,authorId:c.author_id,lv:levelFor(c.author_id),h:helpfulCountByComment[c.id]||0,_me:!!helpfulMine[c.id]});
+    (commentsByPost[c.post_id]=commentsByPost[c.post_id]||[]).push({n:nameFor(c.author_id),t:timeAgo(c.created_at),txt:c.content,dbId:c.id,authorId:c.author_id,lv:levelFor(c.author_id),av:avatarFor(c.author_id),h:helpfulCountByComment[c.id]||0,_me:!!helpfulMine[c.id]});
   });
 
   var likeRes=dbIds.length?await window.supabase.from("likes").select("post_id,user_id").in("post_id",dbIds):{data:[]};
@@ -199,7 +204,7 @@ async function loadRealPosts(){
 
   var real=res.data.map(function(row){
     var likers=likesByPost[row.id]||[];
-    return {id:100000+row.id,dbId:row.id,authorId:row.author_id,board:row.board,title:row.title,category:row.category,author:nameFor(row.author_id),authorLevel:levelFor(row.author_id),
+    return {id:100000+row.id,dbId:row.id,authorId:row.author_id,board:row.board,title:row.title,category:row.category,author:nameFor(row.author_id),authorLevel:levelFor(row.author_id),authorAvatar:avatarFor(row.author_id),
       time:timeAgo(row.created_at),createdAt:row.created_at,likes:likers.length,_liked:likers.indexOf(myLikeId())>-1,
       views:row.views,thumb:"none",stage:row.stage,images:imagesByPost[row.id],
       isManagerPick:!!row.is_manager_pick,pickPosition:row.pick_position,pickedAt:row.picked_at,adLocked:!!adLockedIds[row.id],
@@ -513,7 +518,7 @@ function renderPostDetail(id){
   var liked=p._liked?" liked":"";
   var h='<div class="detail"><div class="d-grip"></div><button class="d-back" onclick="renderList()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>목록으로</button>'+
     '<div class="d-head"><div class="line1"><span class="cat '+c.cls+'">'+c.label+'</span>'+(p.isManagerPick?'<span class="pick-badge">📌 매니저 픽</span>':'')+(p.reviewedNickname?'<span class="pick-badge">🎨 @'+esc(p.reviewedNickname)+' 후기</span>':'')+'</div><h1 class="serif">'+esc(p.title)+'</h1>'+
-    '<div class="d-author"><div class="d-ava serif">'+esc(dispName(p.author)[0])+'</div><div class="d-au-info"><div class="n"'+(p.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+levelBadgeHtml(p.authorLevel,"lv-badge")+'</div><div class="meta">'+p.time+' · 조회 '+fmtViews(p.views)+'</div></div>'+
+    '<div class="d-author"><div class="d-ava serif">'+avatarHTML(p.author,p.authorAvatar)+'</div><div class="d-au-info"><div class="n"'+(p.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+levelBadgeHtml(p.authorLevel,"lv-badge")+'</div><div class="meta">'+p.time+' · 조회 '+fmtViews(p.views)+'</div></div>'+
     '<button class="d-follow'+(FOLLOW.has(p.author)?' following':'')+'" id="followBtn" onclick="toggleFollow(\''+esc(p.author)+'\','+p.id+')">'+(FOLLOW.has(p.author)?'팔로잉 ✓':'＋ 팔로우')+'</button></div></div>'+
     canvas+'<div class="d-content">'+(safeHtml?safeHtml:p.content.map(function(x){return'<p>'+esc(x)+'</p>'}).join(""))+'</div>'+
     '<div class="d-actions"><button class="d-act'+liked+'" id="likeBtn" onclick="toggleLike('+p.id+')">'+likeIconSvg(p._liked)+'좋아요 '+p.likes+'</button>'+
@@ -530,7 +535,7 @@ function renderPostDetail(id){
     ((p.dbId&&AUTH.profile&&AUTH.profile.is_admin)?('<button class="d-act'+(p.isManagerPick?' liked':'')+'" onclick="toggleManagerPick('+p.id+')">📌 '+(p.isManagerPick?"매니저 픽 해제":"매니저 픽 지정")+'</button>'):'')+
     '</div>'+
     '<div class="comments"><div class="cm-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>훈수 · 크리틱 '+p.comments.length+'</div>'+
-    '<div class="cm-write"><div class="d-ava serif" id="cmAva">나</div><div class="box"><textarea id="cmInput" placeholder="따뜻한 피드백을 남겨주세요. 사람보다 그림을 이야기해요."></textarea>'+
+    '<div class="cm-write"><div class="d-ava serif" id="cmAva">'+avatarHTML("나",AUTH.profile&&AUTH.profile.avatar_url)+'</div><div class="box"><textarea id="cmInput" placeholder="따뜻한 피드백을 남겨주세요. 사람보다 그림을 이야기해요."></textarea>'+
     '<div class="row"><span class="hint">인신공격·조롱은 삭제될 수 있어요</span><button class="send" onclick="addComment('+p.id+')">등록</button></div></div></div>'+
     '<div class="ad d-ad" role="complementary" aria-label="광고"><span class="ad-label">AD</span><div class="ad-ph"><svg viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"1.6\\" style=\\"width:22px;height:22px\\"><rect x=\\"3\\" y=\\"4\\" width=\\"18\\" height=\\"16\\" rx=\\"2\\"/><circle cx=\\"8.5\\" cy=\\"9.5\\" r=\\"1.6\\"/><path d=\\"m4 18 5-5 4 3 3-2 4 4\\"/></svg></div><div class="ad-body"><div class="ad-t">광고 문의 환영</div><div class="ad-d">이 자리에 광고가 노출됩니다</div></div></div>'+'<div class="cm-list" id="cmList">'+renderComments(p)+'</div></div></div>';
   main.innerHTML=h;
@@ -662,6 +667,38 @@ async function onAdBannerFile(e){
   document.getElementById("adBannerPreview").innerHTML='<img src="'+esc(adState.bannerUrl)+'" style="width:100%;border-radius:10px;display:block">';
   toast("배너 이미지를 등록했어요");
 }
+async function onAvatarFile(e){
+  var f=e.target.files[0];if(!f)return;
+  e.target.value="";
+  if(!window.supabase||!AUTH.user){toast("로그인이 필요해요");return;}
+  if(ALLOWED_IMAGE_TYPES.indexOf(f.type)===-1){toast("이미지 파일만 올릴 수 있어요");return;}
+  if(f.size>MAX_IMAGE_BYTES){toast("40MB 이하 이미지만 올릴 수 있어요");return;}
+  var uploadBlob=f,ext=(f.name.match(/\.([^.]+)$/)||[,"png"])[1];
+  if(f.type!=="image/gif"){
+    toast("이미지 압축 중...");
+    try{
+      var compressed=await compressImage(f);
+      uploadBlob=compressed.blob;ext=compressed.ext;
+    }catch(err){
+      console.error("프로필 이미지 압축 실패, 원본으로 업로드:",err);
+    }
+  }
+  toast("업로드 중...");
+  var path="avatar-"+Date.now()+"-"+f.name.replace(/\.[^.]+$/,"").replace(/[^a-zA-Z0-9_.-]/g,"_")+"."+ext;
+  var up=await window.supabase.storage.from("post-images").upload(path,uploadBlob,f.type==="image/gif"?undefined:{contentType:uploadBlob.type});
+  if(up.error){toast("업로드 실패: "+up.error.message);return;}
+  var pub=window.supabase.storage.from("post-images").getPublicUrl(path);
+  var url=pub.data.publicUrl;
+  var res=await window.supabase.from("profiles").update({avatar_url:url}).eq("id",AUTH.user.id);
+  if(res.error){toast("저장 실패: "+res.error.message);return;}
+  AUTH.profile.avatar_url=url;
+  POSTS.forEach(function(p){
+    if(p.authorId===AUTH.user.id)p.authorAvatar=url;
+    if(p.comments)p.comments.forEach(function(c){if(c.authorId===AUTH.user.id)c.av=url;});
+  });
+  toast("프로필 이미지를 변경했어요");
+  openProfile();
+}
 function updateAdPreview(){
   var rate=parseInt(document.getElementById("adRateInput").value,10)||0;
   var days=parseInt(document.getElementById("adDaysInput").value,10)||0;
@@ -767,7 +804,7 @@ function renderComments(p){
   if(p.comments.length===0)return '<div style="padding:26px 0;text-align:center;color:var(--muted);font-size:13px">첫 훈수를 남겨보세요 ✏️</div>';
   return p.comments.map(function(c,ci){
     var canDelete=c.dbId&&AUTH.user&&c.authorId===AUTH.user.id;
-    return '<div class="cm"><div class="d-ava serif">'+esc(dispName(c.n)[0])+'</div><div class="cbody"><div class="ch"><span class="cn"'+(c.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+c.authorId+'\')"':'')+'>'+esc(c.n)+'</span>'+levelBadgeHtml(c.lv,"lv-badge")+'<span class="ct">'+esc(c.t)+'</span></div><div class="ctext">'+esc(c.txt).replace(/^@(\S+)/,'<b class="mention">@$1</b>')+'</div><div class="cfoot"><span onclick="helpful('+p.id+','+ci+',this)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 6h5a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7"/></svg>도움돼요'+(c.h?' <b>'+c.h+'</b>':'')+'</span><span onclick="replyTo(\''+esc(c.n)+'\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>답글</span>'+(canDelete?'<span onclick="deleteComment('+p.id+','+ci+')">삭제</span>':'')+'</div></div></div>';
+    return '<div class="cm"><div class="d-ava serif">'+avatarHTML(c.n,c.av)+'</div><div class="cbody"><div class="ch"><span class="cn"'+(c.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+c.authorId+'\')"':'')+'>'+esc(c.n)+'</span>'+levelBadgeHtml(c.lv,"lv-badge")+'<span class="ct">'+esc(c.t)+'</span></div><div class="ctext">'+esc(c.txt).replace(/^@(\S+)/,'<b class="mention">@$1</b>')+'</div><div class="cfoot"><span onclick="helpful('+p.id+','+ci+',this)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 6h5a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7"/></svg>도움돼요'+(c.h?' <b>'+c.h+'</b>':'')+'</span><span onclick="replyTo(\''+esc(c.n)+'\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>답글</span>'+(canDelete?'<span onclick="deleteComment('+p.id+','+ci+')">삭제</span>':'')+'</div></div></div>';
   }).join("");
 }
 async function deleteComment(postId,ci){
@@ -1508,7 +1545,7 @@ async function openUserProfile(userId){
   var likeSum=theirPosts.reduce(function(a,p){return a+p.likes},0);
   var canChat=AUTH.user&&AUTH.user.id!==userId;
   var h='<div class="profile">';
-  h+='<div class="pf-card"><div class="pf-ava">'+esc(profile.nickname[0])+'</div><div class="pf-info">'+
+  h+='<div class="pf-card"><div class="pf-ava">'+avatarHTML(profile.nickname,profile.avatar_url)+'</div><div class="pf-info">'+
      '<div class="pf-name">'+esc(profile.nickname)+levelBadgeHtml(profile.level)+'</div>'+
      '</div>'+(canChat?'<button class="pf-edit" onclick="openChat(\''+userId+'\')">💬 채팅하기</button>':'')+'</div>';
   h+=pinnedPostCardHTML(profile.pinned_post_id);
@@ -1847,7 +1884,9 @@ function openProfile(){
   var lvName=levelName(myLevel);
   var prog=levelProgress(myScore,myLevel);
   var h='<div class="profile" id="myProfileView">';
-  h+='<div class="pf-card"><div class="pf-ava">'+esc(ME.nick[0])+'</div><div class="pf-info">'+
+  h+='<div class="pf-card"><div class="pf-ava" style="cursor:pointer" title="프로필 이미지 변경" onclick="document.getElementById(\'avatarFile\').click()">'+avatarHTML(ME.nick,AUTH.profile&&AUTH.profile.avatar_url)+
+     '<button type="button" class="pf-ava-edit" onclick="event.stopPropagation();document.getElementById(\'avatarFile\').click()" title="프로필 이미지 변경" aria-label="프로필 이미지 변경">📷</button>'+
+     '</div><div class="pf-info">'+
      '<div class="pf-name">'+esc(ME.nick)+levelBadgeHtml(myLevel)+'</div>'+
      '<div class="pf-sub">Palo와 함께 그리는 중 · 팔로잉 '+FOLLOW.size+'명</div></div>'+
      '<div class="pf-actions">'+
