@@ -135,12 +135,14 @@ export const BODY_HTML = `
         <button title="인용" onmousedown="insertQuote(event)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h4v6H7c0-3 0-4 2-6M15 7h4v6h-4c0-3 0-4 2-6"/></svg></button>
         <span class="ed-div"></span>
         <button title="이미지" onmousedown="pickImage(event)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5-5 4 3 3-2 4 4"/></svg></button>
+        <button title="동영상" onmousedown="pickVideo(event)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="m17 9 4-2v10l-4-2"/></svg></button>
       </div>
 
       <!-- 본문 (contenteditable) -->
       <div id="wContent" class="ed-content" contenteditable="true"
-        data-ph="이야기를 자유롭게 적어 주세요. 러프를 봐달라거나, 궁금한 걸 물어보거나, 그냥 수다도 좋아요. 위 🖼 버튼으로 그림도 올릴 수 있어요."></div>
+        data-ph="이야기를 자유롭게 적어 주세요. 커서를 원하는 위치에 두고 위 🖼/🎬 버튼으로 그림·동영상을 그 자리에 넣을 수 있어요."></div>
       <input type="file" id="edFile" accept="image/*" class="hidden" onchange="onImage(event)">
+      <input type="file" id="edVideoFile" accept="video/*" class="hidden" onchange="onVideoFile(event)">
       <div id="edImages" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"></div>
 
       <!-- 옵션 -->

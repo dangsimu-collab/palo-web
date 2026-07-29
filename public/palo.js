@@ -167,7 +167,7 @@ async function loadRealPosts(){
     return {id:100000+row.id,dbId:row.id,authorId:row.author_id,board:row.board,title:row.title,category:row.category,author:nameFor(row.author_id),
       time:timeAgo(row.created_at),createdAt:row.created_at,likes:likers.length,_liked:likers.indexOf(myLikeId())>-1,
       views:row.views,thumb:"none",stage:row.stage,images:imagesByPost[row.id],
-      content:(row.content||"").split("\n").filter(Boolean),comments:commentsByPost[row.id]||[]};
+      content:(row.content||"").split("\n").filter(Boolean),html:row.content_html||undefined,comments:commentsByPost[row.id]||[]};
   });
   POSTS=real.concat(POSTS);
   renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
@@ -410,17 +410,19 @@ function likeIconSvg(liked){
 function renderPostDetail(id){
   var p=POSTS.find(function(x){return x.id===id});if(!p)return;
   var main=document.getElementById("main");var c=catFor(p);
-  var canvas=(p.images&&p.images.length)?
+  var safeHtml=p.html?sanitizePostHtml(p.html):null;
+  var contentHasMedia=safeHtml&&/<img[\s>]|<video[\s>]/i.test(safeHtml);
+  var canvas=(!contentHasMedia&&p.images&&p.images.length)?
     '<div class="d-canvas" style="height:auto;display:block;padding:0">'+(p.stage?'<span class="stage-tag">'+p.stage+' 단계</span>':'')+
       p.images.map(function(url){return '<img src="'+esc(url)+'" alt="" style="width:100%;display:block;max-height:520px;object-fit:cover">'}).join("")+
     '</div>' :
-    p.thumb==="none"?"":'<div class="d-canvas" style="background:linear-gradient(135deg,'+GRADS[p.thumb]+')">'+(p.stage?'<span class="stage-tag">'+p.stage+' 단계</span>':'')+'🎨 작품 이미지 영역</div>';
+    (contentHasMedia||p.thumb==="none")?"":'<div class="d-canvas" style="background:linear-gradient(135deg,'+GRADS[p.thumb]+')">'+(p.stage?'<span class="stage-tag">'+p.stage+' 단계</span>':'')+'🎨 작품 이미지 영역</div>';
   var liked=p._liked?" liked":"";
   var h='<div class="detail"><div class="d-grip"></div><button class="d-back" onclick="renderList()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>목록으로</button>'+
     '<div class="d-head"><div class="line1"><span class="cat '+c.cls+'">'+c.label+'</span></div><h1 class="serif">'+esc(p.title)+'</h1>'+
     '<div class="d-author"><div class="d-ava serif">'+esc(dispName(p.author)[0])+'</div><div class="d-au-info"><div class="n"'+(p.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+'</div><div class="meta">'+p.time+' · 조회 '+fmtViews(p.views)+'</div></div>'+
     '<button class="d-follow'+(FOLLOW.has(p.author)?' following':'')+'" id="followBtn" onclick="toggleFollow(\''+esc(p.author)+'\','+p.id+')">'+(FOLLOW.has(p.author)?'팔로잉 ✓':'＋ 팔로우')+'</button></div></div>'+
-    canvas+'<div class="d-content">'+(p.html?p.html:p.content.map(function(x){return'<p>'+esc(x)+'</p>'}).join(""))+'</div>'+
+    canvas+'<div class="d-content">'+(safeHtml?safeHtml:p.content.map(function(x){return'<p>'+esc(x)+'</p>'}).join(""))+'</div>'+
     '<div class="d-actions"><button class="d-act'+liked+'" id="likeBtn" onclick="toggleLike('+p.id+')">'+likeIconSvg(p._liked)+'좋아요 '+p.likes+'</button>'+
     '<button class="d-act" onclick="sharePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6"/><path d="M10 6l1-1a4 4 0 0 1 6 6l-1 1M14 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg>공유</button>'+
     '<button class="d-act" onclick="reportPost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>신고</button>'+
@@ -617,7 +619,7 @@ function openEditPost(id){
   edState={board:p.board,tag:p.category||null,img:!!(p.images&&p.images.length),images:p.images?p.images.slice():[]};
   buildBoardMenu();refreshBoardLabel();renderEdTags();
   document.getElementById("wTitle").value=stripTag(p.title,p.category);
-  document.getElementById("wContent").innerHTML=p.html?p.html:p.content.map(function(x){return"<p>"+esc(x)+"</p>"}).join("");
+  document.getElementById("wContent").innerHTML=p.html?sanitizePostHtml(p.html):p.content.map(function(x){return"<p>"+esc(x)+"</p>"}).join("");
   renderEdImages();
   document.getElementById("edCrit").checked=(edState.board==="crit");
   document.getElementById("edTitleLabel").textContent="글 수정";
@@ -656,7 +658,38 @@ function pickTag(t){edState.tag=(edState.tag===t?null:t);renderEdTags()}
 /* formatting */
 function fmt(e,cmd,val){e.preventDefault();document.getElementById("wContent").focus();document.execCommand(cmd,false,val||null)}
 function insertQuote(e){e.preventDefault();document.getElementById("wContent").focus();document.execCommand("formatBlock",false,"blockquote")}
-function pickImage(e){e.preventDefault();document.getElementById("edFile").click()}
+var savedEditorRange=null;
+function saveEditorSelection(){
+  var sel=window.getSelection();
+  if(sel&&sel.rangeCount>0){
+    var r=sel.getRangeAt(0);
+    var cEl=document.getElementById("wContent");
+    if(cEl&&cEl.contains(r.commonAncestorContainer))savedEditorRange=r.cloneRange();
+  }
+}
+function restoreEditorSelection(){
+  var cEl=document.getElementById("wContent");
+  cEl.focus();
+  var sel=window.getSelection();
+  sel.removeAllRanges();
+  if(savedEditorRange){
+    sel.addRange(savedEditorRange);
+  }else{
+    var r=document.createRange();
+    r.selectNodeContents(cEl);
+    r.collapse(false);
+    sel.addRange(r);
+  }
+}
+function insertInlineMedia(kind,url){
+  restoreEditorSelection();
+  var html=kind==="img"
+    ? '<img src="'+esc(url)+'" style="max-width:100%;border-radius:10px;display:block;margin:10px 0">'
+    : '<video src="'+esc(url)+'" controls style="max-width:100%;border-radius:10px;display:block;margin:10px 0"></video>';
+  document.execCommand("insertHTML",false,html+"<br>");
+}
+function pickImage(e){e.preventDefault();saveEditorSelection();document.getElementById("edFile").click()}
+function pickVideo(e){e.preventDefault();saveEditorSelection();document.getElementById("edVideoFile").click()}
 async function onImage(e){
   var f=e.target.files[0];if(!f)return;
   e.target.value="";
@@ -669,7 +702,20 @@ async function onImage(e){
   edState.images.push(pub.data.publicUrl);
   edState.img=true;
   renderEdImages();
+  insertInlineMedia("img",pub.data.publicUrl);
   toast("이미지를 넣었어요");
+}
+async function onVideoFile(e){
+  var f=e.target.files[0];if(!f)return;
+  e.target.value="";
+  if(!window.supabase){toast("동영상 업로드를 사용할 수 없어요");return;}
+  toast("동영상 업로드 중...");
+  var path=Date.now()+"-"+f.name.replace(/[^a-zA-Z0-9_.-]/g,"_");
+  var up=await window.supabase.storage.from("post-images").upload(path,f);
+  if(up.error){toast("업로드 실패: "+up.error.message);return;}
+  var pub=window.supabase.storage.from("post-images").getPublicUrl(path);
+  insertInlineMedia("video",pub.data.publicUrl);
+  toast("동영상을 넣었어요");
 }
 function renderEdImages(){
   var el=document.getElementById("edImages");if(!el)return;
@@ -680,11 +726,25 @@ function renderEdImages(){
     '</div>';
   }).join("");
 }
-function removeEdImage(i){edState.images.splice(i,1);renderEdImages();}
+function removeEdImage(i){
+  var url=edState.images[i];
+  edState.images.splice(i,1);
+  renderEdImages();
+  var cEl=document.getElementById("wContent");
+  if(cEl)cEl.querySelectorAll('img[src="'+url+'"]').forEach(function(img){img.remove()});
+}
+function sanitizePostHtml(html){
+  if(!html)return "";
+  if(!window.DOMPurify)return "";
+  return window.DOMPurify.sanitize(html,{
+    ALLOWED_TAGS:["b","strong","i","em","u","font","span","ul","ol","li","blockquote","br","div","p","img","video","source"],
+    ALLOWED_ATTR:["style","color","src","controls","alt"]
+  });
+}
 async function submitPost(){
   var t=document.getElementById("wTitle").value.trim();
   var cEl=document.getElementById("wContent");
-  var html=cEl.innerHTML.trim();
+  var html=sanitizePostHtml(cEl.innerHTML.trim());
   var text=cEl.textContent.trim();
   if(!edState.board){toast("게시판을 선택해주세요");document.getElementById("edBoardMenu").classList.add("open");return}
   if(!t){toast("제목을 입력해주세요");return}
@@ -697,7 +757,7 @@ async function submitPost(){
     if(!ep){editingPostId=null;toast("수정할 글을 찾을 수 없어요");return;}
     if(window.supabase&&ep.dbId){
       var upd=await window.supabase.from("posts").update({
-        board:edState.board,category:edState.tag,title:title,content:text,
+        board:edState.board,category:edState.tag,title:title,content:text,content_html:html||null,
         stage:edState.img?(stage||"완성"):null
       }).eq("id",ep.dbId);
       if(upd.error){toast("수정 실패: "+upd.error.message);return;}
@@ -727,6 +787,7 @@ async function submitPost(){
       category:edState.tag,
       title:title,
       content:text,
+      content_html:html||null,
       stage:edState.img?(stage||"완성"):null
     }).select().single();
     if(saved.error){

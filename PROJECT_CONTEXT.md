@@ -31,6 +31,7 @@
 | 로그인 | Supabase Auth — 구글 OAuth (선택 사항, 필수 아님) |
 | 스타일 | 일반 CSS (Tailwind 아님) — `app/globals.css` 하나에 전부 |
 | 차트 | recharts 3.10.1 (관리자 통계 페이지에서만 사용) |
+| HTML 살균(XSS 방지) | dompurify (글 본문 HTML을 저장/렌더링할 때 사용, `app/PaloApp.js`에서 `window.DOMPurify`로 노출 — `window.supabase`와 동일한 패턴) |
 | 방문자 분석 | `@vercel/analytics` (Vercel Web Analytics) + GA4 (`gtag`, 별도 스크립트) |
 | 배포 | Vercel (GitHub main 브랜치 push 시 자동 배포) |
 
@@ -101,7 +102,7 @@ Supabase 프로젝트: https://qabbdgfottbnapmyjudy.supabase.co
 | 테이블 | 주요 컬럼 | 비고 |
 |---|---|---|
 | `profiles` | `id`(uuid, PK, = auth.users.id), `nickname`(text), `level`(text), `is_admin`(bool), `is_banned`(bool), `created_at` | `auth.users`에 새 유저 생기면 트리거로 자동 생성 |
-| `posts` | `id`(bigint PK), `author_id`(uuid, nullable), `board`(text), `category`(text, 말머리), `title`, `content`, `stage`(text, 러프/선화/채색/완성), `views`(int), `created_at` | |
+| `posts` | `id`(bigint PK), `author_id`(uuid, nullable), `board`(text), `category`(text, 말머리), `title`, `content`(text, 순수 텍스트 — 검색용), `content_html`(text, nullable, 2026-07-29 추가 — 서식·인라인 이미지/동영상 포함한 실제 렌더링용 HTML, DOMPurify로 살균 후 저장), `stage`(text, 러프/선화/채색/완성), `views`(int), `created_at` | |
 | `comments` | `id`(bigint PK), `post_id`(FK→posts), `author_id`(uuid, nullable), `content`, `parent_id`(FK→comments, 대댓글용, **UI 미구현**), `created_at` | |
 | `likes` | `user_id`(uuid — 로그인 시 실제 계정, 비로그인 시 `palo_anon_id`), `post_id`(FK→posts), `created_at` | PK가 `(user_id, post_id)` 복합키 — 중복 방지의 핵심 |
 | `post_images` | `id`(bigint PK), `post_id`(FK→posts), `url`(text, Storage 공개 URL), `sort`(int) | |
@@ -317,6 +318,14 @@ create trigger on_auth_user_created after insert on auth.users
 - **닉네임 규칙**: 한글/영문/숫자 2~12자, 중복 불가 (DB 제약 + 클라이언트 검증)
 - **UI 일관성**: 브라우저 기본 `alert()`/`confirm()`/`prompt()`를 전부 사이트 디자인에 맞는 커스텀 모달로 교체(신고, 삭제 확인, 공지 팝업 등)
 - **이미지 없는 글의 썸네일 칸 숨김**: 글 작성 시 이미지를 첨부하지 않았으면 목록/상세에서 빈 이미지 칸이 안 보이게 처리(`post_images`가 비어있으면 관련 마크업 자체를 렌더 안 함).
+
+### 본문 서식 실제 저장 + 이미지/동영상 원하는 위치 배치 (2026-07-29 추가)
+사용자가 "이미지가 항상 최상단에 올라가는데, 원하는 위치에 배치하고 싶다"고 요청 → 작업 중 **더 근본적인 기존 문제를 발견**: 글쓰기 에디터(`#wContent`, contentEditable)에서 굵게/기울임 등 서식을 넣어도 실제로 DB `posts.content`엔 순수 텍스트만 저장되고 있었음 — `submitPost()`가 `cEl.innerHTML`(서식 있는 버전)은 그 세션의 로컬 메모리(`np.html`/`ep.html`)에만 잠깐 담아뒀다가, DB엔 `cEl.textContent`(서식 없는 텍스트)만 보냈던 것. 그래서 서식은 **새로고침하면 항상 사라졌음**(아무도 몰랐던 이유: 그동안 작성자 본인이 새로고침 전까지만 보고 넘어갔을 가능성). 이번에 같이 고침:
+- **`posts.content_html`(text, nullable) 컬럼 추가** — 서식 있는 실제 HTML을 여기 저장. `content`(순수 텍스트)는 검색·구버전 폴백용으로 계속 유지.
+- **보안: dompurify 도입.** 이제 이 HTML이 모든 방문자에게 그대로 렌더링되므로(예전엔 저장 자체가 안 됐으니 위험이 없었음), **저장 시점과 렌더링 시점 둘 다** `sanitizePostHtml()`(`public/palo.js`)로 살균 — `<script>`, `onerror` 같은 위험 요소 제거 확인됨. 허용 태그: `b/strong/i/em/u/font/span/ul/ol/li/blockquote/br/div/p/img/video/source`, 허용 속성: `style/color/src/controls/alt`.
+- **이미지/동영상 인라인 배치**: 툴바에 "동영상" 버튼 추가(`pickVideo()`/`onVideoFile()`, 이미지와 같은 `post-images` 스토리지 버킷 재사용). 파일 선택 전 커서 위치를 `saveEditorSelection()`으로 저장해뒀다가, 업로드 완료 후 `restoreEditorSelection()`으로 그 위치를 복원한 다음 `document.execCommand("insertHTML",...)`로 정확히 그 자리에 삽입(`insertInlineMedia()`). 기존 "이미지 업로드 → 항상 맨 위 갤러리" 방식(`post_images` 테이블, 목록 썸네일용으로는 계속 유지)과 별개로 동작.
+- **기존 글과의 호환성**: `renderPostDetail()`에서 본문 HTML에 이미 `<img>`/`<video>`가 있으면(새 글 방식) 예전의 "상단 캔버스 블록"을 생략해서 중복 표시를 막고, 본문에 인라인 미디어가 없는 예전 글은 기존처럼 상단 캔버스 블록을 그대로 보여줌(하위 호환, 회귀 없음).
+- **에디터 이미지 칩(`#edImages`) 제거 동기화**: 칩의 "×"를 누르면 `edState.images`뿐 아니라 본문에 삽입돼 있던 동일 URL의 `<img>`도 같이 제거되도록 `removeEdImage()` 수정(안 그러면 칩은 지웠는데 본문엔 이미지가 남아있는 불일치가 생김).
 
 ### 인기글 점수 공식 (사이트 "인기순" 정렬)
 목록 화면의 "인기순" 탭과 관리자 통계의 인기 글/작성자 TOP 10이 공유하는 점수 계산식. `public/palo.js`의 `hotMultiplier()`/`hotScore()`/`sortHot()`과 `app/admin/page.js`의 동일 이름 함수(중복 구현, 관리자 쪽엔 7일 제외 로직만 없음)로 존재.
