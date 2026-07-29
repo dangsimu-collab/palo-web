@@ -128,7 +128,15 @@ function timeAgo(iso){
 }
 var LATEST_NOTICE=null;
 var ACTIVE_ADS=[];
-var adRotationIndex=Math.floor(Math.random()*1000);
+var AD_USER_SHARE_MAX=0.20; // 유저 광고가 전체 광고 자리 노출에서 차지할 수 있는 최대 비중
+var AD_PER_AD_SHARE_MAX=0.04; // 광고 하나가 차지할 수 있는 최대 비중(초기엔 광고가 적어 소수가 20%를 독점하는 걸 막기 위함)
+function computeAdWeights(ads){
+  var total=ads.reduce(function(s,a){return s+(a.points_spent||0);},0);
+  if(!total)return ads.map(function(){return 0;});
+  return ads.map(function(a){
+    return Math.min(AD_PER_AD_SHARE_MAX,AD_USER_SHARE_MAX*(a.points_spent/total));
+  });
+}
 function showNotice(){
   if(!LATEST_NOTICE)return;
   document.getElementById("noticeModalTitle").textContent="📢 "+LATEST_NOTICE.title;
@@ -144,8 +152,15 @@ async function loadRealPosts(){
   var lvRes=await window.supabase.from("level_thresholds").select("*").order("level");
   if(!lvRes.error)LEVEL_THRESHOLDS=lvRes.data||[];
 
-  var adRes=await window.supabase.from("user_ads").select("id,image_url,linked_post_id").eq("status","active").gt("expires_at",new Date().toISOString());
+  var adRes=await window.supabase.from("user_ads").select("id,image_url,linked_post_id,points_spent").eq("status","active").gt("expires_at",new Date().toISOString());
   if(!adRes.error)ACTIVE_ADS=adRes.data||[];
+
+  var adLockRes=await window.supabase.from("user_ads").select("linked_post_id,status,expires_at").in("status",["pending","active"]);
+  var adLockedIds={};
+  var nowIso=new Date().toISOString();
+  (adLockRes.data||[]).forEach(function(a){
+    if(a.status==="pending"||(a.status==="active"&&a.expires_at&&a.expires_at>nowIso))adLockedIds[a.linked_post_id]=true;
+  });
 
   var res=await window.supabase.from("posts").select("*").order("created_at",{ascending:false});
   if(res.error){console.error(res.error);return;}
@@ -187,7 +202,7 @@ async function loadRealPosts(){
     return {id:100000+row.id,dbId:row.id,authorId:row.author_id,board:row.board,title:row.title,category:row.category,author:nameFor(row.author_id),authorLevel:levelFor(row.author_id),
       time:timeAgo(row.created_at),createdAt:row.created_at,likes:likers.length,_liked:likers.indexOf(myLikeId())>-1,
       views:row.views,thumb:"none",stage:row.stage,images:imagesByPost[row.id],
-      isManagerPick:!!row.is_manager_pick,pickPosition:row.pick_position,pickedAt:row.picked_at,
+      isManagerPick:!!row.is_manager_pick,pickPosition:row.pick_position,pickedAt:row.picked_at,adLocked:!!adLockedIds[row.id],
       content:(row.content||"").split("\n").filter(Boolean),html:row.content_html||undefined,comments:commentsByPost[row.id]||[]};
   });
   POSTS=real.concat(POSTS);
@@ -383,13 +398,19 @@ function skeletonHTML(){
 }
 function adRow(){
   if(ACTIVE_ADS.length){
-    var ad=ACTIVE_ADS[adRotationIndex%ACTIVE_ADS.length];
-    adRotationIndex++;
-    return '<div class="ad ad-banner" role="complementary" aria-label="광고" style="cursor:pointer;position:relative" onclick="openPost('+(100000+ad.linked_post_id)+')">'+
-      '<span class="ad-label">유저 광고</span>'+
-      '<button class="ad-report-btn" onclick="reportAd('+ad.id+',event)" title="이 광고 신고">🚩</button>'+
-      '<img src="'+esc(ad.image_url)+'" alt="유저 광고">'+
-    '</div>';
+    var weights=computeAdWeights(ACTIVE_ADS);
+    var r=Math.random(),cum=0;
+    for(var i=0;i<ACTIVE_ADS.length;i++){
+      cum+=weights[i];
+      if(r<cum){
+        var ad=ACTIVE_ADS[i];
+        return '<div class="ad ad-banner" role="complementary" aria-label="광고" style="cursor:pointer;position:relative" onclick="openPost('+(100000+ad.linked_post_id)+')">'+
+          '<span class="ad-label">유저 광고</span>'+
+          '<button class="ad-report-btn" onclick="reportAd('+ad.id+',event)" title="이 광고 신고">🚩</button>'+
+          '<img src="'+esc(ad.image_url)+'" alt="유저 광고">'+
+        '</div>';
+      }
+    }
   }
   return '<div class="ad" role="complementary" aria-label="광고">'+
     '<span class="ad-label">AD</span>'+
@@ -485,7 +506,9 @@ function renderPostDetail(id){
     '<div class="d-actions"><button class="d-act'+liked+'" id="likeBtn" onclick="toggleLike('+p.id+')">'+likeIconSvg(p._liked)+'좋아요 '+p.likes+'</button>'+
     '<button class="d-act" onclick="sharePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6"/><path d="M10 6l1-1a4 4 0 0 1 6 6l-1 1M14 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg>공유</button>'+
     '<button class="d-act" onclick="reportPost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>신고</button>'+
-    ((p.dbId&&AUTH.user&&p.authorId===AUTH.user.id)?('<button class="d-act" onclick="openEditPost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L20 8l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>수정</button>'+
+    ((p.dbId&&AUTH.user&&p.authorId===AUTH.user.id)?(
+    (p.adLocked?'<span class="d-act" style="opacity:.55;cursor:default" title="광고를 집행 중인 글은 수정할 수 없어요">🔒 수정 불가(광고 집행 중)</span>':
+    '<button class="d-act" onclick="openEditPost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L20 8l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>수정</button>')+
     '<button class="d-act" onclick="deletePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>삭제</button>'+
     '<button class="d-act" onclick="openCreateAd('+p.id+')">📢 이 글 광고하기</button>'):'')+
     ((p.dbId&&AUTH.profile&&AUTH.profile.is_admin)?('<button class="d-act'+(p.isManagerPick?' liked':'')+'" onclick="toggleManagerPick('+p.id+')">📌 '+(p.isManagerPick?"매니저 픽 해제":"매니저 픽 지정")+'</button>'):'')+
@@ -572,15 +595,15 @@ async function unpickFromList(id){
   openManagerPickList();
 }
 /* ---------- 유저 광고 ---------- */
-var AD_POINTS_PER_DAY=100; // 임시 환산 기준(추후 조정 예정): 100포인트당 1일 노출
 var adState={postId:null,bannerUrl:null};
 function openCreateAd(postId){
   var p=POSTS.find(function(x){return x.id===postId});if(!p||!p.dbId)return;
   if(!AUTH.user||p.authorId!==AUTH.user.id){toast("본인 글만 광고할 수 있어요");return;}
   adState={postId:postId,bannerUrl:null};
   document.getElementById("adBannerPreview").innerHTML="";
-  document.getElementById("adPointsInput").value="";
-  document.getElementById("adPreviewText").textContent="보유 광고 포인트: "+(AUTH.profile?(AUTH.profile.ad_points||0):0)+"점 · 최소 500점부터 집행 가능";
+  document.getElementById("adRateInput").value="";
+  document.getElementById("adDaysInput").value="";
+  document.getElementById("adPreviewText").textContent="보유 광고 포인트: "+(AUTH.profile?(AUTH.profile.ad_points||0):0)+"점 · 총 사용 포인트는 최소 500점부터 집행 가능";
   document.getElementById("adModal").classList.add("open");
 }
 function closeAdModal(){document.getElementById("adModal").classList.remove("open");}
@@ -610,23 +633,29 @@ async function onAdBannerFile(e){
   toast("배너 이미지를 등록했어요");
 }
 function updateAdPreview(){
-  var pts=parseInt(document.getElementById("adPointsInput").value,10)||0;
-  var days=Math.floor(pts/AD_POINTS_PER_DAY);
-  document.getElementById("adPreviewText").textContent=pts?
-    ("약 "+Math.max(days,0)+"일 동안 노출돼요 (환산 기준은 추후 조정될 수 있어요) · 보유 "+(AUTH.profile?(AUTH.profile.ad_points||0):0)+"점"):
-    ("보유 광고 포인트: "+(AUTH.profile?(AUTH.profile.ad_points||0):0)+"점 · 최소 500점부터 집행 가능");
+  var rate=parseInt(document.getElementById("adRateInput").value,10)||0;
+  var days=parseInt(document.getElementById("adDaysInput").value,10)||0;
+  var pts=rate*days;
+  document.getElementById("adPreviewText").textContent=(rate&&days)?
+    (days+"일 동안 1일 "+rate+"점씩 · 총 "+pts+"점 소모돼요"+(pts<500?" (최소 500점 필요)":"")+" · 보유 "+(AUTH.profile?(AUTH.profile.ad_points||0):0)+"점"):
+    ("보유 광고 포인트: "+(AUTH.profile?(AUTH.profile.ad_points||0):0)+"점 · 총 사용 포인트는 최소 500점부터 집행 가능");
 }
 async function submitAd(){
   if(!window.supabase){toast("사용할 수 없어요");return;}
   if(!adState.postId){toast("글 정보를 찾을 수 없어요");return;}
   if(!adState.bannerUrl){toast("배너 이미지를 선택해주세요");return;}
-  var pts=parseInt(document.getElementById("adPointsInput").value,10);
-  if(!pts||pts<500){toast("최소 500포인트부터 집행할 수 있어요");return;}
+  var rate=parseInt(document.getElementById("adRateInput").value,10);
+  var days=parseInt(document.getElementById("adDaysInput").value,10);
+  if(!rate||rate<1){toast("1일당 사용할 포인트를 입력해주세요");return;}
+  if(!days||days<1){toast("노출할 날짜를 입력해주세요");return;}
+  if(rate*days<500){toast("최소 500포인트부터 집행할 수 있어요");return;}
   var p=POSTS.find(function(x){return x.id===adState.postId});if(!p||!p.dbId)return;
-  var res=await window.supabase.rpc("create_user_ad",{p_post_id:p.dbId,p_image_url:adState.bannerUrl,p_points_to_spend:pts});
+  var res=await window.supabase.rpc("create_user_ad",{p_post_id:p.dbId,p_image_url:adState.bannerUrl,p_points_per_day:rate,p_duration_days:days});
   if(res.error){toast("광고 등록 실패: "+res.error.message);return;}
+  p.adLocked=true;
   closeAdModal();
   await refreshMyProfile();
+  if(typeof renderPostDetail==="function")renderPostDetail(p.id);
   toast("광고 신청이 접수됐어요. 관리자 승인 후 노출돼요 📋");
 }
 var reportingPostId=null;
@@ -816,6 +845,7 @@ function openWrite(){
 function openEditPost(id){
   var p=POSTS.find(function(x){return x.id===id});if(!p)return;
   if(!p.dbId||!AUTH.user||p.authorId!==AUTH.user.id){toast("수정 권한이 없어요");return;}
+  if(p.adLocked){toast("광고를 집행 중인 글은 수정할 수 없어요");return;}
   editingPostId=id;
   edState={board:p.board,tag:p.category||null,img:!!(p.images&&p.images.length),images:p.images?p.images.slice():[]};
   buildBoardMenu();refreshBoardLabel();renderEdTags();
@@ -1593,16 +1623,22 @@ function openProfile(){
   h+='<div class="pf-card"><div class="pf-ava">'+esc(ME.nick[0])+'</div><div class="pf-info">'+
      '<div class="pf-name">'+esc(ME.nick)+levelBadgeHtml(myLevel)+'</div>'+
      '<div class="pf-sub">Palo와 함께 그리는 중 · 팔로잉 '+FOLLOW.size+'명</div></div>'+
-     '<button class="pf-edit" onclick="openNickModal()">닉네임 변경</button>'+
-     '<button class="pf-edit" onclick="openChatList()">💬 채팅 목록</button>'+
-     '<button class="pf-edit" onclick="openScoreLog()">포인트 내역</button>'+
-     '<button class="pf-edit" onclick="logout()">로그아웃</button>'+
-     (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openAdminReports()">🛡 신고 목록</button>':'')+
-     (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openAdminChatList()">🛡 전체 채팅 목록</button>':'')+
-     (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openAdminAdReview()">🛡 광고 심사</button>':'')+
-     (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openAdminAdList()">🛡 전체 광고 목록</button>':'')+
-     (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openManagerPickList()">📌 매니저 픽 관리</button>':'')+
-     '</div>';
+     '<div class="pf-actions">'+
+       '<button class="pf-edit" onclick="openNickModal()">닉네임 변경</button>'+
+       '<button class="pf-edit" onclick="openChatList()">💬 채팅 목록</button>'+
+       '<button class="pf-edit" onclick="openScoreLog()">포인트 내역</button>'+
+       '<button class="pf-edit" onclick="logout()">로그아웃</button>'+
+     '</div></div>';
+  if(AUTH.profile&&AUTH.profile.is_admin){
+    h+='<div class="pf-sec">🛡 관리자 메뉴</div>'+
+       '<div class="pf-actions pf-admin-actions">'+
+         '<button class="pf-edit" onclick="openAdminReports()">신고 목록</button>'+
+         '<button class="pf-edit" onclick="openAdminChatList()">전체 채팅 목록</button>'+
+         '<button class="pf-edit" onclick="openAdminAdReview()">광고 심사</button>'+
+         '<button class="pf-edit" onclick="openAdminAdList()">전체 광고 목록</button>'+
+         '<button class="pf-edit" onclick="openManagerPickList()">📌 매니저 픽 관리</button>'+
+       '</div>';
+  }
   h+='<div class="pf-progress"><div class="pp-row"><span>'+lvName+'</span><span>'+
      (prog.maxed?'최고 등급 달성! 🎉':('다음 등급('+prog.nextName+')까지 '+prog.remain+'점'))+'</span></div>'+
      '<div class="pp-bar"><div class="pp-fill" style="width:'+prog.pct+'%"></div></div></div>';
@@ -1786,10 +1822,25 @@ async function approveUserAd(adId,backTo){
   toast("광고를 승인했어요");
   if(backTo==="list")openAdminAdList();else openAdminAdReview();
 }
-async function rejectUserAd(adId,backTo){
-  if(!(await confirmDialog("이 광고를 반려할까요? 포인트는 전액 환수돼요.")))return;
-  var res=await window.supabase.rpc("reject_user_ad",{p_ad_id:adId});
+var rejectingAdId=null,rejectingAdBackTo=null;
+function rejectUserAd(adId,backTo){
+  rejectingAdId=adId;rejectingAdBackTo=backTo;
+  document.getElementById("adRejectReasonInput").value="";
+  document.getElementById("adRejectRefundInput").checked=true;
+  document.getElementById("adRejectModal").classList.add("open");
+}
+function closeAdRejectModal(){
+  rejectingAdId=null;rejectingAdBackTo=null;
+  document.getElementById("adRejectModal").classList.remove("open");
+}
+async function submitAdReject(){
+  if(!rejectingAdId)return;
+  var adId=rejectingAdId,backTo=rejectingAdBackTo;
+  var refund=document.getElementById("adRejectRefundInput").checked;
+  var reason=document.getElementById("adRejectReasonInput").value.trim()||null;
+  var res=await window.supabase.rpc("reject_user_ad",{p_ad_id:adId,p_refund:refund,p_reason:reason});
   if(res.error){toast("반려 실패: "+res.error.message);return;}
+  closeAdRejectModal();
   toast("광고를 반려했어요");
   if(backTo==="list")openAdminAdList();else openAdminAdReview();
 }

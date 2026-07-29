@@ -219,9 +219,21 @@ export const BODY_HTML = `
     <input type="file" id="adBannerFile" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="onAdBannerFile(event)">
     <button class="pf-edit" onclick="document.getElementById('adBannerFile').click()" style="width:100%;margin-bottom:6px;justify-content:center">배너 이미지 선택</button>
     <p class="nick-hint">권장 크기: 가로 800 × 세로 200px (4:1 비율). 이보다 정사각형이거나 세로로 긴 이미지는 위아래가 잘려서 보일 수 있어요.</p>
-    <input type="number" id="adPointsInput" class="nick-in" min="500" step="1" placeholder="사용할 광고 포인트 (최소 500)" oninput="updateAdPreview()">
-    <p class="nick-hint" id="adPreviewText">포인트를 입력하면 노출 기간이 계산돼요.</p>
+    <input type="number" id="adRateInput" class="nick-in" min="1" step="1" placeholder="1일당 사용할 포인트" oninput="updateAdPreview()" style="margin-bottom:8px">
+    <input type="number" id="adDaysInput" class="nick-in" min="1" step="1" placeholder="노출할 날짜 (일수)" oninput="updateAdPreview()">
+    <p class="nick-hint" id="adPreviewText">1일당 포인트와 노출 일수를 입력하면 총 포인트가 계산돼요.</p>
     <button class="r-ok" onclick="submitAd()">광고 등록</button>
+  </div>
+</div>
+
+<div class="rules-scrim" id="adRejectModal" onclick="if(event.target===this)closeAdRejectModal()">
+  <div class="rules">
+    <h3>🚫 광고 반려</h3>
+    <label class="pf-toggle" style="margin-bottom:4px"><span>유저에게 포인트 돌려주기</span><input type="checkbox" id="adRejectRefundInput" checked></label>
+    <p class="nick-hint" style="margin-bottom:10px">체크하면 유저가 썼던 포인트를 돌려받아요. 체크를 풀면 포인트를 돌려받지 못해요(악의적인 광고 등에 사용).</p>
+    <textarea id="adRejectReasonInput" class="nick-in" style="height:90px;resize:vertical" placeholder="반려 사유를 알려주세요 (선택사항)"></textarea>
+    <p class="nick-hint">작성한 사유는 신청자에게 알림으로 전달돼요.</p>
+    <button class="r-ok" onclick="submitAdReject()">반려 확정</button>
   </div>
 </div>
 
