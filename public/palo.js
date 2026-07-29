@@ -142,10 +142,11 @@ async function loadRealPosts(){
   if(res.error){console.error(res.error);return;}
   var dbIds=res.data.map(function(row){return row.id});
 
-  var profRes=await window.supabase.from("profiles").select("id,nickname");
-  var nickById={};
-  if(!profRes.error)profRes.data.forEach(function(row){nickById[row.id]=row.nickname;});
-  function nameFor(uid){return uid&&nickById[uid]?nickById[uid]:"익명";}
+  var profRes=await window.supabase.from("profiles").select("id,nickname,level");
+  var profById={};
+  if(!profRes.error)profRes.data.forEach(function(row){profById[row.id]={nickname:row.nickname,level:row.level};});
+  function nameFor(uid){return uid&&profById[uid]?profById[uid].nickname:"익명";}
+  function levelFor(uid){return uid&&profById[uid]?profById[uid].level:null;}
 
   var cmRes=dbIds.length?await window.supabase.from("comments").select("*").in("post_id",dbIds).order("created_at"):{data:[]};
   var commentIds=(cmRes.data||[]).map(function(c){return c.id});
@@ -157,7 +158,7 @@ async function loadRealPosts(){
   });
   var commentsByPost={};
   (cmRes.data||[]).forEach(function(c){
-    (commentsByPost[c.post_id]=commentsByPost[c.post_id]||[]).push({n:nameFor(c.author_id),t:timeAgo(c.created_at),txt:c.content,dbId:c.id,authorId:c.author_id,h:helpfulCountByComment[c.id]||0,_me:!!helpfulMine[c.id]});
+    (commentsByPost[c.post_id]=commentsByPost[c.post_id]||[]).push({n:nameFor(c.author_id),t:timeAgo(c.created_at),txt:c.content,dbId:c.id,authorId:c.author_id,lv:levelFor(c.author_id),h:helpfulCountByComment[c.id]||0,_me:!!helpfulMine[c.id]});
   });
 
   var likeRes=dbIds.length?await window.supabase.from("likes").select("post_id,user_id").in("post_id",dbIds):{data:[]};
@@ -174,7 +175,7 @@ async function loadRealPosts(){
 
   var real=res.data.map(function(row){
     var likers=likesByPost[row.id]||[];
-    return {id:100000+row.id,dbId:row.id,authorId:row.author_id,board:row.board,title:row.title,category:row.category,author:nameFor(row.author_id),
+    return {id:100000+row.id,dbId:row.id,authorId:row.author_id,board:row.board,title:row.title,category:row.category,author:nameFor(row.author_id),authorLevel:levelFor(row.author_id),
       time:timeAgo(row.created_at),createdAt:row.created_at,likes:likers.length,_liked:likers.indexOf(myLikeId())>-1,
       views:row.views,thumb:"none",stage:row.stage,images:imagesByPost[row.id],
       content:(row.content||"").split("\n").filter(Boolean),html:row.content_html||undefined,comments:commentsByPost[row.id]||[]};
@@ -387,7 +388,7 @@ function renderList(){
         '<div class="ptitle">'+esc(p.title)+'</div>'+
         '<div class="pmeta">'+
           '<span class="cat '+c.cls+'">'+c.label+'</span>'+
-          '<span class="who"'+(p.authorId?' style="cursor:pointer" onclick="event.stopPropagation();openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+'</span>'+
+          '<span class="who"'+(p.authorId?' style="cursor:pointer" onclick="event.stopPropagation();openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+'</span>'+levelBadgeHtml(p.authorLevel,"lv-badge")+
           '<span class="sep"></span><span class="mt">'+p.time+'</span>'+
           '<span class="sep"></span><span class="mv">조회 '+fmtViews(p.views)+'</span>'+
           (p.likes?'<span class="sep"></span><span class="ml">추천 '+p.likes+'</span>':'')+
@@ -430,7 +431,7 @@ function renderPostDetail(id){
   var liked=p._liked?" liked":"";
   var h='<div class="detail"><div class="d-grip"></div><button class="d-back" onclick="renderList()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>목록으로</button>'+
     '<div class="d-head"><div class="line1"><span class="cat '+c.cls+'">'+c.label+'</span></div><h1 class="serif">'+esc(p.title)+'</h1>'+
-    '<div class="d-author"><div class="d-ava serif">'+esc(dispName(p.author)[0])+'</div><div class="d-au-info"><div class="n"'+(p.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+'</div><div class="meta">'+p.time+' · 조회 '+fmtViews(p.views)+'</div></div>'+
+    '<div class="d-author"><div class="d-ava serif">'+esc(dispName(p.author)[0])+'</div><div class="d-au-info"><div class="n"'+(p.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+levelBadgeHtml(p.authorLevel,"lv-badge")+'</div><div class="meta">'+p.time+' · 조회 '+fmtViews(p.views)+'</div></div>'+
     '<button class="d-follow'+(FOLLOW.has(p.author)?' following':'')+'" id="followBtn" onclick="toggleFollow(\''+esc(p.author)+'\','+p.id+')">'+(FOLLOW.has(p.author)?'팔로잉 ✓':'＋ 팔로우')+'</button></div></div>'+
     canvas+'<div class="d-content">'+(safeHtml?safeHtml:p.content.map(function(x){return'<p>'+esc(x)+'</p>'}).join(""))+'</div>'+
     '<div class="d-actions"><button class="d-act'+liked+'" id="likeBtn" onclick="toggleLike('+p.id+')">'+likeIconSvg(p._liked)+'좋아요 '+p.likes+'</button>'+
@@ -518,7 +519,7 @@ function renderComments(p){
   if(p.comments.length===0)return '<div style="padding:26px 0;text-align:center;color:var(--muted);font-size:13px">첫 훈수를 남겨보세요 ✏️</div>';
   return p.comments.map(function(c,ci){
     var canDelete=c.dbId&&AUTH.user&&c.authorId===AUTH.user.id;
-    return '<div class="cm"><div class="d-ava serif">'+esc(dispName(c.n)[0])+'</div><div class="cbody"><div class="ch"><span class="cn"'+(c.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+c.authorId+'\')"':'')+'>'+esc(c.n)+'</span><span class="ct">'+esc(c.t)+'</span></div><div class="ctext">'+esc(c.txt).replace(/^@(\S+)/,'<b class="mention">@$1</b>')+'</div><div class="cfoot"><span onclick="helpful('+p.id+','+ci+',this)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 6h5a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7"/></svg>도움돼요'+(c.h?' <b>'+c.h+'</b>':'')+'</span><span onclick="replyTo(\''+esc(c.n)+'\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>답글</span>'+(canDelete?'<span onclick="deleteComment('+p.id+','+ci+')">삭제</span>':'')+'</div></div></div>';
+    return '<div class="cm"><div class="d-ava serif">'+esc(dispName(c.n)[0])+'</div><div class="cbody"><div class="ch"><span class="cn"'+(c.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+c.authorId+'\')"':'')+'>'+esc(c.n)+'</span>'+levelBadgeHtml(c.lv,"lv-badge")+'<span class="ct">'+esc(c.t)+'</span></div><div class="ctext">'+esc(c.txt).replace(/^@(\S+)/,'<b class="mention">@$1</b>')+'</div><div class="cfoot"><span onclick="helpful('+p.id+','+ci+',this)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 6h5a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7"/></svg>도움돼요'+(c.h?' <b>'+c.h+'</b>':'')+'</span><span onclick="replyTo(\''+esc(c.n)+'\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>답글</span>'+(canDelete?'<span onclick="deleteComment('+p.id+','+ci+')">삭제</span>':'')+'</div></div></div>';
   }).join("");
 }
 async function deleteComment(postId,ci){
@@ -975,7 +976,7 @@ async function openUserProfile(userId){
   var canChat=AUTH.user&&AUTH.user.id!==userId;
   var h='<div class="profile">';
   h+='<div class="pf-card"><div class="pf-ava">'+esc(profile.nickname[0])+'</div><div class="pf-info">'+
-     '<div class="pf-name">'+esc(profile.nickname)+'<span class="pf-lv">'+esc(levelName(profile.level))+'</span></div>'+
+     '<div class="pf-name">'+esc(profile.nickname)+levelBadgeHtml(profile.level)+'</div>'+
      '</div>'+(canChat?'<button class="pf-edit" onclick="openChat(\''+userId+'\')">💬 채팅하기</button>':'')+'</div>';
   h+='<div class="pf-stats">'+
      '<div class="pf-st"><b>'+(profile.score||0)+'</b><span>활동 점수</span></div>'+
@@ -1202,7 +1203,13 @@ async function sendChatMessage(){
 var LEVEL_THRESHOLDS=[]; // {level,min_score,name}[], loadRealPosts()에서 DB로부터 채워짐 — 기준을 바꾸려면 level_thresholds 테이블만 수정하면 됨
 function levelName(lv){
   var t=LEVEL_THRESHOLDS.find(function(x){return x.level===lv});
-  return t?t.name:"새싹 작가";
+  return t?t.name:"새싹";
+}
+function levelBadgeHtml(lv,extraClass){
+  if(!lv)return "";
+  var t=LEVEL_THRESHOLDS.find(function(x){return x.level===lv});
+  if(!t)return "";
+  return '<span class="pf-lv'+(extraClass?" "+extraClass:"")+'">'+esc(t.emoji||"")+' '+esc(t.name)+'</span>';
 }
 function levelProgress(score,level){
   var sorted=LEVEL_THRESHOLDS.slice().sort(function(a,b){return a.level-b.level});
@@ -1218,6 +1225,34 @@ async function refreshMyProfile(){
   if(!AUTH.user||!window.supabase)return;
   var res=await window.supabase.from("profiles").select("*").eq("id",AUTH.user.id).single();
   if(!res.error)AUTH.profile=res.data;
+}
+var SCORE_EVENT_LABELS={post_create:"글 작성",comment_create:"댓글 작성",like_received:"글이 추천받음",helpful_received:"댓글이 도움돼요 받음"};
+async function openScoreLog(){
+  if(!AUTH.user||!window.supabase)return;
+  document.getElementById("main").innerHTML='<div class="profile"><p style="padding:40px 0;text-align:center;color:var(--muted)">불러오는 중...</p></div>';
+  var res=await window.supabase.from("score_log").select("*").eq("user_id",AUTH.user.id).order("created_at",{ascending:false}).limit(100);
+  if(res.error){toast("불러오기 실패: "+res.error.message);return;}
+  renderScoreLog(res.data||[]);
+}
+function renderScoreLog(rows){
+  var h='<div class="profile">'+
+    '<button class="d-back" onclick="openProfile()">← 내 정보로</button>'+
+    '<div class="pf-sec">포인트 내역</div>';
+  if(!rows.length){
+    h+='<div class="pf-empty">아직 받은 점수가 없어요.</div>';
+  }else{
+    h+='<div class="list">';
+    rows.forEach(function(r){
+      var label=SCORE_EVENT_LABELS[r.event]||r.event;
+      h+='<div class="post rip"><div class="pmain"><div class="ptitle">'+esc(label)+'</div>'+
+        '<div class="pmeta"><span class="mt">'+timeAgo(r.created_at)+'</span></div></div>'+
+        '<div class="pcmt"><span class="cn" style="color:var(--brand)">+'+r.amount+'</span><span class="cl">점</span></div></div>';
+    });
+    h+='</div>';
+  }
+  h+='</div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
 }
 function openProfile(){
   leaveChat();
@@ -1243,10 +1278,11 @@ function openProfile(){
   var prog=levelProgress(myScore,myLevel);
   var h='<div class="profile" id="myProfileView">';
   h+='<div class="pf-card"><div class="pf-ava">'+esc(ME.nick[0])+'</div><div class="pf-info">'+
-     '<div class="pf-name">'+esc(ME.nick)+'<span class="pf-lv">'+lvName+'</span></div>'+
+     '<div class="pf-name">'+esc(ME.nick)+levelBadgeHtml(myLevel)+'</div>'+
      '<div class="pf-sub">Palo와 함께 그리는 중 · 팔로잉 '+FOLLOW.size+'명</div></div>'+
      '<button class="pf-edit" onclick="openNickModal()">닉네임 변경</button>'+
      '<button class="pf-edit" onclick="openChatList()">💬 채팅 목록</button>'+
+     '<button class="pf-edit" onclick="openScoreLog()">포인트 내역</button>'+
      '<button class="pf-edit" onclick="logout()">로그아웃</button>'+
      (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openAdminReports()">🛡 신고 목록</button>':'')+
      (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openAdminChatList()">🛡 전체 채팅 목록</button>':'')+

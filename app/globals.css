@@ -563,7 +563,8 @@
   .pf-ava{width:56px;height:56px;border-radius:18px;background:linear-gradient(135deg,var(--brand),var(--grape));color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;flex-shrink:0}
   .pf-info{flex:1;min-width:0}
   .pf-name{font-size:17px;font-weight:900;display:flex;align-items:center;gap:8px}
-  .pf-lv{font-size:10.5px;font-weight:800;color:var(--brand);background:var(--brand-soft);padding:3px 9px;border-radius:8px}
+  .pf-lv{font-size:10.5px;font-weight:800;color:var(--brand);background:var(--brand-soft);padding:3px 9px;border-radius:8px;white-space:nowrap}
+  .lv-badge{margin-left:5px;vertical-align:middle}
   .pf-sub{font-size:12px;color:var(--muted);margin-top:4px}
   .pf-edit{background:var(--surface-2);border:1px solid var(--line-2);border-radius:11px;padding:9px 14px;font-size:12.5px;font-weight:700;color:var(--ink-2);cursor:pointer;font-family:inherit;transition:.13s}
   .pf-edit:hover{border-color:var(--brand);color:var(--brand)}

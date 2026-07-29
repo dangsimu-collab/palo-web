@@ -112,7 +112,7 @@ Supabase 프로젝트: https://qabbdgfottbnapmyjudy.supabase.co
 | `messages` | `id`(bigint PK), `conversation_id`(FK→conversations), `sender_id`(uuid), `content`(text), `is_read`(bool, default false), `created_at` | |
 | `chat_admin_access_logs` | `id`(bigint PK), `admin_id`(uuid, FK→profiles), `conversation_id`(FK→conversations), `report_id`(FK→reports, nullable), `accessed_at` | 관리자가 채팅을 열람할 때마다 자동 기록. **update/delete 정책 없음(append-only)** — 아무도 못 고치고 못 지움, 감사 로그의 신뢰성 확보용 |
 | `notifications` | `id`(bigint PK), `user_id`(uuid, FK→profiles, 알림 받는 사람), `type`(text: `chat`/`cm`/`like`), `icon`(text), `content`(text), `link_chat_user`(uuid, nullable), `link_conversation_id`(FK→conversations, nullable), `link_post_id`(FK→posts, nullable), `is_read`(bool), `created_at` | 실제 저장되는 알림함(2026-07-29 추가). **일반 유저는 insert 자체가 불가능** — 오직 DB 트리거(security definer)만 생성 가능 |
-| `level_thresholds` | `level`(int PK, 1~8), `min_score`(int), `name`(text) | 등급 기준표(2026-07-29 추가). **등급 이름/필요 점수를 바꾸려면 이 표만 수정하면 됨** — 코드 변경 불필요. insert/update/delete 정책 없음(관리자가 SQL Editor로만 직접 수정) |
+| `level_thresholds` | `level`(int PK, 1~8), `min_score`(int), `name`(text), `emoji`(text, 2026-07-29 추가) | 등급 기준표. **등급 이름/이모지/필요 점수를 바꾸려면 이 표만 수정하면 됨** — 코드 변경 불필요. insert/update/delete 정책 없음(관리자가 SQL Editor로만 직접 수정) |
 | `comment_helpful` | `comment_id`(FK→comments), `user_id`(uuid, FK→profiles), `created_at` | PK가 `(comment_id,user_id)`. "도움돼요"를 실제로 저장하는 테이블(2026-07-29 추가 — 이전엔 완전히 가짜였음, 아래 "등급 시스템" 절 참고). **로그인 필수**(likes와 달리 익명 불가) |
 | `score_log` | `id`(bigint PK), `user_id`(FK→profiles), `amount`(int, 실제 지급된 양), `event`(text), `source_table`/`source_id`(어느 글/댓글에 귀속되는지), `created_at` | 등급 시스템의 지급 내역(2026-07-29 추가) — 글/댓글 삭제 시 정확한 회수의 근거. select는 본인만, insert/update/delete는 트리거만 |
 | `score_awarded_likes` | `user_id`, `post_id`(FK→posts) | PK가 `(user_id,post_id)`. "이 사람이 이 글로 추천 점수를 받은 적 있는지" 영구 기록(2026-07-29 추가, 좋아요 취소 후 재클릭 악용 방지) — RLS만 켜고 정책은 없음, 클라이언트 접근 완전 차단 |
@@ -364,10 +364,10 @@ create trigger on_auth_user_created after insert on auth.users
 - **정리한 것**: 진짜 댓글 알림이 생기면서, 예전 프로토타입 데모 코드 `scheduleLiveReply()`(글 쓰고 7초 뒤 가짜 회원이 가짜 댓글을 다는 척하며 가짜 알림을 띄우던 코드, `MEMBERS` 배열도 같이)를 완전히 제거함 — 실제 알림과 뒤섞이면 혼란스러웠을 것.
 - **댓글/좋아요 "sys"(공지·챌린지) 알림은 여전히 미구현** — `notices`는 실제 테이블이지만 새 공지 작성 시 전체 회원에게 알림을 뿌리는 트리거는 아직 없음(원한다면 같은 패턴으로 추가 가능).
 
-### 활동 기반 등급 시스템 (2026-07-29 추가, 1·2단계 완료)
+### 활동 기반 등급 시스템 (2026-07-29 추가, 1·2·3단계 완료)
 사용자의 핵심 원칙: 글 개수 같은 "양"보다 남에게 인정받은 "질"(추천·도움돼요)을 높게 평가하고, 위 등급일수록 훨씬 어렵게, 도배로는 못 올리게. **점수·등급 계산은 전부 서버(security definer 트리거)에서 처리 — 클라이언트는 절대 관여 못 함**(사용자가 명시적으로 강조한 요구사항).
 
-- **등급 8단계, 지수적 증가**: `level_thresholds` 테이블(4절 참고)에 1등급(0점)~8등급(12000점)까지 정의. 이름은 전부 임시로 지은 것(새싹 작가/연필 견습/스케치 수습/채색 장인/원고 마스터/크리틱 마스터/아틀리에 거장/커뮤니티 레전드) — 이 표만 SQL로 수정하면 이름·필요 점수를 바로 바꿀 수 있음, 코드 변경 불필요.
+- **등급 8단계, 지수적 증가**: `level_thresholds` 테이블(4절 참고)에 1등급(0점)~8등급(12000점)까지 정의. **이름/이모지는 사용자가 두 차례 커스터마이징해서 최종적으로 "미대 입시" 컨셉**으로 확정됨: 🖍️새내기(1) → ✏️소묘반(2) → 🎨채색반(3) → 🖼️입시생(4) → 🏫미대 새내기(5) → 🎓미대생(6) → 🖌️작가(7) → 👨‍🎨교수님(8). 이 표만 SQL(`update level_thresholds set name=..., emoji=... where level=...`)로 수정하면 이름·이모지·필요 점수를 바로 바꿀 수 있음, 코드 변경 불필요.
 - **점수 규칙**: 글 작성 +2, 댓글 작성 +1, 내 글이 추천(좋아요)받으면 +5, 크리틱("봐주세요" 게시판, `board='crit'`) 댓글에 "도움돼요" 받으면 +20. 전부 `award_score(user_id, amount)`라는 공용 함수를 통해서만 반영됨(직접 점수를 update하는 코드는 어디에도 없음).
 - **트리거 4개**: `notify_score_new_post`(posts INSERT) / `notify_score_new_comment`(comments INSERT) / `notify_score_new_like`(likes INSERT, 좋아요 누른 사람이 아니라 **글쓴이**에게 +5) / `notify_score_helpful`(comment_helpful INSERT, 크리틱 게시판일 때만 **댓글쓴이**에게 +20). 공통 예외: 익명 작성자(받을 사람 없음)와 자기 자신에게 주는 추천/도움돼요는 전부 무시.
 - **"도움돼요" 버튼이 사실은 가짜였음을 발견·수정**: `helpful()`은 원래 클릭하면 화면에만 반짝하고 새로고침하면 사라지는 순수 로컬 함수였음(DB 연동 전혀 없음). +20점의 근거가 되려면 진짜 저장이 필요해서, `comment_helpful` 테이블(4절 참고, **로그인 필수** — likes와 달리 anon 불가, +20이라는 큰 보상이라 도배 방지 차원에서 더 엄격하게 잠금)을 새로 만들고 `helpful()`을 완전히 실제 DB insert/delete로 재작성함. `loadRealPosts()`도 `comment_helpful`을 같이 조회해서 각 댓글의 `h`(개수)/`_me`(내가 눌렀는지)를 실제 값으로 채움.
@@ -384,6 +384,12 @@ create trigger on_auth_user_created after insert on auth.users
 - **삭제 시 회수**: `score_log`(신규 테이블, 실제로 지급된 양만 이벤트별로 기록 — 상한/도배 방지 때문에 "원래 받아야 할 양"과 "실제로 받은 양"이 다를 수 있어서 반드시 필요했음)를 근거로, 글/댓글이 삭제되면(`on_post_delete_clawback`/`on_comment_delete_clawback`, BEFORE DELETE 트리거) 그 글/댓글에 실제로 귀속됐던 점수 합계(작성 보너스 + 그동안 받은 추천/도움돼요 보너스 전부)를 정확히 회수. `comments`가 `posts`에 cascade로 걸려 있어서, 글이 삭제되면 그 글의 댓글들도 각자 자기 작성자의 점수를 알아서 회수함.
 - **좋아요/도움돼요 "취소 후 재클릭" 무한 반복 악용도 이번에 같이 닫음**(1단계에서 발견한 구멍, 사용자가 "이번에 같이 닫기"로 명시적 선택): `score_awarded_likes`/`score_awarded_helpful`(신규 테이블, RLS는 켜뒀지만 정책을 아예 안 둬서 클라이언트는 절대 못 건드림) — "이 사람이 이 글/댓글로 점수를 받은 적이 있는지"를 좋아요/도움돼요를 취소해도 **영구히** 기억해서, 두 번째부터는 트리거가 재지급을 거부함. **왜 댓글엔 이런 장부가 필요 없었는지**: 댓글은 삭제하면 클로백이 발생하므로 "지급→삭제(회수)→재작성→지급→..." 사이클을 반복해도 순누적 이득이 0으로 수렴함(직접 계산해서 확인). 반면 좋아요/도움돼요는 "취소"가 클로백을 유발하지 않는 별개 동작이라(요청 범위상 삭제 클로백은 글/댓글에만 적용), 이 장부 없이는 무한 반복 시 계속 순증가했음.
 - **의도적으로 손 안 댄 것**: 글/댓글을 UPDATE(수정)해서 5자 미만→이상으로 바꾸거나 그 반대로 만들어도 점수는 재계산되지 않음(작성 시점에만 판정) — 요청 범위 밖이라 다루지 않음.
+
+**3단계 — 화면에 예쁘게 표시 (2026-07-29 완료):**
+- **등급 뱃지(이모지+이름)**: `levelBadgeHtml(level, extraClass)`(`public/palo.js`) 공용 헬퍼로 통일. 글 목록(`.who` 옆), 글 상세(작성자 이름 옆), 댓글(작성자 이름 옆) 3곳 모두 적용. `loadRealPosts()`가 `profiles`에서 `level`도 같이 가져와서 각 글(`p.authorLevel`)·댓글(`c.lv`)에 실어 나름. 인라인 컨텍스트에선 `"lv-badge"` 클래스를 추가로 붙여 `margin-left:5px`로 이름과 살짝 띄움(`app/globals.css`), "내 정보"/공개 프로필 헤더처럼 flex `gap`이 이미 있는 곳은 추가 클래스 없이 그대로 사용.
+- **진행바**: 1단계 때 이미 구현된 `levelProgress()`/`openProfile()` 그대로 재사용(추가 변경 없음, 이미 있던 기능이었음).
+- **포인트 내역(선택 요청)**: **새 테이블을 만들지 않고 2단계 때 이미 만든 `score_log`를 그대로 재사용**함(이벤트별 실제 지급량이 이미 다 기록되고 있었으므로). "내 정보"에 "포인트 내역" 버튼 추가 → `openScoreLog()`가 본인 로그 최근 100건을 조회해서 `renderScoreLog()`로 표시(이벤트 종류는 `SCORE_EVENT_LABELS`로 한글 라벨 매핑: 글 작성/댓글 작성/글이 추천받음/댓글이 도움돼요 받음).
+- **관리자 회원 목록**(`app/admin/page.js`)도 `level_thresholds`에서 `emoji`까지 같이 불러와서 뱃지 형태로 표시하도록 갱신.
 
 ---
 
