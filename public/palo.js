@@ -182,7 +182,7 @@ async function loadRealPosts(){
     return {id:100000+row.id,dbId:row.id,authorId:row.author_id,board:row.board,title:row.title,category:row.category,author:nameFor(row.author_id),authorLevel:levelFor(row.author_id),
       time:timeAgo(row.created_at),createdAt:row.created_at,likes:likers.length,_liked:likers.indexOf(myLikeId())>-1,
       views:row.views,thumb:"none",stage:row.stage,images:imagesByPost[row.id],
-      isManagerPick:!!row.is_manager_pick,pickPosition:row.pick_position,
+      isManagerPick:!!row.is_manager_pick,pickPosition:row.pick_position,pickedAt:row.picked_at,
       content:(row.content||"").split("\n").filter(Boolean),html:row.content_html||undefined,comments:commentsByPost[row.id]||[]};
   });
   POSTS=real.concat(POSTS);
@@ -303,7 +303,30 @@ function sortHot(arr){
   var freshCount=scored.filter(function(x){return x.within7}).length;
   var pool=freshCount>10?scored.filter(function(x){return x.within7}):scored;
   pool.sort(function(a,b){return b.score-a.score});
-  return picked.concat(pool.map(function(x){return x.p}));
+  var sortedRest=pool.map(function(x){return x.p});
+  if(!picked.length)return sortedRest;
+
+  // 매니저 픽끼리 위치가 겹치면 최근에 지정한 게 그 자리를 차지하고, 밀린 픽은 다음 빈 자리로 밀려남
+  var sortedPicked=picked.slice().sort(function(a,b){
+    var posA=a.pickPosition||1,posB=b.pickPosition||1;
+    if(posA!==posB)return posA-posB;
+    return new Date(b.pickedAt||0)-new Date(a.pickedAt||0);
+  });
+  var placements=[];var nextFreeMin=1;
+  sortedPicked.forEach(function(p){
+    var pos=Math.max(p.pickPosition||1,nextFreeMin);
+    placements.push({post:p,position:pos});
+    nextFreeMin=pos+1;
+  });
+
+  var result=[];var pi=0,ri=0;
+  var maxPos=placements[placements.length-1].position;
+  for(var pos=1;pos<=maxPos;pos++){
+    if(pi<placements.length&&placements[pi].position===pos){result.push(placements[pi].post);pi++;}
+    else if(ri<sortedRest.length){result.push(sortedRest[ri]);ri++;}
+  }
+  while(ri<sortedRest.length){result.push(sortedRest[ri]);ri++;}
+  return result;
 }
 function filteredPosts(){
   var arr=POSTS.slice();
@@ -472,12 +495,66 @@ async function deletePost(id){
 async function toggleManagerPick(id){
   var p=POSTS.find(function(x){return x.id===id});if(!p||!p.dbId||!window.supabase)return;
   var newState=!p.isManagerPick;
-  var res=await window.supabase.rpc("set_manager_pick",{p_post_id:p.dbId,p_is_pick:newState,p_position:newState?1:null});
+  var position=null;
+  if(newState){
+    var currentPicks=POSTS.filter(function(x){return x.isManagerPick}).length;
+    position=currentPicks+1;
+  }
+  var res=await window.supabase.rpc("set_manager_pick",{p_post_id:p.dbId,p_is_pick:newState,p_position:position});
   if(res.error){toast("처리 실패: "+res.error.message);return;}
   p.isManagerPick=newState;
-  p.pickPosition=newState?1:null;
-  toast(newState?"매니저 픽으로 지정했어요 📌":"매니저 픽을 해제했어요");
+  p.pickPosition=newState?position:null;
+  p.pickedAt=newState?new Date().toISOString():null;
+  toast(newState?("매니저 픽으로 지정했어요 📌 (위치 "+position+", \"매니저 픽 관리\"에서 조정 가능)"):"매니저 픽을 해제했어요");
   renderPostDetail(id);
+}
+async function openManagerPickList(){
+  if(!AUTH.profile||!AUTH.profile.is_admin)return;
+  var picks=POSTS.filter(function(p){return p.isManagerPick}).slice().sort(function(a,b){return (a.pickPosition||1)-(b.pickPosition||1);});
+  renderManagerPickList(picks);
+}
+function renderManagerPickList(picks){
+  var h='<div class="profile">'+
+    '<button class="d-back" onclick="openProfile()">← 내 정보로</button>'+
+    '<div class="pf-sec">📌 매니저 픽 관리 ('+picks.length+')</div>';
+  if(!picks.length){
+    h+='<div class="pf-empty">지정된 매니저 픽이 없어요. 글 상세 화면에서 "매니저 픽 지정" 버튼으로 추가할 수 있어요.</div>';
+  }else{
+    h+='<div class="list">';
+    picks.forEach(function(p){
+      h+='<div class="post rip"><div class="pmain" style="cursor:pointer" onclick="openPost('+p.id+')"><div class="ptitle">'+esc(p.title)+'</div>'+
+        '<div class="pmeta"><span class="cat '+catFor(p).cls+'">'+catFor(p).label+'</span></div></div>'+
+        '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">'+
+          '<input type="number" min="1" value="'+(p.pickPosition||1)+'" id="pickPos'+p.id+'" style="width:56px;padding:8px;border:1.5px solid var(--line-2);border-radius:10px;font-family:inherit;font-size:13px;text-align:center">'+
+          '<button class="d-act" onclick="savePickPosition('+p.id+')">저장</button>'+
+          '<button class="d-act" onclick="unpickFromList('+p.id+')">해제</button>'+
+        '</div></div>';
+    });
+    h+='</div>';
+  }
+  h+='</div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+async function savePickPosition(id){
+  var p=POSTS.find(function(x){return x.id===id});if(!p||!p.dbId||!window.supabase)return;
+  var input=document.getElementById("pickPos"+id);
+  var newPos=parseInt(input.value,10);
+  if(!newPos||newPos<1){toast("1 이상의 숫자를 입력해주세요");return;}
+  var res=await window.supabase.rpc("set_manager_pick",{p_post_id:p.dbId,p_is_pick:true,p_position:newPos});
+  if(res.error){toast("처리 실패: "+res.error.message);return;}
+  p.pickPosition=newPos;
+  p.pickedAt=new Date().toISOString();
+  toast("위치를 "+newPos+"번으로 바꿨어요");
+  openManagerPickList();
+}
+async function unpickFromList(id){
+  var p=POSTS.find(function(x){return x.id===id});if(!p||!p.dbId||!window.supabase)return;
+  var res=await window.supabase.rpc("set_manager_pick",{p_post_id:p.dbId,p_is_pick:false,p_position:null});
+  if(res.error){toast("처리 실패: "+res.error.message);return;}
+  p.isManagerPick=false;p.pickPosition=null;p.pickedAt=null;
+  toast("매니저 픽을 해제했어요");
+  openManagerPickList();
 }
 var reportingPostId=null;
 var reportingConversationId=null;
@@ -1432,6 +1509,7 @@ function openProfile(){
      '<button class="pf-edit" onclick="logout()">로그아웃</button>'+
      (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openAdminReports()">🛡 신고 목록</button>':'')+
      (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openAdminChatList()">🛡 전체 채팅 목록</button>':'')+
+     (AUTH.profile&&AUTH.profile.is_admin?'<button class="pf-edit" onclick="openManagerPickList()">📌 매니저 픽 관리</button>':'')+
      '</div>';
   h+='<div class="pf-progress"><div class="pp-row"><span>'+lvName+'</span><span>'+
      (prog.maxed?'최고 등급 달성! 🎉':('다음 등급('+prog.nextName+')까지 '+prog.remain+'점'))+'</span></div>'+

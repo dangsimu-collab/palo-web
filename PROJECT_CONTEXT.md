@@ -120,7 +120,7 @@ Supabase 프로젝트: https://qabbdgfottbnapmyjudy.supabase.co
 | 테이블 | 주요 컬럼 | 비고 |
 |---|---|---|
 | `profiles` | `id`(uuid, PK, = auth.users.id), `nickname`(text), `level`(**integer**, 2026-07-29부터 — 예전엔 text였음), `score`(int, 누적 점수), `last_score_date`/`daily_score_earned`(글/댓글 일일 20점 상한 계산용, 좋아요·도움돼요는 예외), `last_activity_at`(timestamptz, 1분 연속 작성 제한용), `is_admin`(bool), `is_banned`(bool), `created_at` | `auth.users`에 새 유저 생기면 트리거로 자동 생성 |
-| `posts` | `id`(bigint PK), `author_id`(uuid, nullable), `board`(text), `category`(text, 말머리), `title`, `content`(text, 순수 텍스트 — 검색용), `content_html`(text, nullable, 2026-07-29 추가 — 서식·인라인 이미지/동영상 포함한 실제 렌더링용 HTML, DOMPurify로 살균 후 저장), `stage`(text, 러프/선화/채색/완성), `views`(int), `is_manager_pick`(bool, 2026-07-29 추가), `pick_position`(int, nullable, 2026-07-29 추가), `created_at` | `is_manager_pick`/`pick_position`은 `guard_manager_pick_columns()` 트리거로 보호됨 — 관리자가 아니면 update 시 조용히 원래 값으로 되돌아감(아래 "매니저 픽" 절 참고) |
+| `posts` | `id`(bigint PK), `author_id`(uuid, nullable), `board`(text), `category`(text, 말머리), `title`, `content`(text, 순수 텍스트 — 검색용), `content_html`(text, nullable, 2026-07-29 추가 — 서식·인라인 이미지/동영상 포함한 실제 렌더링용 HTML, DOMPurify로 살균 후 저장), `stage`(text, 러프/선화/채색/완성), `views`(int), `is_manager_pick`(bool, 2026-07-29 추가), `pick_position`(int, nullable, 2026-07-29 추가), `picked_at`(timestamptz, nullable, 2026-07-29 추가), `created_at` | `is_manager_pick`/`pick_position`/`picked_at`은 `guard_manager_pick_columns()` 트리거로 보호됨 — 관리자가 아니면 update 시 조용히 원래 값으로 되돌아감(아래 "매니저 픽" 절 참고) |
 | `comments` | `id`(bigint PK), `post_id`(FK→posts), `author_id`(uuid, nullable), `content`, `parent_id`(FK→comments, 대댓글용, **UI 미구현**), `created_at` | |
 | `likes` | `user_id`(uuid — 로그인 시 실제 계정, 비로그인 시 `palo_anon_id`), `post_id`(FK→posts), `created_at` | PK가 `(user_id, post_id)` 복합키 — 중복 방지의 핵심 |
 | `post_images` | `id`(bigint PK), `post_id`(FK→posts), `url`(text, Storage 공개 URL), `sort`(int) | |
@@ -397,13 +397,12 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - 작성 후 7일이 지나면 원칙적으로 인기글 노출에서 제외
 - **단, 예외**: 7일 제외를 적용했을 때 인기글 노출 수가 10개 미만으로 떨어질 상황이면, 그 글의 배수를 "7일째 배수"로 고정한 채 유지 — 다음 인기글이 채워질 때까지 밀려나지 않음
 
-### 매니저 픽 (관리자 인기글 큐레이션, 2026-07-29 추가, 1단계 완료)
-관리자가 좋은 글을 골라 인기글 정렬에서 원하는 위치로 끌어올리는 기능. DB: `posts.is_manager_pick`(bool)/`pick_position`(int, 아직 1단계라 항상 1로 고정 — 숫자로 위치를 직접 정하는 건 2단계 예정).
+### 매니저 픽 (관리자 인기글 큐레이션, 2026-07-29 추가, 1·2단계 완료)
+관리자가 좋은 글을 골라 인기글 정렬의 원하는 위치에 끌어올리는 기능. DB: `posts.is_manager_pick`(bool)/`pick_position`(int)/`picked_at`(timestamptz, 2단계 추가 — 위치 충돌 시 "최근 지정 우선" 판단용).
 
-- **보안 이중 장치**: (1) `guard_manager_pick_columns()` BEFORE UPDATE 트리거 — `is_admin()`이 아니면 이 두 컬럼의 변경을 조용히 원래 값으로 되돌림(본인 글이라도 스스로 픽 지정 불가, `posts_update_own` 정책이 "본인 글이면 아무 컬럼이나" 허용하는 것의 구멍을 막음). (2) `set_manager_pick(post_id, is_pick, position)` RPC — 관리자가 **남의 글**도 픽 지정할 수 있어야 해서 만든 좁은 함수, 내부에서 `is_admin()` 확인 후 이 두 컬럼만 update(광범위한 "관리자는 아무 글이나 수정 가능" 정책은 만들지 않음 — 제목/본문까지 건드릴 수 있게 되는 과잉 권한이라).
-- **정렬 반영**: `sortHot(arr)`(`public/palo.js`)가 매니저 픽 글을 먼저 분리해서 배열 맨 앞에 붙이고, 나머지만 기존 인기순 공식으로 정렬 — 픽된 글은 7일 제외 규칙 등 기존 알고리즘을 완전히 무시하고 항상 노출됨(의도된 동작, 사람이 직접 고른 거니까).
-- **화면**: 목록 행 제목 앞, 글 상세 헤더에 "📌 매니저 픽" 뱃지(`.pick-badge`). 글 상세 액션 줄에 관리자에게만 보이는 "📌 매니저 픽 지정/해제" 토글 버튼(`toggleManagerPick()`).
-- **2단계 예정(사용자가 명시적으로 다음으로 미룸)**: 숫자로 직접 위치 지정(지금은 항상 1번 고정), 픽 해제/순서 조정을 위한 관리 화면, 같은 위치를 여러 픽이 지정했을 때의 처리.
+- **보안 이중 장치**: (1) `guard_manager_pick_columns()` BEFORE UPDATE 트리거 — `is_admin()`이 아니면 이 세 컬럼(`is_manager_pick`/`pick_position`/`picked_at`)의 변경을 조용히 원래 값으로 되돌림(본인 글이라도 스스로 픽 지정 불가, `posts_update_own` 정책이 "본인 글이면 아무 컬럼이나" 허용하는 것의 구멍을 막음). (2) `set_manager_pick(post_id, is_pick, position)` RPC — 관리자가 **남의 글**도 픽 지정할 수 있어야 해서 만든 좁은 함수, 내부에서 `is_admin()` 확인 후 이 세 컬럼만 update(광범위한 "관리자는 아무 글이나 수정 가능" 정책은 만들지 않음 — 제목/본문까지 건드릴 수 있게 되는 과잉 권한이라). 픽을 걸거나 위치를 바꿀 때마다 `picked_at`을 항상 `now()`로 갱신.
+- **정렬·위치 삽입 로직**: `sortHot(arr)`(`public/palo.js`)가 (1) 매니저 픽을 먼저 분리 → 나머지만 기존 인기순 공식으로 정렬(픽은 7일 제외 규칙 등을 완전히 무시하고 항상 노출, 의도된 동작), (2) 픽들을 `pickPosition` 오름차순·동률이면 `pickedAt` 내림차순(최근 것 우선)으로 정렬, (3) 앞에서부터 훑으며 "요청 위치"와 "다음 빈 자리" 중 큰 값을 실제 배치 위치로 확정(같은 위치를 여러 픽이 요청하면 최근 것이 그 자리를 차지하고 나머지는 자동으로 다음 자리로 밀림), (4) 확정된 위치에 픽을 꽂고 그 사이사이 빈 자리는 일반 인기글로 순서대로 채움.
+- **화면**: 목록 행 제목 앞·글 상세 헤더에 "📌 매니저 픽" 뱃지(`.pick-badge`). 글 상세 액션 줄의 관리자 전용 토글 버튼(`toggleManagerPick()`)은 처음 픽할 때 "현재 픽 개수+1"번을 기본 위치로 지정. **"내 정보 → 📌 매니저 픽 관리"**(`openManagerPickList()`) 화면에서 모든 픽을 한눈에 보고 위치 숫자를 직접 입력해서 저장(`savePickPosition()`)하거나 해제(`unpickFromList()`)할 수 있음 — 픽할 때마다 팝업으로 숫자를 묻는 대신, 여러 개를 한 화면에서 조정하는 방식을 선택함(사용자에게 설명 후 진행).
 
 ### 1:1 채팅 (커미션 거래 상담용)
 설계·구현을 2단계로 나눠서 진행: 1단계(저장만 되는 채팅) → 2단계(실시간 + 채팅 목록 + 읽음 표시).
