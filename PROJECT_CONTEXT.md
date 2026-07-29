@@ -350,6 +350,15 @@ create trigger on_auth_user_created after insert on auth.users
 - **기존 글과의 호환성**: `renderPostDetail()`에서 본문 HTML에 이미 `<img>`/`<video>`가 있으면(새 글 방식) 예전의 "상단 캔버스 블록"을 생략해서 중복 표시를 막고, 본문에 인라인 미디어가 없는 예전 글은 기존처럼 상단 캔버스 블록을 그대로 보여줌(하위 호환, 회귀 없음).
 - **에디터 이미지 칩(`#edImages`) 제거 동기화**: 칩의 "×"를 누르면 `edState.images`뿐 아니라 본문에 삽입돼 있던 동일 URL의 `<img>`도 같이 제거되도록 `removeEdImage()` 수정(안 그러면 칩은 지웠는데 본문엔 이미지가 남아있는 불일치가 생김).
 
+### 이미지 업로드 시 자동 압축·리사이즈 (2026-07-29 추가, DB 변경 없음)
+Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우저에서만** 처리(서버/DB 관여 없음) — `onImage()`가 원본 파일을 그대로 업로드하지 않고, `compressImage(file)`(`public/palo.js`)를 거친 결과물만 업로드함:
+- `loadImageFromFile()`로 이미지를 `<img>`에 로드 → `<canvas>`에 그려서 리사이즈(긴 쪽이 1800px 넘으면 비율 유지하며 축소, 그 이하는 그대로) → `canvas.toBlob()`으로 `image/webp`(품질 0.8) 인코딩.
+- **WebP 미지원 환경 대응**: `canvas.toBlob`은 WebP를 못 만들면 조용히 다른 포맷(주로 PNG)으로 대체해버리는 브라우저별 특성이 있어서, 결과 `blob.type`이 실제로 `"image/webp"`인지 확인하고 아니면 `image/jpeg`로 다시 인코딩(`ext`도 `.webp`/`.jpg`로 맞춰 저장 경로에 반영).
+- **GIF는 압축을 건너뛰고 원본 그대로 업로드**(요청엔 없었지만 판단해서 추가) — Canvas 그리기는 첫 프레임만 캡처해서 애니메이션이 깨지기 때문. `file.type==="image/gif"`로 판별.
+- 압축 실패 시(드묾) 원본으로 폴백 업로드, 콘솔에 에러 로그.
+- 압축 전후 용량을 콘솔에 로그로 남김(`[이미지 압축] 파일명: XKB → YKB (Z% 감소)`), 업로드 전 "이미지 압축 중..." 토스트 표시.
+- 동영상 업로드(`onVideoFile()`)는 이 처리 대상이 아님(요청 범위 밖, 비디오 압축은 훨씬 복잡한 별개 작업).
+
 ### 인기글 점수 공식 (사이트 "인기순" 정렬)
 목록 화면의 "인기순" 탭과 관리자 통계의 인기 글/작성자 TOP 10이 공유하는 점수 계산식. `public/palo.js`의 `hotMultiplier()`/`hotScore()`/`sortHot()`과 `app/admin/page.js`의 동일 이름 함수(중복 구현, 관리자 쪽엔 7일 제외 로직만 없음)로 존재.
 

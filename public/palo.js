@@ -707,13 +707,64 @@ function insertInlineMedia(kind,url){
 }
 function pickImage(e){e.preventDefault();saveEditorSelection();document.getElementById("edFile").click()}
 function pickVideo(e){e.preventDefault();saveEditorSelection();document.getElementById("edVideoFile").click()}
+function loadImageFromFile(file){
+  return new Promise(function(resolve,reject){
+    var img=new Image();
+    var url=URL.createObjectURL(file);
+    img.onload=function(){URL.revokeObjectURL(url);resolve(img);};
+    img.onerror=function(err){URL.revokeObjectURL(url);reject(err);};
+    img.src=url;
+  });
+}
+function canvasToBlob(canvas,type,quality){
+  return new Promise(function(resolve){canvas.toBlob(resolve,type,quality);});
+}
+async function compressImage(file){
+  var img=await loadImageFromFile(file);
+  var w=img.naturalWidth,h=img.naturalHeight;
+  var maxSide=1800;
+  var longSide=Math.max(w,h);
+  if(longSide>maxSide){
+    var scale=maxSide/longSide;
+    w=Math.round(w*scale);
+    h=Math.round(h*scale);
+  }
+  var canvas=document.createElement("canvas");
+  canvas.width=w;canvas.height=h;
+  canvas.getContext("2d").drawImage(img,0,0,w,h);
+
+  var quality=0.8;
+  var blob=await canvasToBlob(canvas,"image/webp",quality);
+  var ext="webp";
+  if(!blob||blob.type!=="image/webp"){
+    blob=await canvasToBlob(canvas,"image/jpeg",quality);
+    ext="jpg";
+  }
+  return{blob:blob,ext:ext};
+}
 async function onImage(e){
   var f=e.target.files[0];if(!f)return;
   e.target.value="";
   if(!window.supabase){toast("이미지 업로드를 사용할 수 없어요");return;}
+
+  var uploadBlob=f,ext=(f.name.match(/\.([^.]+)$/)||[,"png"])[1],skippedCompression=false;
+  if(f.type==="image/gif"){
+    skippedCompression=true; // GIF는 애니메이션이 깨지니 압축 없이 원본 그대로 업로드
+  }else{
+    toast("이미지 압축 중...");
+    try{
+      var compressed=await compressImage(f);
+      uploadBlob=compressed.blob;ext=compressed.ext;
+      console.log("[이미지 압축] "+f.name+": "+(f.size/1024).toFixed(1)+"KB → "+(uploadBlob.size/1024).toFixed(1)+"KB ("+Math.round((1-uploadBlob.size/f.size)*100)+"% 감소)");
+    }catch(err){
+      console.error("이미지 압축 실패, 원본으로 업로드:",err);
+      skippedCompression=true;
+    }
+  }
+
   toast("이미지 업로드 중...");
-  var path=Date.now()+"-"+f.name.replace(/[^a-zA-Z0-9_.-]/g,"_");
-  var up=await window.supabase.storage.from("post-images").upload(path,f);
+  var path=Date.now()+"-"+f.name.replace(/\.[^.]+$/,"").replace(/[^a-zA-Z0-9_.-]/g,"_")+"."+ext;
+  var up=await window.supabase.storage.from("post-images").upload(path,uploadBlob,skippedCompression?undefined:{contentType:uploadBlob.type});
   if(up.error){toast("업로드 실패: "+up.error.message);return;}
   var pub=window.supabase.storage.from("post-images").getPublicUrl(path);
   edState.images.push(pub.data.publicUrl);
