@@ -101,7 +101,7 @@ Supabase 프로젝트: https://qabbdgfottbnapmyjudy.supabase.co
 
 | 테이블 | 주요 컬럼 | 비고 |
 |---|---|---|
-| `profiles` | `id`(uuid, PK, = auth.users.id), `nickname`(text), `level`(**integer**, 2026-07-29부터 — 예전엔 text였음), `score`(int, 누적 점수), `last_score_date`/`daily_score_earned`(일일 점수 상한 계산용, 아직 상한 미적용), `is_admin`(bool), `is_banned`(bool), `created_at` | `auth.users`에 새 유저 생기면 트리거로 자동 생성 |
+| `profiles` | `id`(uuid, PK, = auth.users.id), `nickname`(text), `level`(**integer**, 2026-07-29부터 — 예전엔 text였음), `score`(int, 누적 점수), `last_score_date`/`daily_score_earned`(글/댓글 일일 20점 상한 계산용, 좋아요·도움돼요는 예외), `last_activity_at`(timestamptz, 1분 연속 작성 제한용), `is_admin`(bool), `is_banned`(bool), `created_at` | `auth.users`에 새 유저 생기면 트리거로 자동 생성 |
 | `posts` | `id`(bigint PK), `author_id`(uuid, nullable), `board`(text), `category`(text, 말머리), `title`, `content`(text, 순수 텍스트 — 검색용), `content_html`(text, nullable, 2026-07-29 추가 — 서식·인라인 이미지/동영상 포함한 실제 렌더링용 HTML, DOMPurify로 살균 후 저장), `stage`(text, 러프/선화/채색/완성), `views`(int), `created_at` | |
 | `comments` | `id`(bigint PK), `post_id`(FK→posts), `author_id`(uuid, nullable), `content`, `parent_id`(FK→comments, 대댓글용, **UI 미구현**), `created_at` | |
 | `likes` | `user_id`(uuid — 로그인 시 실제 계정, 비로그인 시 `palo_anon_id`), `post_id`(FK→posts), `created_at` | PK가 `(user_id, post_id)` 복합키 — 중복 방지의 핵심 |
@@ -114,6 +114,9 @@ Supabase 프로젝트: https://qabbdgfottbnapmyjudy.supabase.co
 | `notifications` | `id`(bigint PK), `user_id`(uuid, FK→profiles, 알림 받는 사람), `type`(text: `chat`/`cm`/`like`), `icon`(text), `content`(text), `link_chat_user`(uuid, nullable), `link_conversation_id`(FK→conversations, nullable), `link_post_id`(FK→posts, nullable), `is_read`(bool), `created_at` | 실제 저장되는 알림함(2026-07-29 추가). **일반 유저는 insert 자체가 불가능** — 오직 DB 트리거(security definer)만 생성 가능 |
 | `level_thresholds` | `level`(int PK, 1~8), `min_score`(int), `name`(text) | 등급 기준표(2026-07-29 추가). **등급 이름/필요 점수를 바꾸려면 이 표만 수정하면 됨** — 코드 변경 불필요. insert/update/delete 정책 없음(관리자가 SQL Editor로만 직접 수정) |
 | `comment_helpful` | `comment_id`(FK→comments), `user_id`(uuid, FK→profiles), `created_at` | PK가 `(comment_id,user_id)`. "도움돼요"를 실제로 저장하는 테이블(2026-07-29 추가 — 이전엔 완전히 가짜였음, 아래 "등급 시스템" 절 참고). **로그인 필수**(likes와 달리 익명 불가) |
+| `score_log` | `id`(bigint PK), `user_id`(FK→profiles), `amount`(int, 실제 지급된 양), `event`(text), `source_table`/`source_id`(어느 글/댓글에 귀속되는지), `created_at` | 등급 시스템의 지급 내역(2026-07-29 추가) — 글/댓글 삭제 시 정확한 회수의 근거. select는 본인만, insert/update/delete는 트리거만 |
+| `score_awarded_likes` | `user_id`, `post_id`(FK→posts) | PK가 `(user_id,post_id)`. "이 사람이 이 글로 추천 점수를 받은 적 있는지" 영구 기록(2026-07-29 추가, 좋아요 취소 후 재클릭 악용 방지) — RLS만 켜고 정책은 없음, 클라이언트 접근 완전 차단 |
+| `score_awarded_helpful` | `user_id`, `comment_id`(FK→comments) | 위와 동일한 목적, 도움돼요용 |
 
 ### Storage 버킷
 - `post-images` (Public) — 글 첨부 이미지. 업로드 경로는 `${Date.now()}-${파일명}` 형태(폴더 구분 없음).
@@ -361,7 +364,7 @@ create trigger on_auth_user_created after insert on auth.users
 - **정리한 것**: 진짜 댓글 알림이 생기면서, 예전 프로토타입 데모 코드 `scheduleLiveReply()`(글 쓰고 7초 뒤 가짜 회원이 가짜 댓글을 다는 척하며 가짜 알림을 띄우던 코드, `MEMBERS` 배열도 같이)를 완전히 제거함 — 실제 알림과 뒤섞이면 혼란스러웠을 것.
 - **댓글/좋아요 "sys"(공지·챌린지) 알림은 여전히 미구현** — `notices`는 실제 테이블이지만 새 공지 작성 시 전체 회원에게 알림을 뿌리는 트리거는 아직 없음(원한다면 같은 패턴으로 추가 가능).
 
-### 활동 기반 등급 시스템 (2026-07-29 추가, 1단계 완료 — 도배 방지는 다음 단계)
+### 활동 기반 등급 시스템 (2026-07-29 추가, 1·2단계 완료)
 사용자의 핵심 원칙: 글 개수 같은 "양"보다 남에게 인정받은 "질"(추천·도움돼요)을 높게 평가하고, 위 등급일수록 훨씬 어렵게, 도배로는 못 올리게. **점수·등급 계산은 전부 서버(security definer 트리거)에서 처리 — 클라이언트는 절대 관여 못 함**(사용자가 명시적으로 강조한 요구사항).
 
 - **등급 8단계, 지수적 증가**: `level_thresholds` 테이블(4절 참고)에 1등급(0점)~8등급(12000점)까지 정의. 이름은 전부 임시로 지은 것(새싹 작가/연필 견습/스케치 수습/채색 장인/원고 마스터/크리틱 마스터/아틀리에 거장/커뮤니티 레전드) — 이 표만 SQL로 수정하면 이름·필요 점수를 바로 바꿀 수 있음, 코드 변경 불필요.
@@ -371,7 +374,16 @@ create trigger on_auth_user_created after insert on auth.users
 - **화면 반영**: `public/palo.js`의 `LEVEL_THRESHOLDS`(전역 배열, `loadRealPosts()`에서 DB로부터 로드) + `levelName(level)`/`levelProgress(score,level)` 헬퍼. "내 정보"(`openProfile()`)는 `AUTH.profile.score`/`.level`을 그대로 신뢰해서 진행바를 그림(예전의 `mine.length>=3` 로컬 계산 방식 완전히 대체). 공개 프로필(`openUserProfile()`)과 관리자 회원 목록(`app/admin/page.js`)도 실제 등급 이름 + 점수를 표시하도록 같이 고침(이전엔 `profiles.level`이 아무도 안 쓰는 죽은 컬럼이라 항상 "새싹 작가"만 보였음).
 - **`refreshMyProfile()`**: 내가 글/댓글을 쓰면 서버 트리거가 즉시 점수를 반영하지만, 클라이언트의 `AUTH.profile`은 자동으로 갱신되지 않으므로 `submitPost()`/`addComment()` 성공 직후 이 함수로 내 프로필을 다시 불러와 화면에 바로 반영되게 함.
 - **⚠️ 동시 세션 재발견(2026-07-29)**: 이 작업을 시작하기 전 파일을 열어보니, 커밋 안 된 상태로 6단계짜리 다른 등급 시스템 초안(`LEVEL_TIERS`, 클라이언트에서 `mine.length*10+likeSum*2+cmSum*3`으로 로컬 계산)이 이미 들어있었음 — 다른 세션이 작업 중이었던 것으로 보임(주석에 "DB의 recalc_user_level()과 기준을 맞출 것"이라고 적혀 있어 그쪽에서 서버 함수도 별도로 준비했을 가능성 있음). **사용자에게 확인 후 "새 스펙으로 완전히 교체" 지시를 받고 진행함** — 서버 권위(클라이언트 조작 불가) 요구사항을 만족 못 하는 초안이었으므로 교체가 맞는 판단이었음.
-- **⚠️ 알려진 구멍(다음 단계 "도배 방지"에서 반드시 처리) — 좋아요/도움돼요를 껐다 켰다 반복하면 점수가 무한정 쌓임.** 지금은 취소(delete) 시 점수를 깎지 않고, 다시 누르면 트리거가 또 점수를 줌 — `likes`/`comment_helpful`의 PK가 각각 `(user_id,post_id)`/`(comment_id,user_id)`라 같은 사람이 두 번 동시에 누르는 건 막지만, "취소 후 재클릭"을 반복하는 건 전혀 안 막혀 있음. `last_score_date`/`daily_score_earned` 컬럼은 이 문제를 풀 다음 단계를 위해 미리 준비만 해둔 것(현재는 기록만 하고 상한을 적용하지 않음).
+- **⚠️ 동시 세션 재발견에서 이어짐**: 위 항목은 1단계 때 발견한 것이고, 2단계(도배 방지)에서 아래처럼 마저 정리함.
+
+**2단계 — 도배·점수 남발 방지 (2026-07-29 완료):**
+- **일일 상한(20점/일)**: 단, **글/댓글로 얻는 점수에만 적용**, 추천·도움돼요로 받는 점수는 사용자 요청에 따라 예외(상한 없음). `award_capped_post_comment_score()`(글/댓글 전용, 상한 적용) vs `award_score()`(좋아요/도움돼요 전용, 상한 없음)로 지급 경로를 분리함. 상한을 넘는 만큼은 "전부 거부"가 아니라 **남은 한도만큼만 잘라서 지급**(예: 오늘 19점 벌었는데 글 하나 더 쓰면 1점만 인정).
+- **1분 연속 작성 제한**: `profiles.last_activity_at`(신규 컬럼) — 글이든 댓글이든 마지막으로 **점수를 받은** 시각 기준, 1분 안에 또 쓰면 이번 건 점수 없음(글/댓글 통합 하나의 시계).
+- **같은 글에 댓글 여러 개 달아도 점수는 1회만**: 별도 컬럼 없이, 댓글 저장 시점에 "이 글에 내가 단 다른 댓글이 이미 있는지"를 `comments` 테이블에서 직접 조회해서 판단(`notify_score_new_comment()`).
+- **품질 조건(5자 미만 제외)**: 글은 `content_html`에 `<img>`/`<video>` 태그가 있으면 텍스트 길이와 무관하게 점수 인정(그림/동영상만 올린 글도 정당한 컨텐츠이므로) — 사용자에게 명시적으로 확인받은 설계 선택. 댓글은 이미지 업로드 기능이 없으므로 5자 미만이면 예외 없이 점수 제외.
+- **삭제 시 회수**: `score_log`(신규 테이블, 실제로 지급된 양만 이벤트별로 기록 — 상한/도배 방지 때문에 "원래 받아야 할 양"과 "실제로 받은 양"이 다를 수 있어서 반드시 필요했음)를 근거로, 글/댓글이 삭제되면(`on_post_delete_clawback`/`on_comment_delete_clawback`, BEFORE DELETE 트리거) 그 글/댓글에 실제로 귀속됐던 점수 합계(작성 보너스 + 그동안 받은 추천/도움돼요 보너스 전부)를 정확히 회수. `comments`가 `posts`에 cascade로 걸려 있어서, 글이 삭제되면 그 글의 댓글들도 각자 자기 작성자의 점수를 알아서 회수함.
+- **좋아요/도움돼요 "취소 후 재클릭" 무한 반복 악용도 이번에 같이 닫음**(1단계에서 발견한 구멍, 사용자가 "이번에 같이 닫기"로 명시적 선택): `score_awarded_likes`/`score_awarded_helpful`(신규 테이블, RLS는 켜뒀지만 정책을 아예 안 둬서 클라이언트는 절대 못 건드림) — "이 사람이 이 글/댓글로 점수를 받은 적이 있는지"를 좋아요/도움돼요를 취소해도 **영구히** 기억해서, 두 번째부터는 트리거가 재지급을 거부함. **왜 댓글엔 이런 장부가 필요 없었는지**: 댓글은 삭제하면 클로백이 발생하므로 "지급→삭제(회수)→재작성→지급→..." 사이클을 반복해도 순누적 이득이 0으로 수렴함(직접 계산해서 확인). 반면 좋아요/도움돼요는 "취소"가 클로백을 유발하지 않는 별개 동작이라(요청 범위상 삭제 클로백은 글/댓글에만 적용), 이 장부 없이는 무한 반복 시 계속 순증가했음.
+- **의도적으로 손 안 댄 것**: 글/댓글을 UPDATE(수정)해서 5자 미만→이상으로 바꾸거나 그 반대로 만들어도 점수는 재계산되지 않음(작성 시점에만 판정) — 요청 범위 밖이라 다루지 않음.
 
 ---
 
