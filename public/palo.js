@@ -186,6 +186,7 @@ async function loadRealPosts(){
   });
   POSTS=real.concat(POSTS);
   renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
+  renderTrend();
   var initialDbId=getPostIdFromPath();
   var initialPost=initialDbId?POSTS.find(function(x){return x.dbId===initialDbId}):null;
   var initialUserId=getUserIdFromPath();
@@ -311,11 +312,13 @@ function filteredPosts(){
 }
 function renderTrend(){
   var g={t1:"#e07aa6,#9784d6",t2:"#e0a074,#e07aa6",t3:"#7cc3e0,#9784d6",t4:"#a3c07a,#7cc3e0",t5:"#ecd291,#e0a074"};
+  var keys=["t1","t2","t3","t4","t5"];
   var h='<div class="trend-lead"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 7-7"/><path d="M17 8h4v4"/></svg>이번 주 인기</div>';
-  TREND.forEach(function(t,i){
-    h+='<div class="trend-item" onclick="goHome()"><span class="trend-rank">'+(i+1)+'</span>'+
-       '<span class="trend-thumb" style="background:linear-gradient(135deg,'+g[t.thumb]+')"><svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><circle cx=\"8\" cy=\"10\" r=\"1.3\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"12\" cy=\"8\" r=\"1.3\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"16\" cy=\"10\" r=\"1.3\" fill=\"currentColor\" stroke=\"none\"/></svg></span>'+
-       '<span class="trend-meta"><span class="tt">'+esc(t.name)+'</span><span class="ts">'+esc(t.tag)+' · '+esc(t.sub)+'</span></span></div>';
+  var top=sortHot(POSTS).slice(0,5);
+  top.forEach(function(p,i){
+    h+='<div class="trend-item" onclick="openPost('+p.id+')"><span class="trend-rank">'+(i+1)+'</span>'+
+       '<span class="trend-thumb" style="background:linear-gradient(135deg,'+g[keys[i%keys.length]]+')"><svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><circle cx=\"8\" cy=\"10\" r=\"1.3\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"12\" cy=\"8\" r=\"1.3\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"16\" cy=\"10\" r=\"1.3\" fill=\"currentColor\" stroke=\"none\"/></svg></span>'+
+       '<span class="trend-meta"><span class="tt">'+esc(p.title)+'</span><span class="ts">'+catFor(p).label+' · 추천 '+p.likes+'</span></span></div>';
   });
   var el=document.getElementById("trendStrip");if(el)el.innerHTML=h;
 }
@@ -937,11 +940,12 @@ document.addEventListener("keydown",function(e){if(e.key==="Escape"){closeWrite(
 
 renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
 if(!getPostIdFromPath()&&!getUserIdFromPath()){
-  renderChips();renderHot();renderTrend();
+  renderChips();renderHot();
+  // renderTrend()는 이제 실제 글의 인기 순위를 보여주므로 loadRealPosts()가 끝난 뒤에 그림(아래 참고).
   // 실제 글은 loadRealPosts()가 곧 채워줌 — 여기서 더미 글로 renderList()를 한 번 더 돌리면
   // "더미 글이 잠깐 보였다 실제 글로 바뀌는" 깜빡임과 그로 인한 스크롤 튐이 생김.
   // Supabase 연동이 없는 로컬 데모 환경 등에서만 폴백으로 더미 글을 보여줌.
-  if(!window.supabase)renderList();
+  if(!window.supabase){renderTrend();renderList();}
 }
 
 var toTop=document.getElementById('toTop');

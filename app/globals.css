@@ -55,8 +55,9 @@
   .trend-rank{font-size:13px;font-weight:900;color:var(--muted-2);width:14px;text-align:center}
   .trend-item:nth-child(2) .trend-rank{color:var(--brand)}
   .trend-thumb{width:30px;height:40px;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff}
-  .trend-meta .tt{font-size:13px;font-weight:800;line-height:1.2}
-  .trend-meta .ts{font-size:10.5px;color:var(--muted);margin-top:2px;font-weight:700}
+  .trend-meta{display:flex;flex-direction:column;min-width:0;max-width:180px}
+  .trend-meta .tt{font-size:13px;font-weight:800;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .trend-meta .ts{font-size:10.5px;color:var(--muted);margin-top:2px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   @media(max-width:860px){.trend-lead{padding-left:0}}
 
   .ember{margin-bottom:16px}
