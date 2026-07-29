@@ -386,7 +386,7 @@ function adRow(){
     var ad=ACTIVE_ADS[adRotationIndex%ACTIVE_ADS.length];
     adRotationIndex++;
     return '<div class="ad ad-banner" role="complementary" aria-label="광고" style="cursor:pointer;position:relative" onclick="openPost('+(100000+ad.linked_post_id)+')">'+
-      '<span class="ad-label">AD</span>'+
+      '<span class="ad-label">유저 광고</span>'+
       '<button class="ad-report-btn" onclick="reportAd('+ad.id+',event)" title="이 광고 신고">🚩</button>'+
       '<img src="'+esc(ad.image_url)+'" alt="유저 광고">'+
     '</div>';
