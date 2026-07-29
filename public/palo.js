@@ -921,7 +921,7 @@ function renderChatView(partnerName,messages){
     '<div id="chatMessages" class="chat-list">'+chatMessagesHtml(messages)+'</div>'+
     '<div class="chat-inputrow">'+
       '<textarea id="chatInput" placeholder="메시지를 입력하세요" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendChatMessage();}"></textarea>'+
-      '<button class="send" onclick="sendChatMessage()">보내기</button>'+
+      '<button class="chat-send" onclick="sendChatMessage()">보내기</button>'+
     '</div>'+
   '</div>';
   document.getElementById("main").innerHTML=h;
