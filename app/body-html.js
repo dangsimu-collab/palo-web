@@ -212,6 +212,29 @@ export const BODY_HTML = `
   </div>
 </div>
 
+<div class="rules-scrim" id="adNoticeModal" onclick="if(event.target===this)closeAdNoticeModal()">
+  <div class="rules">
+    <h3>📢 광고 집행 전 꼭 확인해주세요</h3>
+    <p style="font-size:13.5px;line-height:1.7;color:var(--ink-2);margin-bottom:14px">Palo의 유저 광고는 회원님이 활동으로 모은 광고 포인트로 배너를 노출하는 기능이에요!<br>집행 전에 아래 내용을 확인해주세요.</p>
+    <ul class="ad-notice-list">
+      <li><b>이미지 배너만 가능해요</b><br>직접 만든 배너 이미지 한 장을 올리고 내 글을 홍보할 수 있어요!</li>
+      <li><b>포인트는 집행과 동시에 차감돼요</b><br>노출 기간·횟수에 따라 광고 포인트가 사용되며, 한 번 집행하면 환불되지 않아요. 포인트와 노출 설정을 다시 확인해주세요.</li>
+      <li><b>연결된 글이 삭제되면 광고도 함께 내려가요</b><br>링크한 글을 지우면 광고가 자동으로 중단돼요. 남은 포인트는 돌려드리지 않으니 주의해주세요.</li>
+      <li><b>이런 광고는 제한돼요</b>
+        <ul>
+          <li>타인 비방·분쟁 유발, 특정 유저·채널 저격</li>
+          <li>선정적이거나 부적절한 이미지</li>
+          <li>그림·창작과 무관한 상업 광고, 도배성 홍보</li>
+          <li>저작권을 침해한 이미지</li>
+        </ul>
+      </li>
+      <li><b>관리자 심사가 있어요</b><br>집행된 광고는 관리자가 검토하며 위 기준에 어긋나면 사전 통보 없이 삭제되고 포인트가 환수될 수 있어요. 신고가 접수된 광고도 검토 대상이에요. 또한 광고 집행을 시작했다면 광고 대상인 게시글은 수정이 불가능해요.</li>
+    </ul>
+    <p style="font-size:13.5px;line-height:1.7;color:var(--ink-2);margin:14px 0 18px">위 내용에 동의하시면 광고를 집행할 수 있어요.<br>즐겁고 건강한 홍보 문화를 함께 만들어가요! 🎨</p>
+    <button class="r-ok" onclick="agreeAdNotice()">동의하고 계속하기</button>
+  </div>
+</div>
+
 <div class="rules-scrim" id="adModal" onclick="if(event.target===this)closeAdModal()">
   <div class="rules">
     <h3>📢 이 글 광고하기</h3>

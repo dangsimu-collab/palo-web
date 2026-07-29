@@ -600,6 +600,11 @@ function openCreateAd(postId){
   var p=POSTS.find(function(x){return x.id===postId});if(!p||!p.dbId)return;
   if(!AUTH.user||p.authorId!==AUTH.user.id){toast("본인 글만 광고할 수 있어요");return;}
   adState={postId:postId,bannerUrl:null};
+  document.getElementById("adNoticeModal").classList.add("open");
+}
+function closeAdNoticeModal(){document.getElementById("adNoticeModal").classList.remove("open");}
+function agreeAdNotice(){
+  closeAdNoticeModal();
   document.getElementById("adBannerPreview").innerHTML="";
   document.getElementById("adRateInput").value="";
   document.getElementById("adDaysInput").value="";
