@@ -109,6 +109,7 @@ Supabase 프로젝트: https://qabbdgfottbnapmyjudy.supabase.co
 | `notices` | `id`(bigint PK), `title`(text), `content`(text, **HTML** — 굵게 서식 지원), `created_at` | 공개 읽기, 관리자만 쓰기 |
 | `conversations` | `id`(bigint PK), `user1_id`(uuid), `user2_id`(uuid), `last_message_at`(timestamptz), `created_at` | 1:1 채팅방 1개 = row 1개. 두 참여자를 어느 순서로 넣었는지 정해져 있지 않아서 조회할 땐 항상 `.or()`로 양방향 매칭 (아래 참고) |
 | `messages` | `id`(bigint PK), `conversation_id`(FK→conversations), `sender_id`(uuid), `content`(text), `is_read`(bool, default false), `created_at` | |
+| `chat_admin_access_logs` | `id`(bigint PK), `admin_id`(uuid, FK→profiles), `conversation_id`(FK→conversations), `report_id`(FK→reports, nullable), `accessed_at` | 관리자가 채팅을 열람할 때마다 자동 기록. **update/delete 정책 없음(append-only)** — 아무도 못 고치고 못 지움, 감사 로그의 신뢰성 확보용 |
 
 ### Storage 버킷
 - `post-images` (Public) — 글 첨부 이미지. 업로드 경로는 `${Date.now()}-${파일명}` 형태(폴더 구분 없음).
@@ -164,8 +165,7 @@ grant execute on function public.increment_post_views(bigint) to anon, authentic
 - 컬럼: 원래 글 신고 전용(`post_id`)이었는데, **채팅 신고 기능 추가로 `conversation_id`(FK→conversations)와 `reported_user_id`(FK→profiles) 컬럼 추가**. `post_id`/`conversation_id` 중 정확히 하나만 채워지도록 체크 제약(`reports_target_check`)이 걸려있음.
 - insert: `reports_insert_all_temp` — 글 신고는 누구나(익명 포함, 기존 그대로). 채팅 신고는 `reporter_id = auth.uid()`이고 `is_conversation_participant(conversation_id)`가 true일 때만(그 대화 참여자 본인만 신고 가능)
 - select/update: `reports_select_admin` / `reports_update_admin` — `is_admin()`만
-- **관리자가 신고된 대화 내용을 볼 수 있게** `conversations`/`messages`에 아래 정책 추가(둘 다 "신고가 실제로 접수된 대화방"에만 적용 — 신고 안 된 다른 사람들의 채팅은 관리자도 못 봄):
-  - `conversations_select_admin_reported`, `messages_select_admin_reported`
+- **(2026-07-29, 이후 "신고된 대화만" → "전체 대화 열람"으로 확장됨. 아래 `conversations`/`messages` 절 참고)**
 
 **RLS 순환 참조(recursion) 주의 — 실제로 겪은 버그:** 위 정책들을 처음 만들 때 `conversations`/`messages` 조회 여부를 `reports` 서브쿼리로 확인하고, 반대로 `reports` INSERT는 `conversations` 서브쿼리로 참여자를 확인하도록 짰더니 `reports → conversations → reports → ...`로 서로가 서로를 참조하는 순환이 생겨 `infinite recursion detected in policy for relation "reports"` 에러가 났음(실제로 신고 접수 시 발생, `CREATE POLICY` 시점엔 에러 없이 통과해서 뒤늦게 발견됨). **고친 방법**: `is_admin()`과 똑같은 패턴으로, 테이블을 직접 서브쿼리하는 대신 **security definer 함수로 감싸서 그 함수를 호출**하도록 정책을 다시 씀 — security definer 함수 내부의 쿼리는 RLS를 우회하기 때문에 순환이 끊김:
 
@@ -195,10 +195,18 @@ grant execute on function public.conversation_is_reported(bigint) to authenticat
 **`conversations`:**
 - select/insert: `conversations_participant` — `auth.uid() = user1_id or auth.uid() = user2_id`인 사람만 (자기가 참여한 방만 보이고 만들 수 있음)
 - update: 없음 — `last_message_at` 갱신은 클라이언트에서 직접 update문으로 호출하는데, 이건 `conversations_participant`의 insert/select 정책만으로는 안 되므로 실제로는 **update 정책도 참여자 조건으로 동일하게 걸려있음**(select와 동일 조건)
+- select(관리자): `conversations_select_admin_all` — `is_admin()`이면 **전체 대화방** 조회 가능 (2026-07-29 추가, "신고된 대화만" 정책을 대체함 — 전체 열람이 상위 권한이라 정책 하나로 합침)
 
 **`messages`:**
 - select: `messages_select_participant` — 자신이 속한 대화(`conversation_id`)의 메시지만, `conversations` 테이블을 서브쿼리로 조인해서 참여자인지 확인
 - insert: `messages_insert_participant` — `auth.uid() = sender_id`이고 본인이 그 대화의 참여자일 때만
+- select(관리자): `messages_select_admin_all` — `is_admin()`이면 전체 메시지 조회 가능 (2026-07-29 추가, 위 conversations와 동일한 이유)
+
+**`chat_admin_access_logs`** (2026-07-29 추가 — 관리자 채팅 열람 감사 로그):
+- insert: `chat_admin_access_logs_insert_admin` — `is_admin()`이고 `admin_id = auth.uid()`(본인 명의로만 기록 가능)
+- select: `chat_admin_access_logs_select_admin` — `is_admin()`이면 누구나(관리자끼리 서로의 열람 기록도 볼 수 있어야 상호 견제가 됨 = 운영 투명성)
+- **update/delete 정책 자체를 만들지 않음** — 한번 쌓인 로그는 관리자 본인도 고치거나 지울 수 없음(의도적, "증거"로서의 신뢰성이 목적)
+- 클라이언트에서 `adminViewConversation()`이 대화를 성공적으로 불러올 때마다 자동으로 insert(신고 목록을 통해 열람한 경우 `report_id`도 같이 기록, 전체 목록에서 열람한 경우는 `report_id=null`)
 - **update는 RLS 정책 없음 — 의도적으로 없앰.** 처음엔 "읽음 처리"를 위해 `messages_update_participant`(대화 참여자면 아무 필드나 update 가능)를 만들었는데, 이러면 상대방이 **내가 보낸 메시지의 content까지 마음대로 바꿀 수 있는** 구멍이 생김. 이를 배포 전에 발견해서 정책 자체를 삭제하고, 아래의 좁은 RPC로 대체함:
 
 ```sql
@@ -302,7 +310,10 @@ create trigger on_auth_user_created after insert on auth.users
 - **채팅 목록(받은함)**: `openChatList()` — 내가 참여한 모든 대화를 `last_message_at` 최신순으로, 상대 닉네임·마지막 메시지 미리보기·안 읽은 개수(뱃지)와 함께 표시.
 - **읽음 표시**: 내가 보낸 메시지 옆에 상대가 읽으면 "읽음" 텍스트가 뜸(`is_read` 컬럼 + realtime UPDATE 구독으로 실시간 반영).
 - 채팅 UI 전용 CSS 클래스가 `app/globals.css`에 추가됨: `.chat-list`, `.chat-msg`, `.chat-bubble`, `.chat-inputrow`, `.chat-send`, `.chat-read-status`, `.chat-room-list`, `.chat-room-row`, `.chat-unread-badge`.
-- **채팅 신고(2026-07-29 추가)**: 채팅방 헤더에 "🚩 신고" 버튼(`reportChat()`) — 기존 글 신고용 `#reportModal`을 그대로 재사용하고, `reportingConversationId`/`reportingReportedUserId` 전역 변수로 "지금 신고 중인 게 글인지 채팅인지" 구분(`submitReport()`가 분기 처리). 관리자 신고 목록(`openAdminReports()`)에서 채팅 신고는 별도 표시되고, "대화 보기" 클릭 시 `adminViewReportedChat()`이 해당 대화의 메시지 전체를 읽기 전용으로 보여줌(`닉네임: 내용` 형태, 실제 채팅 화면과 다른 별도 렌더 함수 `renderAdminChatView()`). DB/RLS는 4절 "reports" 항목과 "RLS 순환 참조 주의" 참고.
+- **채팅 신고(2026-07-29 추가)**: 채팅방 헤더에 "🚩 신고" 버튼(`reportChat()`) — 기존 글 신고용 `#reportModal`을 그대로 재사용하고, `reportingConversationId`/`reportingReportedUserId` 전역 변수로 "지금 신고 중인 게 글인지 채팅인지" 구분(`submitReport()`가 분기 처리). DB/RLS는 4절 "reports" 항목과 "RLS 순환 참조 주의" 참고.
+- **관리자 채팅 열람(2026-07-29 추가)**: "내 정보" 탭에 관리자 전용 버튼 두 개 — "🛡 신고 목록"(기존)과 "🛡 전체 채팅 목록"(신규, `openAdminChatList()`). 신고 목록에서든 전체 목록에서든 대화를 열면 공통 함수 `adminViewConversation(conversationId, reportId, backTo)`가 처리: 메시지 전체를 읽기 전용으로 보여주고(`renderAdminChatView()`, `닉네임: 내용` 형태), **열람할 때마다 `chat_admin_access_logs`에 자동으로 기록**(누가·언제·어느 대화를, 신고를 통해 열람했다면 어느 신고 건인지). `openAdminChatList(searchTerm)`은 닉네임으로 대화 상대를 검색할 수 있음(profiles를 `ilike` 검색 → 그 유저가 낀 대화만 필터링). RLS: `conversations_select_admin_all`/`messages_select_admin_all`(관리자는 전체 대화 조회 가능), 로그 테이블은 4절 "chat_admin_access_logs" 참고 — **관리자 본인도 로그를 고치거나 지울 수 없음**(update/delete 정책 없음).
+- **이용약관/개인정보처리방침 문구**: 채팅 열람 기능에 대한 고지 조항 초안을 세션 대화 중에 작성해서 사용자에게 전달함(파일로 저장하지 않음) — 실제 약관/방침 페이지 자체는 아직 미구현(6절 "아직 안 한 것" 참고), 페이지를 만들 때 그 문구를 넣을 것.
+
 ---
 
 ## 6. 알려진 이슈 · 남은 보안 부채 · 의도적으로 미룬 것
@@ -311,6 +322,7 @@ create trigger on_auth_user_created after insert on auth.users
 - `post_images_insert_all_temp` / `images_bucket_insert_all_temp` — 누구나 이미지 업로드 가능(파일 크기 제한 없음). 아직 안 좁혀짐 — 업로드 남용(스팸/용량) 우려가 있으면 본인 글에 첨부할 때만 허용하도록 손볼 필요 있음.
 
 **설계상 알려진 한계 (버그 아님):**
+- **관리자는 모든 이용자의 1:1 채팅을 열람할 수 있음(의도적 설계, 2026-07-29부터).** 신고 여부와 무관하게 `is_admin()`이면 어떤 대화든 볼 수 있음 — 사용자가 명시적으로 요청한 기능이고, 모든 열람은 `chat_admin_access_logs`에 수정·삭제 불가능하게 기록됨(감사 가능성으로 오남용 억제). 다만 "기술적으로 막는" 게 아니라 "기록으로 남겨 사후 확인 가능하게 하는" 방식이라는 점을 정확히 인지할 것 — 이용약관/개인정보처리방침에 이 내용을 고지하는 문구 초안은 있으나 실제 약관 페이지는 아직 없음(아래 "아직 안 한 것" 참고).
 - 회원 차단(밴)은 **로그인 상태로 쓰는 것만** 막음. 로그아웃 후 익명 글쓰기까지는 못 막음 — "로그인 없이도 글쓰기 가능"이라는 설계와 근본적으로 상충하는 부분.
 - Vercel Analytics / GA4 데이터를 `/admin` 페이지 안에 직접 그래프로 넣을 수 없음 — 둘 다 무료 플랜에서 데이터를 꺼내오는 공개 API가 없음(GA4는 Data API로 가능하나 서비스 계정+서버 라우트 필요, 훨씬 복잡함). 각자의 대시보드(Vercel Analytics 탭 / analytics.google.com)에서 확인.
 - `/post/[id]`, `/user/[id]` 직접 접속 시, 실제 콘텐츠가 뜨기 전 아주 잠깐 정적 목록이 보이는 깜빡임이 있음(홈페이지도 원래 이런 구조 — 정적 HTML이 먼저 뜨고 JS가 나중에 실제 데이터로 교체). 사소해서 미해결.
