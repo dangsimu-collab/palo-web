@@ -857,10 +857,11 @@ async function openUserProfile(userId){
   document.title=profile.nickname+"님의 프로필 · Palo";
   var theirPosts=POSTS.filter(function(p){return p.authorId===userId});
   var likeSum=theirPosts.reduce(function(a,p){return a+p.likes},0);
+  var canChat=AUTH.user&&AUTH.user.id!==userId;
   var h='<div class="profile">';
   h+='<div class="pf-card"><div class="pf-ava">'+esc(profile.nickname[0])+'</div><div class="pf-info">'+
      '<div class="pf-name">'+esc(profile.nickname)+'<span class="pf-lv">'+esc(profile.level||"새싹 작가")+'</span></div>'+
-     '</div></div>';
+     '</div>'+(canChat?'<button class="pf-edit" onclick="openChat(\''+userId+'\')">💬 채팅하기</button>':'')+'</div>';
   h+='<div class="pf-stats">'+
      '<div class="pf-st"><b>'+theirPosts.length+'</b><span>쓴 글</span></div>'+
      '<div class="pf-st"><b>'+likeSum+'</b><span>받은 추천</span></div></div>';
@@ -875,6 +876,74 @@ function getUserIdFromPath(){
   var m=location.pathname.match(/^\/user\/([0-9a-fA-F-]{36})$/);
   return m?m[1]:null;
 }
+
+/* ---------- 1:1 채팅 ---------- */
+var currentConversationId=null;
+async function findOrCreateConversation(otherUserId){
+  var q="and(user1_id.eq."+AUTH.user.id+",user2_id.eq."+otherUserId+"),and(user1_id.eq."+otherUserId+",user2_id.eq."+AUTH.user.id+")";
+  var find=await window.supabase.from("conversations").select("*").or(q).maybeSingle();
+  if(find.data)return find.data;
+  var ins=await window.supabase.from("conversations").insert({user1_id:AUTH.user.id,user2_id:otherUserId}).select().single();
+  if(!ins.error)return ins.data;
+  var retry=await window.supabase.from("conversations").select("*").or(q).maybeSingle();
+  if(retry.data)return retry.data;
+  toast("채팅방을 여는 데 실패했어요: "+ins.error.message);
+  return null;
+}
+async function openChat(otherUserId){
+  if(!AUTH.user){toast("로그인이 필요해요");loginWithGoogle();return;}
+  if(otherUserId===AUTH.user.id){toast("나 자신과는 채팅할 수 없어요");return;}
+  closeNotif();
+  document.getElementById("main").innerHTML='<div class="profile"><p style="padding:40px 0;text-align:center;color:var(--muted)">불러오는 중...</p></div>';
+
+  var conv=await findOrCreateConversation(otherUserId);
+  if(!conv)return;
+  currentConversationId=conv.id;
+
+  var profRes=await window.supabase.from("profiles").select("nickname").eq("id",otherUserId).single();
+  var partnerName=profRes.data?profRes.data.nickname:"상대방";
+
+  var msgRes=await window.supabase.from("messages").select("*").eq("conversation_id",conv.id).order("created_at",{ascending:true});
+  if(msgRes.error){toast("대화를 불러오지 못했어요: "+msgRes.error.message);return;}
+  renderChatView(partnerName,msgRes.data||[]);
+}
+function chatMessagesHtml(messages){
+  if(!messages.length)return '<div class="pf-empty">아직 대화가 없어요. 첫 메시지를 보내보세요!</div>';
+  return messages.map(function(m){
+    var mine=m.sender_id===AUTH.user.id;
+    return '<div class="chat-msg'+(mine?' mine':'')+'"><div class="chat-bubble">'+esc(m.content)+'</div></div>';
+  }).join("");
+}
+function renderChatView(partnerName,messages){
+  var h='<div class="profile">'+
+    '<button class="d-back" onclick="renderList()">← 목록으로</button>'+
+    '<div class="pf-card"><div class="pf-ava">'+esc(partnerName[0])+'</div><div class="pf-info"><div class="pf-name">'+esc(partnerName)+'</div></div></div>'+
+    '<div id="chatMessages" class="chat-list">'+chatMessagesHtml(messages)+'</div>'+
+    '<div class="chat-inputrow">'+
+      '<textarea id="chatInput" placeholder="메시지를 입력하세요" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendChatMessage();}"></textarea>'+
+      '<button class="send" onclick="sendChatMessage()">보내기</button>'+
+    '</div>'+
+  '</div>';
+  document.getElementById("main").innerHTML=h;
+  var box=document.getElementById("chatMessages");
+  if(box)box.scrollTop=box.scrollHeight;
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+async function sendChatMessage(){
+  var inp=document.getElementById("chatInput");
+  var v=inp.value.trim();
+  if(!v||!currentConversationId||!AUTH.user)return;
+  inp.disabled=true;
+  var res=await window.supabase.from("messages").insert({conversation_id:currentConversationId,sender_id:AUTH.user.id,content:v});
+  inp.disabled=false;
+  if(res.error){toast("전송 실패: "+res.error.message);return;}
+  window.supabase.from("conversations").update({last_message_at:new Date().toISOString()}).eq("id",currentConversationId).then(function(){});
+  inp.value="";
+  var msgRes=await window.supabase.from("messages").select("*").eq("conversation_id",currentConversationId).order("created_at",{ascending:true});
+  var box=document.getElementById("chatMessages");
+  if(box){box.innerHTML=chatMessagesHtml(msgRes.data||[]);box.scrollTop=box.scrollHeight;}
+}
+
 function openProfile(){
   closeNotif();
   if(!AUTH.user){
