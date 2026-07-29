@@ -212,6 +212,18 @@ export const BODY_HTML = `
   </div>
 </div>
 
+<div class="rules-scrim" id="adModal" onclick="if(event.target===this)closeAdModal()">
+  <div class="rules">
+    <h3>📢 이 글 광고하기</h3>
+    <div id="adBannerPreview" style="margin-bottom:10px"></div>
+    <input type="file" id="adBannerFile" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="onAdBannerFile(event)">
+    <button class="pf-edit" onclick="document.getElementById('adBannerFile').click()" style="width:100%;margin-bottom:10px;justify-content:center">배너 이미지 선택</button>
+    <input type="number" id="adPointsInput" class="nick-in" min="500" step="1" placeholder="사용할 광고 포인트 (최소 500)" oninput="updateAdPreview()">
+    <p class="nick-hint" id="adPreviewText">포인트를 입력하면 노출 기간이 계산돼요.</p>
+    <button class="r-ok" onclick="submitAd()">광고 등록</button>
+  </div>
+</div>
+
 <div class="rules-scrim" id="nickModal" onclick="if(event.target===this)closeNick()">
   <div class="rules">
     <h3>✏️ 닉네임 변경</h3>

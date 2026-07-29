@@ -472,7 +472,8 @@ function renderPostDetail(id){
     '<button class="d-act" onclick="sharePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6"/><path d="M10 6l1-1a4 4 0 0 1 6 6l-1 1M14 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg>공유</button>'+
     '<button class="d-act" onclick="reportPost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>신고</button>'+
     ((p.dbId&&AUTH.user&&p.authorId===AUTH.user.id)?('<button class="d-act" onclick="openEditPost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L20 8l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>수정</button>'+
-    '<button class="d-act" onclick="deletePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>삭제</button>'):'')+
+    '<button class="d-act" onclick="deletePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>삭제</button>'+
+    '<button class="d-act" onclick="openCreateAd('+p.id+')">📢 이 글 광고하기</button>'):'')+
     ((p.dbId&&AUTH.profile&&AUTH.profile.is_admin)?('<button class="d-act'+(p.isManagerPick?' liked':'')+'" onclick="toggleManagerPick('+p.id+')">📌 '+(p.isManagerPick?"매니저 픽 해제":"매니저 픽 지정")+'</button>'):'')+
     '</div>'+
     '<div class="comments"><div class="cm-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>훈수 · 크리틱 '+p.comments.length+'</div>'+
@@ -555,6 +556,64 @@ async function unpickFromList(id){
   p.isManagerPick=false;p.pickPosition=null;p.pickedAt=null;
   toast("매니저 픽을 해제했어요");
   openManagerPickList();
+}
+/* ---------- 유저 광고 ---------- */
+var AD_POINTS_PER_DAY=100; // 임시 환산 기준(추후 조정 예정): 100포인트당 1일 노출
+var adState={postId:null,bannerUrl:null};
+function openCreateAd(postId){
+  var p=POSTS.find(function(x){return x.id===postId});if(!p||!p.dbId)return;
+  if(!AUTH.user||p.authorId!==AUTH.user.id){toast("본인 글만 광고할 수 있어요");return;}
+  adState={postId:postId,bannerUrl:null};
+  document.getElementById("adBannerPreview").innerHTML="";
+  document.getElementById("adPointsInput").value="";
+  document.getElementById("adPreviewText").textContent="보유 광고 포인트: "+(AUTH.profile?(AUTH.profile.ad_points||0):0)+"점 · 최소 500점부터 집행 가능";
+  document.getElementById("adModal").classList.add("open");
+}
+function closeAdModal(){document.getElementById("adModal").classList.remove("open");}
+async function onAdBannerFile(e){
+  var f=e.target.files[0];if(!f)return;
+  e.target.value="";
+  if(!window.supabase){toast("업로드를 사용할 수 없어요");return;}
+  if(ALLOWED_IMAGE_TYPES.indexOf(f.type)===-1){toast("이미지 파일만 올릴 수 있어요");return;}
+  if(f.size>MAX_IMAGE_BYTES){toast("40MB 이하 이미지만 올릴 수 있어요");return;}
+  var uploadBlob=f,ext=(f.name.match(/\.([^.]+)$/)||[,"png"])[1];
+  if(f.type!=="image/gif"){
+    toast("배너 이미지 압축 중...");
+    try{
+      var compressed=await compressImage(f);
+      uploadBlob=compressed.blob;ext=compressed.ext;
+    }catch(err){
+      console.error("배너 압축 실패, 원본으로 업로드:",err);
+    }
+  }
+  toast("배너 업로드 중...");
+  var path="ad-"+Date.now()+"-"+f.name.replace(/\.[^.]+$/,"").replace(/[^a-zA-Z0-9_.-]/g,"_")+"."+ext;
+  var up=await window.supabase.storage.from("post-images").upload(path,uploadBlob,f.type==="image/gif"?undefined:{contentType:uploadBlob.type});
+  if(up.error){toast("업로드 실패: "+up.error.message);return;}
+  var pub=window.supabase.storage.from("post-images").getPublicUrl(path);
+  adState.bannerUrl=pub.data.publicUrl;
+  document.getElementById("adBannerPreview").innerHTML='<img src="'+esc(adState.bannerUrl)+'" style="width:100%;border-radius:10px;display:block">';
+  toast("배너 이미지를 등록했어요");
+}
+function updateAdPreview(){
+  var pts=parseInt(document.getElementById("adPointsInput").value,10)||0;
+  var days=Math.floor(pts/AD_POINTS_PER_DAY);
+  document.getElementById("adPreviewText").textContent=pts?
+    ("약 "+Math.max(days,0)+"일 동안 노출돼요 (환산 기준은 추후 조정될 수 있어요) · 보유 "+(AUTH.profile?(AUTH.profile.ad_points||0):0)+"점"):
+    ("보유 광고 포인트: "+(AUTH.profile?(AUTH.profile.ad_points||0):0)+"점 · 최소 500점부터 집행 가능");
+}
+async function submitAd(){
+  if(!window.supabase){toast("사용할 수 없어요");return;}
+  if(!adState.postId){toast("글 정보를 찾을 수 없어요");return;}
+  if(!adState.bannerUrl){toast("배너 이미지를 선택해주세요");return;}
+  var pts=parseInt(document.getElementById("adPointsInput").value,10);
+  if(!pts||pts<500){toast("최소 500포인트부터 집행할 수 있어요");return;}
+  var p=POSTS.find(function(x){return x.id===adState.postId});if(!p||!p.dbId)return;
+  var res=await window.supabase.rpc("create_user_ad",{p_post_id:p.dbId,p_image_url:adState.bannerUrl,p_points_to_spend:pts});
+  if(res.error){toast("광고 등록 실패: "+res.error.message);return;}
+  closeAdModal();
+  await refreshMyProfile();
+  toast("광고가 등록됐어요 📢");
 }
 var reportingPostId=null;
 var reportingConversationId=null;

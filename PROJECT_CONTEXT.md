@@ -135,6 +135,7 @@ Supabase 프로젝트: https://qabbdgfottbnapmyjudy.supabase.co
 | `score_log` | `id`(bigint PK), `user_id`(FK→profiles), `amount`(int, 실제 지급된 양), `event`(text), `source_table`/`source_id`(어느 글/댓글에 귀속되는지), `created_at` | 등급 시스템의 지급 내역(2026-07-29 추가) — 글/댓글 삭제 시 정확한 회수의 근거. select는 본인만, insert/update/delete는 트리거만 |
 | `score_awarded_likes` | `user_id`, `post_id`(FK→posts) | PK가 `(user_id,post_id)`. "이 사람이 이 글로 추천 점수를 받은 적 있는지" 영구 기록(2026-07-29 추가, 좋아요 취소 후 재클릭 악용 방지) — RLS만 켜고 정책은 없음, 클라이언트 접근 완전 차단 |
 | `score_awarded_helpful` | `user_id`, `comment_id`(FK→comments) | 위와 동일한 목적, 도움돼요용 |
+| `user_ads` | `id`(bigint PK), `user_id`(FK→profiles), `image_url`(text), `linked_post_id`(FK→posts, `on delete cascade`), `points_spent`(int), `duration_days`(int), `status`(text: active/expired/removed_by_admin), `created_at`, `expires_at` | 유저 이미지 배너 광고(2026-07-29 추가). insert/update는 RLS 정책 없음 — `create_user_ad()`/`admin_remove_ad()` RPC로만 생성/삭제. 글이 삭제되면 광고도 cascade로 자동 삭제 |
 
 ### Storage 버킷
 - `post-images` (Public) — 글 첨부 이미지. 업로드 경로는 `${Date.now()}-${파일명}` 형태(폴더 구분 없음).
@@ -404,14 +405,27 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **정렬·위치 삽입 로직**: `sortHot(arr)`(`public/palo.js`)가 (1) 매니저 픽을 먼저 분리 → 나머지만 기존 인기순 공식으로 정렬(픽은 7일 제외 규칙 등을 완전히 무시하고 항상 노출, 의도된 동작), (2) 픽들을 `pickPosition` 오름차순·동률이면 `pickedAt` 내림차순(최근 것 우선)으로 정렬, (3) 앞에서부터 훑으며 "요청 위치"와 "다음 빈 자리" 중 큰 값을 실제 배치 위치로 확정(같은 위치를 여러 픽이 요청하면 최근 것이 그 자리를 차지하고 나머지는 자동으로 다음 자리로 밀림), (4) 확정된 위치에 픽을 꽂고 그 사이사이 빈 자리는 일반 인기글로 순서대로 채움.
 - **화면**: 목록 행 제목 앞·글 상세 헤더에 "📌 매니저 픽" 뱃지(`.pick-badge`). 글 상세 액션 줄의 관리자 전용 토글 버튼(`toggleManagerPick()`)은 처음 픽할 때 "현재 픽 개수+1"번을 기본 위치로 지정. **"내 정보 → 📌 매니저 픽 관리"**(`openManagerPickList()`) 화면에서 모든 픽을 한눈에 보고 위치 숫자를 직접 입력해서 저장(`savePickPosition()`)하거나 해제(`unpickFromList()`)할 수 있음 — 픽할 때마다 팝업으로 숫자를 묻는 대신, 여러 개를 한 화면에서 조정하는 방식을 선택함(사용자에게 설명 후 진행).
 
-### 유저 광고 시스템 (아카라이브 스타일, 2026-07-29 시작, 1단계 완료 — 지갑·적립만)
-유저가 활동 포인트를 모아서 이미지 배너 광고를 거는 기능. **최종 목표**(전체 스펙, 아직 1단계만 구현): 배너 이미지 업로드(기존 이미지 압축 정책 적용) + 클릭 시 이동 링크 지정 → 모바일 목록 스크롤 중간 광고 자리에 여러 유저 광고가 순환 노출 → 포인트를 많이 쓸수록 더 오래/자주 노출(최소 500포인트) → 연결 글 삭제되면 광고 자동 중단 → 관리자 심사/삭제/포인트 환수 + 유저 신고. **1단계(완료)는 이 중 "포인트 지갑 + 적립"까지만**.
+### 유저 광고 시스템 (아카라이브 스타일, 2026-07-29 시작, 1·2단계 완료)
+유저가 활동 포인트를 모아서 이미지 배너 광고를 거는 기능. **최종 목표**(전체 스펙, 3·4단계는 아직): 배너 이미지 업로드 + 클릭 시 이동 링크 지정(완료, 아래) → 모바일 목록 스크롤 중간 광고 자리에 여러 유저 광고가 순환 노출(3단계 예정) → 관리자 심사/삭제/포인트 환수 + 유저 신고(4단계 예정).
 
-- **두 개의 별도 지갑**: `profiles.score`(등급 점수, 누적, 안 줄어듦) vs `profiles.ad_points`(광고 포인트, 광고 집행 시 차감될 예정, 2단계 이후). 같은 활동(글 +2/댓글 +1/추천받기 +5/크리틱 도움돼요 +20)이 **동시에 두 지갑에 똑같이 적립**되며, 기존 등급 시스템의 도배 방지 장치(일일 20점 상한, 1분 연속 작성 제한, 같은 글 댓글 1회 제한, 5자 미만 제외, 좋아요·도움돼요 평생 1회) 전부가 코드 중복 없이 그대로 적용됨 — 새 로직을 만들지 않고 기존 `award_score()`/`award_capped_post_comment_score()` 함수가 `score`와 `ad_points`를 **같은 트랜잭션에서 함께** 갱신하도록만 고쳤기 때문.
-- **글/댓글 삭제 시 회수도 동일**: `claw_back_post_score()`/`claw_back_comment_score()`가 `score`뿐 아니라 `ad_points`도 같이 회수(단, 이미 광고 집행으로 써버린 만큼은 `greatest(0, ...)`로 0 밑으로 안 내려가게 함 — "이미 쓴 포인트를 강제로 마이너스로 만들진 않는다"는 실용적 타협).
-- **⚠️ 이 작업 중 발견한 기존 보안 구멍(등급 시스템에도 소급 적용해서 같이 고침)**: `profiles`는 "본인 정보는 본인이 수정 가능"(`profiles_update_own`) 정책이 있는데, 여기엔 컬럼 제한이 없어서 **유저가 개발자 도구로 직접 `.update({score: 99999})`처럼 호출하면 자기 등급 점수·광고 포인트를 마음대로 조작할 수 있는 상태**였음(다행히 실제 악용 사례는 없었음, 이번에 광고 포인트라는 "실질적으로 돈처럼 쓰이는 값"이 추가되면서 반드시 막아야 했음). **고침**: `guard_profile_score_columns()` BEFORE UPDATE 트리거를 `profiles`에 추가 — `score`/`level`/`ad_points`/`daily_score_earned`/`last_score_date`/`last_activity_at` 이 6개 컬럼은 **오직 신뢰된 서버 함수를 통해서만** 바뀔 수 있음. 트리거는 Postgres 세션 설정(`current_setting('app.trusted_score_update')`)을 신호로 판별하는데, `award_score()`/`award_capped_post_comment_score()`/`recalc_level()`/두 클로백 함수가 자기 UPDATE 직전에 `perform set_config('app.trusted_score_update','true',true)`로 이 신호를 켜줌(트랜잭션 범위로만 유효, 자동으로 꺼짐) — 이 신호가 없으면(일반 유저의 직접 API 호출) 트리거가 변경을 조용히 원래 값으로 되돌림. **매니저 픽 때 만든 `guard_manager_pick_columns()`(posts 테이블용)와 같은 패턴**, 이번엔 여러 컬럼·여러 함수에 걸쳐 있어서 세션 신호 방식을 씀.
-- **화면**: "내 정보" 통계 카드에 "광고 포인트" 임시로 추가해서 적립 확인용으로만 씀(정식 광고 UI는 다음 단계에서).
-- **다음 단계 예정**: 배너 업로드(기존 이미지 압축 정책 재사용) + 링크 지정 → 광고 등록, 그다음 모바일 목록 중간 노출(순환), 그다음 관리자 심사/삭제/환수 + 신고, 최소 지출 500포인트 등 세부 수치는 전체 기능 완성 후 한 번에 정함(사용자가 명시적으로 이렇게 순서를 정함).
+**1단계 — 포인트 지갑·적립:**
+- **두 개의 별도 지갑**: `profiles.score`(등급 점수, 누적, 안 줄어듦) vs `profiles.ad_points`(광고 포인트, 광고 집행 시 차감됨). 같은 활동(글 +2/댓글 +1/추천받기 +5/크리틱 도움돼요 +20)이 **동시에 두 지갑에 똑같이 적립**되며, 기존 등급 시스템의 도배 방지 장치(일일 20점 상한, 1분 연속 작성 제한, 같은 글 댓글 1회 제한, 5자 미만 제외, 좋아요·도움돼요 평생 1회) 전부가 코드 중복 없이 그대로 적용됨 — 새 로직을 만들지 않고 기존 `award_score()`/`award_capped_post_comment_score()` 함수가 `score`와 `ad_points`를 **같은 트랜잭션에서 함께** 갱신하도록만 고쳤기 때문.
+- **글/댓글 삭제 시 회수도 동일**: `claw_back_post_score()`/`claw_back_comment_score()`가 `score`뿐 아니라 `ad_points`도 같이 회수(단, 이미 광고 집행으로 써버린 만큼은 `greatest(0, ...)`로 0 밑으로 안 내려가게 함).
+- **⚠️ 이 작업 중 발견한 기존 보안 구멍(등급 시스템에도 소급 적용해서 같이 고침)**: `profiles`는 "본인 정보는 본인이 수정 가능"(`profiles_update_own`) 정책이 있는데, 여기엔 컬럼 제한이 없어서 **유저가 개발자 도구로 직접 `.update({score: 99999})`처럼 호출하면 자기 등급 점수·광고 포인트를 마음대로 조작할 수 있는 상태**였음(다행히 실제 악용 사례는 없었음). **고침**: `guard_profile_score_columns()` BEFORE UPDATE 트리거를 `profiles`에 추가 — `score`/`level`/`ad_points`/`daily_score_earned`/`last_score_date`/`last_activity_at` 이 6개 컬럼은 **오직 신뢰된 서버 함수를 통해서만** 바뀔 수 있음. 트리거는 Postgres 세션 설정(`current_setting('app.trusted_score_update')`)을 신호로 판별하는데, `award_score()`/`award_capped_post_comment_score()`/`recalc_level()`/두 클로백 함수가 자기 UPDATE 직전에 `perform set_config('app.trusted_score_update','true',true)`로 이 신호를 켜줌(트랜잭션 범위로만 유효, 자동으로 꺼짐) — 이 신호가 없으면 트리거가 변경을 조용히 원래 값으로 되돌림. **매니저 픽 때 만든 `guard_manager_pick_columns()`(posts 테이블용)와 같은 패턴**.
+  - **⚠️ 운영 시 반드시 알아둘 것**: 이 트리거는 "누가" 수정하는지가 아니라 "신뢰 신호가 켜져 있는지"만 보기 때문에, **관리자가 Supabase SQL Editor에서 직접 `update profiles set ad_points=...` 같은 걸 실행해도 똑같이 막힘**(실제로 테스트 중 겪음 — 정상 동작). 테스트/운영 목적으로 이 컬럼들을 직접 고쳐야 하면, 먼저 신호를 켜고 같은 실행에서 update를 이어서 해야 함:
+    ```sql
+    select set_config('app.trusted_score_update','true',true);
+    update public.profiles set ad_points = 1000 where nickname = '닉네임';
+    ```
+    (그래도 안 되면 `alter table public.profiles disable trigger guard_profile_score_before_update;` → update → `enable trigger`로 임시로 끄고 켜는 방법도 있음.)
+
+**2단계 — 배너 업로드 + 광고 등록 (완료):**
+- **DB**: `user_ads` 테이블(`id`, `user_id`, `image_url`, `linked_post_id`, `points_spent`, `duration_days`, `status`, `created_at`, `expires_at`). RLS: 활성 광고(`status='active' and expires_at>now()`)는 누구나 조회(3단계 노출 기능용), 본인 광고는 상태 무관 항상 조회, 관리자는 전부 조회. **insert/update RLS 정책은 없음** — 아래 두 함수를 통해서만 생성/삭제됨.
+- **광고는 항상 "본인의 실제 글"에 연결**(자유 URL 입력 아님) — `linked_post_id references posts(id) on delete cascade`라서, **글이 삭제되면 광고 행 자체가 자동으로 같이 삭제됨**(별도 코드 없이 DB가 알아서 "죽은 링크 방지" 요구사항을 처리). 자유 URL 광고가 필요하면 재설계 필요(사용자에게 고지, 아직 요청 없음).
+- **`create_user_ad(post_id, image_url, points_to_spend)` RPC**: 로그인 확인 → 최소 500포인트 확인 → 본인 글인지 확인 → 잔액 확인 → 포인트 차감(`app.trusted_score_update` 신호 켜고) → `user_ads` 행 생성, 한 번에 처리. **포인트→기간 환산은 임시로 "100포인트 = 1일"**(`v_days := greatest(1, p_points_to_spend/100)`) — 정확한 수치는 나중에 정하기로 함(사용자 요청), 상수 하나만 바꾸면 됨(`AD_POINTS_PER_DAY`, `public/palo.js`, 미리보기 계산용 클라이언트 상수 — 서버 쪽은 RPC 안의 `/100` 리터럴, 나중에 값 바꿀 때 **두 곳 다** 맞춰야 함).
+- **`admin_remove_ad(ad_id, refund)` RPC**: 관리자 확인 → 상태를 `removed_by_admin`으로 변경 → `refund=true`면 포인트도 환수. **DB 함수만 미리 준비, 이걸 호출하는 관리자 화면(심사 UI)은 4단계에서 만들 예정.**
+- **클라이언트**: 본인 글 상세 화면의 "📢 이 글 광고하기" 버튼(`openCreateAd()`) → 배너 이미지 선택 시 기존 이미지 정책(`ALLOWED_IMAGE_TYPES`/`MAX_IMAGE_BYTES`/`compressImage()`) 그대로 재사용해서 압축 후 업로드 → 포인트 입력하면 실시간으로 "약 N일 노출" 미리보기(`updateAdPreview()`) → 등록(`submitAd()`)이 `create_user_ad` RPC 호출 후 `refreshMyProfile()`로 포인트 잔액 갱신.
+- **다음 단계 예정**: 3단계 모바일 목록 중간 광고 자리에 순환 노출, 4단계 관리자 심사 화면 + 유저 신고.
 
 ### 1:1 채팅 (커미션 거래 상담용)
 설계·구현을 2단계로 나눠서 진행: 1단계(저장만 되는 채팅) → 2단계(실시간 + 채팅 목록 + 읽음 표시).
