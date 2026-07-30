@@ -1108,7 +1108,9 @@ function pfReviewListHTML(reviews,userId){
   if(!reviews.length)return h+'<div class="pf-empty">아직 받은 후기가 없어요.</div>';
   var showCount=pfReviewsExpanded?reviews.length:Math.min(5,reviews.length);
   h+=reviewListHTML(reviews.slice(0,showCount));
-  if(reviews.length>showCount)h+='<div class="rv-more" onclick="pfReviewsExpanded=true;openUserProfile(\''+cmQ(userId)+'\')">더보기</div>';
+  var isSelf=AUTH.user&&AUTH.user.id===userId;
+  var moreCall=isSelf?'openProfile()':('openUserProfile(\''+cmQ(userId)+'\')');
+  if(reviews.length>showCount)h+='<div class="rv-more" onclick="pfReviewsExpanded=true;'+moreCall+'">더보기</div>';
   return h;
 }
 async function cmToggleBookmark(commissionId,el){
@@ -2693,41 +2695,6 @@ function pinnedPostCardHTML(pinnedPostId){
     '<div class="pinned-meta"><span class="cat '+c.cls+'">'+c.label+'</span><span>추천 '+p.likes+' · 댓글 '+p.comments.length+'</span></div></div>'+
   '</div>';
 }
-function reviewsAboutHTML(profileUserId,nickname){
-  if(!nickname)return"";
-  var reviews=POSTS.filter(function(p){
-    if(p.board!=="review")return false;
-    return p.reviewedUserId?p.reviewedUserId===profileUserId:p.reviewedNickname===nickname;
-  });
-  if(!reviews.length)return"";
-  var groups=[],byKey={};
-  reviews.forEach(function(r){
-    var key=r.commissionId?("c"+r.commissionId):(r.commissionPostId||"deleted");
-    if(!byKey[key]){
-      var title,deleted=false;
-      if(r.commissionId){
-        var commission=cmData.find(function(x){return x.id===r.commissionId});
-        title=commission?commission.title:"커미션 페이지의 후기";
-      }else{
-        var cp=r.commissionPostId?POSTS.find(function(p){return p.dbId===r.commissionPostId}):null;
-        title=cp?cp.title:"삭제된 커미션 글";
-        deleted=!cp;
-      }
-      byKey[key]={title:title,deleted:deleted,posts:[]};
-      groups.push(byKey[key]);
-    }
-    byKey[key].posts.push(r);
-  });
-  groups.sort(function(a,b){return(a.deleted===b.deleted)?0:(a.deleted?1:-1)});
-  var h='<div class="pf-sec">📝 '+esc(nickname)+'님에 대한 커미션 후기 ('+reviews.length+')</div>';
-  groups.forEach(function(g){
-    h+='<div class="commission-group'+(g.deleted?' deleted':'')+'">'+
-      '<div class="commission-group-title">'+(g.deleted?'🗑️ ':'🎨 ')+esc(g.title)+' <span class="ccount">'+g.posts.length+'</span></div>'+
-      reviewAlbumHTML(g.posts)+
-    '</div>';
-  });
-  return h;
-}
 function setPfTab(t){pfTab=t;openProfile();}
 function listOrEmpty(arr,emptyMsg,cta){
   if(arr.length)return '<div class="list">'+arr.map(profileRow).join("")+'</div>';
@@ -2762,8 +2729,8 @@ async function openUserProfile(userId){
     false,theirReviewStats,theirBookmarkCount);
   if(canChat)h+='<button class="pf-edit" style="margin-top:14px;width:100%" onclick="openChat(\''+userId+'\')">💬 채팅하기</button>';
   h+=pfCommissionListHTML(artistCommissions);
-  h+=pfReviewListHTML(theirReviewList,userId);
   h+=pinnedPostCardHTML(profile.pinned_post_id);
+  h+=pfReviewListHTML(theirReviewList,userId);
   h+='<div class="pf-stats">'+
      '<div class="pf-st"><b>'+(profile.score||0)+'</b><span>활동 점수</span></div>'+
      '<div class="pf-st"><b>'+theirPosts.length+'</b><span>쓴 글</span></div>'+
@@ -3112,6 +3079,7 @@ function openProfile(){
     sns_twitter:AUTH.profile&&AUTH.profile.sns_twitter,sns_instagram:AUTH.profile&&AUTH.profile.sns_instagram,sns_email:AUTH.profile&&AUTH.profile.sns_email},
     true,myReviewStats,null);
   h+='<div class="pf-actions">'+
+       '<button class="pf-edit" onclick="openUserProfile(\''+AUTH.user.id+'\')">👤 내 공개 프로필 보기</button>'+
        '<button class="pf-edit" onclick="openNickModal()">닉네임 변경</button>'+
        '<button class="pf-edit" onclick="openChatList()">💬 채팅 목록</button>'+
        '<button class="pf-edit" onclick="openScoreLog()">포인트 내역</button>'+
@@ -3128,7 +3096,8 @@ function openProfile(){
        '</div>';
   }
   h+=pinnedPostCardHTML(AUTH.profile?AUTH.profile.pinned_post_id:null);
-  h+=reviewsAboutHTML(AUTH.user.id,ME.nick);
+  if(pfReviewsForUserId!==AUTH.user.id){pfReviewsExpanded=false;pfReviewsForUserId=AUTH.user.id;}
+  h+=pfReviewListHTML(pfArtistReviewList(AUTH.user.id,ME.nick),AUTH.user.id);
   h+='<div class="pf-progress"><div class="pp-row"><span>'+lvName+'</span><span>'+
      (prog.maxed?'최고 등급 달성! 🎉':('다음 등급('+prog.nextName+')까지 '+prog.remain+'점'))+'</span></div>'+
      '<div class="pp-bar"><div class="pp-fill" style="width:'+prog.pct+'%"></div></div></div>';
