@@ -1042,6 +1042,33 @@ async function cmLoadMyBookmarks(){
   var res=await window.supabase.from('commission_bookmarks').select('commission_id').eq('user_id',AUTH.user.id);
   cmBookmarkIds=new Set((res.data||[]).map(function(r){return r.commission_id;}));
 }
+/* ---- 프로필의 커미션 타입 목록(크레페 시안 2단계) ---- */
+async function pfArtistCommissions(userId,nickname){
+  if(!window.supabase)return[];
+  var res=await window.supabase.from('commissions').select('*,commission_images(url,sort)').eq('author_id',userId).order('created_at',{ascending:false});
+  if(res.error||!res.data)return[];
+  return res.data.map(function(row){return cmRowToData(row,nickname);});
+}
+function pfCmListItemHTML(d){
+  var thumb=(d.images&&d.images.length)?('background-image:url(\''+cmQ(d.images[0])+'\');background-size:cover;background-position:center'):('background:'+cmGrads[d.id%cmGrads.length]);
+  var statusHTML=d.status==='open'?'<div class="pfh-cm-status open">접수중</div>':'<div class="pfh-cm-status">신청 마감</div>';
+  var bookmarked=cmBookmarkIds&&cmBookmarkIds.has(d.id);
+  var tags=(d.tags||[]).map(function(t){return '<span class="pfh-cm-tag">#'+esc(t)+'</span>';}).join('');
+  return '<div class="pfh-cm-item" onclick="cmOpenCommissionById('+d.id+')">'+
+    '<div class="pfh-cm-thumb" style="'+thumb+'">'+statusHTML+'</div>'+
+    '<div class="pfh-cm-info">'+
+      '<div class="pfh-cm-top"><div class="pfh-cm-title">'+esc(d.title)+'</div>'+
+        '<div class="cm-bm pfh-cm-bm'+(bookmarked?' on':'')+'" onclick="event.stopPropagation();cmToggleBookmark('+d.id+',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4z"/></svg></div></div>'+
+      (tags?('<div class="pfh-cm-tags">'+tags+'</div>'):'')+
+      '<div class="pfh-cm-desc">'+esc(d.desc||'')+'</div>'+
+    '</div>'+
+  '</div>';
+}
+function pfCommissionListHTML(list){
+  var h='<div class="pf-sec">커미션 타입</div>';
+  if(!list.length)return h+'<div class="pf-empty">아직 등록된 커미션이 없어요.</div>';
+  return h+'<div class="pfh-cm-list">'+list.map(pfCmListItemHTML).join('')+'</div>';
+}
 async function cmToggleBookmark(commissionId,el){
   if(!AUTH.user){toast('로그인 후 북마크할 수 있어요','🔒');loginWithGoogle();return;}
   if(cmBookmarkIds===null)await cmLoadMyBookmarks();
@@ -2629,11 +2656,15 @@ async function openUserProfile(userId){
   var canChat=AUTH.user&&AUTH.user.id!==userId;
   var theirReviewStats=pfReviewStats(userId,profile.nickname);
   var theirBookmarkCount=await pfBookmarkCount(userId);
+  var artistCommissions=await pfArtistCommissions(userId,profile.nickname);
+  artistCommissions.forEach(function(d){if(!cmData.some(function(x){return x.id===d.id;}))cmData.push(d);});
+  if(AUTH.user&&cmBookmarkIds===null)await cmLoadMyBookmarks();
   var h='<div class="profile">';
   h+=pfHeroHTML({nickname:profile.nickname,level:profile.level,avatar_url:profile.avatar_url,
     cover_url:profile.cover_url,bio:profile.bio,sns_twitter:profile.sns_twitter,sns_instagram:profile.sns_instagram,sns_email:profile.sns_email},
     false,theirReviewStats,theirBookmarkCount);
   if(canChat)h+='<button class="pf-edit" style="margin-top:14px;width:100%" onclick="openChat(\''+userId+'\')">💬 채팅하기</button>';
+  h+=pfCommissionListHTML(artistCommissions);
   h+=pinnedPostCardHTML(profile.pinned_post_id);
   h+=reviewsAboutHTML(userId,profile.nickname);
   h+='<div class="pf-stats">'+

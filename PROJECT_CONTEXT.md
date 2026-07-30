@@ -644,7 +644,16 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
   - 후기 수·호 후기율: `pfReviewStats(userId,nickname)`이 이미 메모리에 로드된 `POSTS`를 `reviewed_user_id`(닉네임 변경 대응, 위 "닉네임 변경 시 후기가 사라지던 버그" 참고)로 필터링해서 동기적으로 계산 — 추가 쿼리 없음.
   - 찜하기 수: 이 유저가 등록한 모든 커미션에 걸린 `commission_bookmarks` 총합. 새 헬퍼 `pfBookmarkCount(userId)`가 `commissions`에서 이 유저의 커미션 id 목록을 뽑은 뒤 `commission_bookmarks`를 그 id들로 필터링해 `count:'exact',head:true`로 개수만 조회. **`openUserProfile()`은 이미 async라 그냥 `await`** 하면 되지만, **`openProfile()`(내 정보)은 과거부터 의도적으로 sync 유지 중**(6절 "커미션 페이지 프롬프트4"의 `openProfile`/`openUserProfile` async화 회피 교훈 참고) — 그래서 여기서는 히어로를 먼저 `bookmarkCount:null`(표시는 "…")로 그린 다음, `pfBookmarkCount().then()`으로 렌더링 후 `#pfhBmCount` 엘리먼트만 나중에 텍스트로 교체하는 지연 패치 방식을 씀.
 - **편집 UI**: 커버(🖼)·아바타(📷) 아이콘은 기존 아바타 업로드와 완전히 같은 패턴(`compressImage()`+`post-images` 버킷, 경로만 `cover-{timestamp}-...`로 구분) — `onCoverFile()`. 소개글·SNS 3개는 각각 아이콘 대신 "✏️ 소개글 · 링크 편집" 텍스트 버튼 하나로 묶어서 `pfEditModal`(기존 `nickModal`과 같은 `.rules-scrim`/`.rules`/`.nick-in`/`.r-ok` 패턴 재사용)을 열고, 4개 필드를 한 번에 저장(`savePfEdit()`).
-- **아직 안 함**: 커미션 타입 목록·후기 목록(②③) 재구성은 사용자가 헤어부터 확인한 다음 진행하기로 함 — 다음 단계에서 이어갈 것.
+- **아직 안 함**: 후기 목록(③) 재구성은 다음 단계에서 이어갈 것.
+
+### 프로필 재디자인 — 크레페 시안 2단계: 커미션 타입 목록 (2026-07-30 추가)
+1단계(헤어) 확인 후 "다음으로 넘어가줘"로 진행. 시작 전 AskUserQuestion으로 배치 범위를 확인 — "**남의 프로필(`openUserProfile`)에만 추가**, 내 프로필(`openProfile`)의 기존 활동 대시보드(통계·팔로잉·쓴글/댓글/좋아요/최근본 탭·알림설정)는 그대로 유지"로 결정(사용자가 추천 옵션을 선택). DB 변경 없음 — `commissions`/`commission_images`를 그대로 재사용.
+- **데이터**: `pfArtistCommissions(userId,nickname)`이 그 유저가 등록한 `commissions`를 `commission_images`와 함께 조회(`cmOpenMy()`의 "내가 등록한 커미션" 쿼리와 동일 패턴, 대상 유저만 다름) → 기존 `cmRowToData()`로 매핑해서 재사용. 조회 결과는 전역 `cmData`에 병합(`if(!cmData.some(...))cmData.push(...)`)해서, 항목 클릭 시 `cmOpenCommissionById()`가 재조회 없이 바로 상세로 이동.
+- **렌더링**: `pfCommissionListHTML()`/`pfCmListItemHTML()` — 썸네일(첫 샘플 이미지, 없으면 기존 `cmGrads` 그라데이션)·접수중/마감 상태 배지·태그(전부 `commissions.tags` 실데이터, 특별한 "타입" 필드 구분 없이 동일한 pill로 렌더링 — 시안 데모 데이터엔 "타입"과 "태그"가 분리돼 있었지만 실제 스키마엔 그런 구분이 없어서 하나로 통일)·설명 한 줄(`-webkit-line-clamp:1`)·북마크 아이콘. 시안의 `badge`(PURPLE 등 프로모션 배지)는 실제 대응하는 컬럼/기능이 없어서 **구현하지 않음**(작가가 설정한 적 없는 걸 지어내지 않는다는 원칙, 앞서 "거래 정책/사용 권한 기본값" 건과 같은 기준).
+- **북마크 아이콘 재사용**: 새 항목의 아이콘에 `class="cm-bm pfh-cm-bm"`처럼 **기존 `cm-bm` 클래스를 함께 붙여서** `cmToggleBookmark()`가 이미 갖고 있던 `el.closest('.cm-bookmark,.cm-bm')` 탐색 로직을 그대로 타게 함(새 토글 함수를 만들지 않음) — 시각 스타일만 `.pfh-cm-bm`으로 새로 정의(기존 `.cm-bm`은 `.cm-apply-bar .cm-bm`처럼 항상 부모 스코프로만 정의돼 있어서 단독으로는 스타일이 없다는 걸 확인하고 안전하게 재사용).
+- **CSS**: `.pfh-cm-*` 접두사로 새로 만듦(헤어와 같은 이유 — 기존 `.cm-item`/`.cm-title` 등과 충돌 방지, 이 프로젝트는 이미 `cm-`/`pfh-` 두 접두사 체계가 자리잡음).
+- **테스트**: 실제로 커미션 2개를 등록해둔 계정("미미")의 uuid로 `openUserProfile()`을 브라우저에서 직접 호출해서 실제 DB 데이터(썸네일 Storage URL·상태·태그)가 정확히 뜨는 것, 항목 클릭 시 실제 상세 페이지로 이동하는 것, 모바일 375px 폭에서 오버플로우 없는 것까지 전부 확인 — 로그인 없이도 읽기 전용 데이터라 AI가 끝까지 검증 가능했음(이전 프롬프트3 때와 같은 이유).
+- **아직 안 함**: 후기 목록(③)은 다음 단계.
 
 ### 1:1 채팅 (커미션 거래 상담용)
 설계·구현을 2단계로 나눠서 진행: 1단계(저장만 되는 채팅) → 2단계(실시간 + 채팅 목록 + 읽음 표시).
