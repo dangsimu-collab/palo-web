@@ -894,14 +894,8 @@ function selectBoard(id){
 var cmGrads=['linear-gradient(135deg,#f7d5e6,#e8a5c8)','linear-gradient(135deg,#d5e3f7,#a5c0e8)',
   'linear-gradient(135deg,#f7e6d5,#e8c8a5)','linear-gradient(135deg,#e0d5f7,#bfa5e8)',
   'linear-gradient(135deg,#d5f7e3,#a5e8c0)','linear-gradient(135deg,#f7d5d5,#e8a5a5)'];
-var cmData=[
-  {artist:'유씨',title:'《LD 두상 낙서 커미션》',price:'3,000P',status:'open',views:1240,likes:89,tags:['두상']},
-  {artist:'오덕찜',title:'LD 일러스트',price:'19,000P~',status:'',views:3200,likes:210,tags:['두상','흉상','반신']},
-  {artist:'그럴수도있지',title:'똥같은 여캐 낙서커미션',price:'3,000P~',status:'open',views:890,likes:67,tags:['전신']},
-  {artist:'소금',title:'[0.8] 증명사진 두상 LD 커미션',price:'8,000P',status:'',views:1500,likes:124,tags:['두상']},
-  {artist:'말랑',title:'[빠른마감] 반신 채색 커미션',price:'13,000P~',status:'open',views:2100,likes:156,tags:['반신']},
-  {artist:'핑크빛달팽이',title:'낙서 말아드림',price:'13,000P~',status:'',views:980,likes:78,tags:['배경']}
-];
+var cmData=[]; // openCommissionList()가 Supabase에서 실제로 불러와 채움
+var cmDataLoaded=false;
 var cmReviews=[
   {who:'달빛초',type:'호',ctype:'반신',txt:'퀄리티 미쳤어요... 명암 표현이 진짜 섬세하고 기한도 딱 맞춰주셨어요! 재의뢰 무조건 합니다 🥹',date:'2026.07.28'},
   {who:'구름사탕',type:'호',ctype:'두상',txt:'캐릭터 특징 너무 잘 살려주셨어요 소통도 친절하시고 만족스러운 거래였습니다!',date:'2026.07.20'},
@@ -916,21 +910,45 @@ var cmReg={images:[],tags:[],status:'open',editingId:null};
 var cmDetailCtx={from:'list',idx:0};
 var cmPreviewObj=null;
 function cmQ(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
-function openCommissionList(){
+async function cmLoadCommissions(){
+  var res=await window.supabase.from('commissions').select('*,commission_images(url,sort)').order('created_at',{ascending:false});
+  if(res.error){console.error(res.error);cmData=[];cmDataLoaded=true;return;}
+  var authorIds=Array.from(new Set(res.data.map(function(r){return r.author_id;})));
+  var profRes=authorIds.length?await window.supabase.from('profiles').select('id,nickname,avatar_url').in('id',authorIds):{data:[]};
+  var profById={};
+  (profRes.data||[]).forEach(function(p){profById[p.id]={nickname:p.nickname,avatarUrl:p.avatar_url};});
+  cmData=res.data.map(function(row){
+    var imgs=(row.commission_images||[]).slice().sort(function(a,b){return a.sort-b.sort;}).map(function(x){return x.url;});
+    var prof=profById[row.author_id];
+    return{
+      id:row.id,authorId:row.author_id,
+      artist:prof?prof.nickname:'탈퇴한 사용자',
+      title:row.title,price:row.price,status:row.status,tags:row.tags||[],
+      period:row.period,slots:row.slots,desc:row.description,usage:row.usage_rights,policy:row.trade_policy,
+      images:imgs,likes:0
+    };
+  });
+  cmDataLoaded=true;
+}
+async function openCommissionList(){
   closeDrawer();closeSheet();syncTabs("commission");
   document.getElementById("main").innerHTML=cmListHTML();
   window.scrollTo({top:0,behavior:"smooth"});
+  if(!cmDataLoaded){
+    await cmLoadCommissions();
+    var gridEl=document.getElementById('cmGrid');
+    if(gridEl)gridEl.innerHTML=cmGridHTML();
+  }
 }
 function cmCardHTML(d,idx){
-  var g=cmGrads[idx%cmGrads.length];
+  var thumb=(d.images&&d.images[0])?("background-image:url('"+cmQ(d.images[0])+"');background-size:cover;background-position:center"):('background:'+cmGrads[idx%cmGrads.length]);
   var status=d.status==='open'?'<div class="cm-status open">오픈중</div>':'';
   return '<div class="cm-card" onclick="cmOpenDetail('+idx+')">'+
-    '<div class="cm-thumb" style="background:'+g+'">'+status+
+    '<div class="cm-thumb" style="'+thumb+'">'+status+
       '<div class="cm-bookmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4z"/></svg></div></div>'+
     '<div class="cm-c-artist">'+esc(d.artist)+'</div>'+
     '<div class="cm-c-title">'+esc(d.title)+'</div>'+
-    '<div class="cm-c-price">'+esc(d.price)+'</div>'+
-    '<div class="cm-c-meta"><span>👁 '+d.views+'</span><span>♥ '+d.likes+'</span></div></div>';
+    '<div class="cm-c-price">'+esc(d.price)+'</div></div>';
 }
 function cmFilteredIdx(){
   var q=(cmState.query||'').trim().toLowerCase();
@@ -943,6 +961,8 @@ function cmFilteredIdx(){
   });
 }
 function cmGridHTML(){
+  if(!cmDataLoaded)return '<div class="cm-my-empty">불러오는 중...</div>';
+  if(cmData.length===0)return '<div class="cm-my-empty">아직 등록된 커미션이 없어요.</div>';
   var idxs=cmFilteredIdx();
   if(idxs.length===0)return '<div class="cm-my-empty">검색 결과가 없어요.<br>다른 제목이나 태그로 찾아보세요.</div>';
   return idxs.map(function(i){return cmCardHTML(cmData[i],i);}).join('');
@@ -1011,7 +1031,7 @@ function cmDetailHTML(d,idx){
       '<div class="cm-verify"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>100% 기한 준수</div>'+
       '<div class="cm-d-title">'+esc(title)+'</div>'+
       '<div class="cm-d-price">'+esc(price)+'</div>'+
-      '<div class="cm-artist-row" onclick="cmOpenArtistProfile(\''+cmQ(artist)+'\')">'+
+      '<div class="cm-artist-row" onclick="'+(d.authorId?('openUserProfile(\''+cmQ(d.authorId)+'\')'):('cmOpenArtistProfile(\''+cmQ(artist)+'\')'))+'">'+
         '<div class="cm-l"><div class="cm-ava"></div><div><span class="cm-nm">'+esc(artist)+'</span> <span class="cm-rv">'+cmReviews.length+'개 후기</span></div></div>'+
         '<div class="cm-r"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 2l4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3"/></svg>0</span>'+
         '<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-8-5-8-11a4.5 4.5 0 0 1 8-2.5A4.5 4.5 0 0 1 20 10c0 6-8 11-8 11z"/></svg>'+(d.likes||0)+'</span></div>'+
@@ -1327,6 +1347,7 @@ async function cmSubmitReg(){
     if(savedImgs.error)console.error(savedImgs.error);
   }
   toast(cmReg.editingId?'커미션이 수정되었어요!':'커미션이 등록되었어요!',cmReg.editingId?'✏️':'🎨');
+  cmDataLoaded=false;
   cmOpenMy();
 }
 function cmMyListHTML(){
@@ -1371,6 +1392,7 @@ async function cmBulkStatus(status){
   if(upd.error){toast('처리 실패: '+upd.error.message);return;}
   cmMyList.forEach(function(c){c.status=status;});
   document.getElementById('cmMyList').innerHTML=cmMyListHTML();
+  cmDataLoaded=false;
   toast(status==='open'?'커미션을 모두 열었어요':'커미션을 모두 마감했어요',status==='open'?'🟢':'⛔');
 }
 function cmSyncTabbarHeight(){
