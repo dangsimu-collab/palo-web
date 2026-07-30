@@ -1,19 +1,3 @@
-/* ===== TEMP DEBUG (더미 글 깜빡임 버그 진단용, 확인 후 제거할 것) ===== */
-var __dbg=[];
-function __log(msg){
-  __dbg.push((performance.now()|0)+"ms "+msg);
-  var el=document.getElementById("__dbgBox");
-  if(el)el.textContent=__dbg.join("\n");
-}
-(function(){
-  var box=document.createElement("div");
-  box.id="__dbgBox";
-  box.style.cssText="position:fixed;bottom:0;left:0;right:0;max-height:45vh;overflow:auto;background:rgba(0,0,0,.88);color:#7CFC00;font:11px/1.5 monospace;padding:8px;z-index:999999;white-space:pre-wrap";
-  document.addEventListener("DOMContentLoaded",function(){document.body.appendChild(box);});
-  if(document.body)document.body.appendChild(box);
-})();
-__log("script start, window.supabase="+(typeof window!=="undefined"&&!!window.supabase));
-/* ===== TEMP DEBUG 끝 ===== */
 var BOARDS=[
   {group:"이야기",items:[
     {id:"all",name:"전체 글",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"7\" width=\"18\" height=\"13\" rx=\"2\"/><path d=\"M3 7l2-3h6l2 3\"/></svg>"},
@@ -261,7 +245,6 @@ function showNotice(){
 }
 function closeNotice(){document.getElementById("noticeModal").classList.remove("open");}
 async function loadRealPosts(){
-  __log("loadRealPosts() called, supabase="+!!window.supabase);
   if(!window.supabase)return;
   var noticeRes=await window.supabase.from("notices").select("*").order("created_at",{ascending:false}).limit(1);
   if(!noticeRes.error&&noticeRes.data.length)LATEST_NOTICE=noticeRes.data[0];
@@ -327,7 +310,6 @@ async function loadRealPosts(){
   });
   POSTS=real.concat(POSTS);
   postsLoaded=true;
-  __log("loadRealPosts() DONE, real.length="+real.length+", POSTS.length="+POSTS.length);
   renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
   renderTrend();
   var initialDbId=getPostIdFromPath();
@@ -356,25 +338,23 @@ window.addEventListener("popstate",function(){
   var userId=getUserIdFromPath();
   if(post)openPost(post.id);
   else if(userId)openUserProfile(userId);
-  else renderList();
+  // 구글 로그인 리다이렉트 직후 Supabase가 URL의 인증 토큰을 정리하면서 popstate 이벤트를
+  // 발생시키는 경우가 있음 — 그때 postsLoaded가 아직 false면(실제 글을 아직 못 불러온 상태)
+  // 더미 글로 목록을 그리지 않고 기다림(loadRealPosts()가 끝나면 스스로 그림).
+  else if(postsLoaded||!window.supabase)renderList();
 });
 
 /* ---------- 로그인 (Supabase Auth) ---------- */
 async function initAuth(){
-  __log("initAuth() called, supabase="+!!window.supabase+", url.hash="+JSON.stringify(location.hash)+", url.search="+JSON.stringify(location.search));
   if(!window.supabase)return;
   var res=await window.supabase.auth.getSession();
-  __log("initAuth() getSession resolved, hasSession="+!!res.data.session);
   await applySession(res.data.session);
-  __log("initAuth() applySession done, calling onAuthStateChange subscribe");
   window.supabase.auth.onAuthStateChange(function(event,session){
-    __log("onAuthStateChange fired, event="+event+", hasSession="+!!session);
     applySession(session);
   });
 }
 var globalChatNotifUserId=null;
 async function applySession(session){
-  __log("applySession() called, hasSession="+!!session);
   AUTH.user=session?session.user:null;
   AUTH.profile=null;
   if(AUTH.user){
@@ -562,7 +542,6 @@ function adRow(){
   '</div>';
 }
 function renderList(){
-  __log("renderList() CALLED — POSTS.length="+POSTS.length+", hasReal="+POSTS.some(function(p){return !!p.dbId})+", postsLoaded="+postsLoaded+", stack="+(new Error().stack||"").split("\n").slice(1,4).join(" | "));
   leaveChat();
   if(location.pathname!=="/"){history.pushState({},"","/");document.title="Palo · 그림 그리는 사람들의 커뮤니티";}
   var main=document.getElementById("main");var arr=filteredPosts();
@@ -2578,14 +2557,13 @@ var mSearch=document.getElementById("searchInputM");if(mSearch)mSearch.addEventL
 document.addEventListener("keydown",function(e){if(e.key==="Escape"){closeWrite();closeDrawer();closeSheet()}});
 
 renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
-__log("bootstrap block reached, supabase="+!!window.supabase+", getPostId="+getPostIdFromPath()+", getUserId="+getUserIdFromPath());
 if(!getPostIdFromPath()&&!getUserIdFromPath()){
   renderChips();renderHot();
   // renderTrend()는 이제 실제 글의 인기 순위를 보여주므로 loadRealPosts()가 끝난 뒤에 그림(아래 참고).
   // 실제 글은 loadRealPosts()가 곧 채워줌 — 여기서 더미 글로 renderList()를 한 번 더 돌리면
   // "더미 글이 잠깐 보였다 실제 글로 바뀌는" 깜빡임과 그로 인한 스크롤 튐이 생김.
   // Supabase 연동이 없는 로컬 데모 환경 등에서만 폴백으로 더미 글을 보여줌.
-  if(!window.supabase){__log("bootstrap: !window.supabase branch — rendering demo list NOW");renderTrend();renderList();}
+  if(!window.supabase){renderTrend();renderList();}
 }
 
 var toTop=document.getElementById('toTop');
@@ -3488,13 +3466,11 @@ syncNotifBadge();
 (function(){
   function ensureRendered(){
     var m=document.getElementById("main");
-    __log("ensureRendered() fired, mainLen="+(m?m.innerHTML.trim().length:-1)+", postsLoaded="+postsLoaded);
     if(m && m.innerHTML.trim().length<50){
       // postsLoaded가 false면 loadRealPosts()가 아직 안 끝난 것 — 여기서 데모 글로 renderList()를 돌리면
       // "더미 글이 잠깐 보였다 실제 글로 바뀌는" 깜빡임이 생김(로그인 리다이렉트 직후 특히 잘 보임).
       // 곧 loadRealPosts()가 끝나면 스스로 renderList()를 부르니, 그때까진 목록만 건너뛰고 기다림.
       if(!postsLoaded&&window.supabase)return;
-      __log("ensureRendered(): rendering NOW (fallback path)");
       try{ renderChips();renderHot();renderTrend();renderList(); }catch(e){}
     }
   }
