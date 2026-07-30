@@ -1239,8 +1239,6 @@ function cmSetSort(key){
 }
 function cmTabsHTML(){
   return '<div class="cm-tab'+(cmState.sort==='home'?' on':'')+'" onclick="cmSetSort(\'home\')">홈</div>'+
-    '<div class="cm-tab">재방문 BEST<span class="cm-hot">●</span></div>'+
-    '<div class="cm-tab">신상 BEST<span class="cm-hot">●</span></div>'+
     '<div class="cm-tab'+(cmState.sort==='recommend'?' on':'')+'" onclick="cmSetSort(\'recommend\')">추천</div>'+
     '<div class="cm-tab'+(cmState.sort==='new'?' on':'')+'" onclick="cmSetSort(\'new\')">신규</div>'+
     '<div class="cm-tab'+(cmState.sort==='hot'?' on':'')+'" onclick="cmSetSort(\'hot\')">인기</div>';
