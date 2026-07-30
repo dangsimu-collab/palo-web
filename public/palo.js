@@ -207,6 +207,7 @@ async function loadRealPosts(){
       views:row.views,thumb:"none",stage:row.stage,images:imagesByPost[row.id],
       isManagerPick:!!row.is_manager_pick,pickPosition:row.pick_position,pickedAt:row.picked_at,adLocked:!!adLockedIds[row.id],
       reviewedNickname:row.reviewed_nickname||null,commissionPostId:row.commission_post_id||null,commissionSentiment:row.commission_sentiment||null,
+      commissionId:row.commission_id||null,commissionCtype:row.commission_ctype||null,commissionBadReason:row.commission_bad_reason||null,
       content:(row.content||"").split("\n").filter(Boolean),html:row.content_html||undefined,comments:commentsByPost[row.id]||[]};
   });
   POSTS=real.concat(POSTS);
@@ -904,6 +905,7 @@ var cmReviews=[
 var cmMyList=[]; // cmOpenMy()가 Supabase에서 실제로 불러와 채움
 var CM_IMAGE_BUCKET='commission-images';
 var CM_TYPES=['두상','흉상','반신','전신','SD','이모티콘','배경','기타'];
+var CM_BAD_REASONS=['퀄리티 불만족','마감 기한 미준수','소통이 어려웠어요','스타일이 요청과 달랐어요','기타'];
 var CM_TAGS=['두상','반신','전신','SD','이모티콘','배경','Live2D'];
 var cmState={activeTag:0,wrType:null,wrCtype:null,query:''};
 var cmReg={images:[],tags:[],status:'open',editingId:null};
@@ -943,12 +945,15 @@ async function openCommissionList(){
 function cmCardHTML(d,idx){
   var thumb=(d.images&&d.images[0])?("background-image:url('"+cmQ(d.images[0])+"');background-size:cover;background-position:center"):('background:'+cmGrads[idx%cmGrads.length]);
   var status=d.status==='open'?'<div class="cm-status open">오픈중</div>':'';
+  var tagsLine=(d.tags&&d.tags.length)?d.tags.map(function(t){return '#'+t;}).join(' '):'';
   return '<div class="cm-card" onclick="cmOpenDetail('+idx+')">'+
     '<div class="cm-thumb" style="'+thumb+'">'+status+
       '<div class="cm-bookmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4z"/></svg></div></div>'+
     '<div class="cm-c-artist">'+esc(d.artist)+'</div>'+
     '<div class="cm-c-title">'+esc(d.title)+'</div>'+
-    '<div class="cm-c-price">'+esc(d.price)+'</div></div>';
+    '<div class="cm-c-price">'+esc(d.price)+'</div>'+
+    (tagsLine?'<div class="cm-c-tags">'+esc(tagsLine)+'</div>':'')+
+    '<div class="cm-c-meta"><span>♥ '+(d.likes||0)+'</span><span>💬 '+(d.reviewCount||0)+'</span></div></div>';
 }
 function cmFilteredIdx(){
   var q=(cmState.query||'').trim().toLowerCase();
@@ -989,14 +994,6 @@ function cmListHTML(){
 }
 function cmSetTag(i){cmState.activeTag=i;openCommissionList();}
 function cmComingSoon(){toast("아직 준비 중인 기능이에요","🛠")}
-function cmReviewCardHTML(r){
-  var cls=r.type==='호'?'good':'bad';
-  return '<div class="cm-rv-item"><div class="cm-r1"><div class="cm-ava"></div><span class="cm-who">'+esc(r.who)+'</span>'+
-    '<span class="cm-tag '+cls+'">'+(r.type==='호'?'😊 호':'😐 불호')+'</span></div>'+
-    '<span class="cm-ctype">'+esc(r.ctype)+' 커미션</span>'+
-    '<div class="cm-txt">'+esc(r.txt)+'</div>'+
-    '<div class="cm-date">'+r.date+'</div></div>';
-}
 function cmDetailHTML(d,idx){
   var artist=d.artist||'나';
   var title=d.title||'제목 없음';
@@ -1016,8 +1013,13 @@ function cmDetailHTML(d,idx){
   }else{
     for(var j=0;j<6;j++)samples+='<div class="cm-s" style="background:'+cmGrads[(idx+j)%cmGrads.length]+'"></div>';
   }
-  var goodCnt=cmReviews.filter(function(r){return r.type==='호'}).length;
-  var badCnt=cmReviews.filter(function(r){return r.type==='불호'}).length;
+  var realReviews=(d.id!=null)?cmCommissionReviews(d.id):[];
+  var goodCnt=realReviews.filter(function(r){return r.commissionSentiment==='good'}).length;
+  var badCnt=realReviews.filter(function(r){return r.commissionSentiment==='bad'}).length;
+  var canReview=AUTH.user&&d.authorId&&AUTH.user.id!==d.authorId;
+  var satisfactionHTML=realReviews.length>0
+    ?('<div class="cm-verify"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>만족율 '+Math.round(goodCnt/realReviews.length*100)+'%</div>')
+    :'';
   var channel=d.channel||(artist==='나'?'내 커미션':(artist+' 커미션'));
   return '<div class="cm-root">'+
     '<div class="cm-d-top"><div class="cm-left"><svg onclick="cmDetailBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></div>'+
@@ -1028,21 +1030,23 @@ function cmDetailHTML(d,idx){
       '</div></div>'+
     '<div class="cm-slider" style="background:'+sliderBg+'"><div class="cm-dots"><i class="on"></i><i></i><i></i><i></i><i></i></div></div>'+
     '<div class="cm-d-body">'+
-      '<div class="cm-verify"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>100% 기한 준수</div>'+
+      satisfactionHTML+
       '<div class="cm-d-title">'+esc(title)+'</div>'+
       '<div class="cm-d-price">'+esc(price)+'</div>'+
       '<div class="cm-artist-row" onclick="'+(d.authorId?('openUserProfile(\''+cmQ(d.authorId)+'\')'):('cmOpenArtistProfile(\''+cmQ(artist)+'\')'))+'">'+
-        '<div class="cm-l"><div class="cm-ava"></div><div><span class="cm-nm">'+esc(artist)+'</span> <span class="cm-rv">'+cmReviews.length+'개 후기</span></div></div>'+
+        '<div class="cm-l"><div class="cm-ava"></div><div><span class="cm-nm">'+esc(artist)+'</span> <span class="cm-rv">'+realReviews.length+'개 후기</span></div></div>'+
         '<div class="cm-r"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 2l4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3"/></svg>0</span>'+
         '<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-8-5-8-11a4.5 4.5 0 0 1 8-2.5A4.5 4.5 0 0 1 20 10c0 6-8 11-8 11z"/></svg>'+(d.likes||0)+'</span></div>'+
       '</div>'+
       '<div class="cm-stats"><div class="cm-stat"><span class="cm-k">신청 가능</span><span class="cm-v">'+esc(d.slots||'8')+'개 남음</span></div>'+
         '<div class="cm-stat"><span class="cm-k">작업 기간</span><span class="cm-v">'+esc(period)+'</span></div></div>'+
       '<div class="cm-desc">'+esc(desc)+'</div>'+
-      '<div class="cm-rv-sec"><div class="cm-rv-head"><b>커미션 후기 '+cmReviews.length+'</b><span class="cm-rv-more" onclick="cmOpenReviews()">더보기 ></span></div>'+
+      '<div class="cm-rv-sec"><div class="cm-rv-head"><b>커미션 후기 '+realReviews.length+'</b><span class="cm-rv-more" onclick="cmOpenReviews('+(d.id!=null?d.id:'null')+')">더보기 ></span></div>'+
         '<div class="cm-rv-summary"><div class="cm-rv-box good"><div class="cm-ic">😊</div><div class="cm-n">'+goodCnt+'</div><div class="cm-l">호 후기</div></div>'+
           '<div class="cm-rv-box bad"><div class="cm-ic">😐</div><div class="cm-n">'+badCnt+'</div><div class="cm-l">불호 후기</div></div></div>'+
-        '<div>'+cmReviews.map(cmReviewCardHTML).join('')+'</div></div>'+
+        '<div>'+(realReviews.length?reviewAlbumHTML(realReviews.slice(0,3)):'<div class="cm-my-empty">아직 후기가 없어요.</div>')+'</div>'+
+        (canReview?'<button class="cm-write-btn" style="margin-top:10px" onclick="cmOpenWrite('+d.id+')">✍️ 후기 쓰기</button>':'')+
+      '</div>'+
       '<div class="cm-samples">'+samples+'</div>'+
       '<div class="cm-acc open"><div class="cm-acc-h" onclick="this.parentElement.classList.toggle(\'open\')"><b>작업물 사용 권한</b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 15l6-6 6 6"/></svg></div>'+
         '<div class="cm-acc-c"><p>'+usageHTML+'</p></div></div>'+
@@ -1084,23 +1088,39 @@ function cmOpenArtistProfile(name){
   '</div>';
   window.scrollTo({top:0,behavior:"smooth"});
 }
-function cmOpenReviews(){
-  var goodCnt=cmReviews.filter(function(r){return r.type==='호'}).length;
-  var badCnt=cmReviews.filter(function(r){return r.type==='불호'}).length;
+function cmCommissionReviews(commissionId){
+  return POSTS.filter(function(p){return p.board==='review'&&p.commissionId===commissionId;});
+}
+var cmReviewCommissionId=null;
+function cmOpenReviews(commissionId){
+  cmReviewCommissionId=commissionId;
+  var reviews=(commissionId!=null)?cmCommissionReviews(commissionId):[];
+  var goodCnt=reviews.filter(function(r){return r.commissionSentiment==='good'}).length;
+  var badCnt=reviews.filter(function(r){return r.commissionSentiment==='bad'}).length;
+  var commission=(commissionId!=null)?cmData.find(function(c){return c.id===commissionId;}):null;
+  var canReview=AUTH.user&&commission&&commission.authorId&&AUTH.user.id!==commission.authorId;
   document.getElementById("main").innerHTML='<div class="cm-root">'+
     '<div class="cm-sub-top"><svg onclick="cmBackToDetail()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>'+
-      '<b>커미션 후기</b><button class="cm-write-btn" onclick="cmOpenWrite()">후기 쓰기</button></div>'+
+      '<b>커미션 후기</b>'+(canReview?'<button class="cm-write-btn" onclick="cmOpenWrite('+commissionId+')">후기 쓰기</button>':'')+'</div>'+
     '<div class="cm-rv-all"><div class="cm-rv-summary">'+
       '<div class="cm-rv-box good"><div class="cm-ic">😊</div><div class="cm-n">'+goodCnt+'</div><div class="cm-l">호 후기</div></div>'+
       '<div class="cm-rv-box bad"><div class="cm-ic">😐</div><div class="cm-n">'+badCnt+'</div><div class="cm-l">불호 후기</div></div></div>'+
-      '<div>'+cmReviews.map(cmReviewCardHTML).join('')+'</div>'+
+      '<div>'+(reviews.length?reviewAlbumHTML(reviews):'<div class="cm-my-empty">아직 후기가 없어요.</div>')+'</div>'+
     '</div></div>';
   window.scrollTo({top:0,behavior:"smooth"});
 }
-function cmOpenWrite(){
-  cmState.wrType=null;cmState.wrCtype=null;
+function cmOpenWrite(commissionId){
+  if(!AUTH.user){
+    toast('로그인 후 후기를 작성할 수 있어요','🔒');
+    loginWithGoogle();
+    return;
+  }
+  cmReviewCommissionId=commissionId;
+  cmState.wrType=null;cmState.wrCtype=null;cmState.wrBadReason=null;
+  var commission=cmData.find(function(c){return c.id===commissionId;});
+  var typeOptions=(commission&&commission.tags&&commission.tags.length)?commission.tags:CM_TYPES;
   document.getElementById("main").innerHTML='<div class="cm-root">'+
-    '<div class="cm-sub-top"><svg onclick="cmOpenReviews()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>후기 작성</b></div>'+
+    '<div class="cm-sub-top"><svg onclick="cmOpenReviews('+commissionId+')" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>후기 작성</b></div>'+
     '<div class="cm-wr">'+
       '<div class="cm-wr-label">이 커미션 어떠셨나요?</div>'+
       '<div class="cm-hb">'+
@@ -1108,7 +1128,9 @@ function cmOpenWrite(){
         '<div class="cm-hb-btn bad" id="cmHbBad" onclick="cmSelectHB(\'bad\')"><div class="cm-ic">😐</div><div class="cm-t">불호 후기</div></div>'+
       '</div>'+
       '<div class="cm-wr-label">커미션 타입 <span class="cm-wr-sub">어떤 커미션이었나요?</span></div>'+
-      '<div class="cm-wr-types" id="cmWrTypes">'+CM_TYPES.map(function(t){return '<div class="cm-wr-type" onclick="cmSelectType(this,\''+t+'\')">'+esc(t)+'</div>';}).join('')+'</div>'+
+      '<div class="cm-wr-types" id="cmWrTypes">'+typeOptions.map(function(t){return '<div class="cm-wr-type" onclick="cmSelectType(this,\''+cmQ(t)+'\')">'+esc(t)+'</div>';}).join('')+'</div>'+
+      '<div class="cm-wr-label" id="cmWrReasonLabel" style="display:none">불호 이유 <span class="cm-wr-sub">해당하는 이유를 골라주세요</span></div>'+
+      '<div class="cm-wr-types" id="cmWrReasons" style="display:none">'+CM_BAD_REASONS.map(function(r){return '<div class="cm-wr-type cm-wr-reason" onclick="cmSelectBadReason(this,\''+cmQ(r)+'\')">'+esc(r)+'</div>';}).join('')+'</div>'+
       '<div class="cm-wr-label">후기 내용 <span class="cm-wr-sub">선택 · 한 줄도 좋아요</span></div>'+
       '<textarea class="cm-wr-text" id="cmWrText" placeholder="작가님과의 거래는 어떠셨나요? (안 쓰셔도 괜찮아요)"></textarea>'+
       '<div class="cm-wr-hint">💡 솔직하고 예의 있는 후기는 다른 분들께 큰 도움이 돼요.</div>'+
@@ -1121,24 +1143,63 @@ function cmSelectHB(v){
   cmState.wrType=v;
   document.getElementById('cmHbGood').classList.toggle('sel',v==='good');
   document.getElementById('cmHbBad').classList.toggle('sel',v==='bad');
+  var showReason=v==='bad';
+  document.getElementById('cmWrReasonLabel').style.display=showReason?'':'none';
+  document.getElementById('cmWrReasons').style.display=showReason?'':'none';
+  if(!showReason){
+    cmState.wrBadReason=null;
+    document.querySelectorAll('.cm-wr-reason').forEach(function(x){x.classList.remove('sel')});
+  }
   cmCheckWriteSubmit();
 }
 function cmSelectType(el,t){
   cmState.wrCtype=t;
-  document.querySelectorAll('.cm-wr-type').forEach(function(x){x.classList.remove('sel')});
+  document.querySelectorAll('#cmWrTypes .cm-wr-type').forEach(function(x){x.classList.remove('sel')});
+  el.classList.add('sel');
+  cmCheckWriteSubmit();
+}
+function cmSelectBadReason(el,r){
+  cmState.wrBadReason=r;
+  document.querySelectorAll('.cm-wr-reason').forEach(function(x){x.classList.remove('sel')});
   el.classList.add('sel');
   cmCheckWriteSubmit();
 }
 function cmCheckWriteSubmit(){
-  document.getElementById('cmWrSubmit').disabled=!(cmState.wrType&&cmState.wrCtype);
+  var ok=cmState.wrType&&cmState.wrCtype&&(cmState.wrType!=='bad'||cmState.wrBadReason);
+  document.getElementById('cmWrSubmit').disabled=!ok;
 }
-function cmSubmitReview(){
+async function cmSubmitReview(){
+  if(!AUTH.user){toast('로그인 후 후기를 작성할 수 있어요','🔒');return;}
+  if(cmReviewCommissionId==null){toast('커미션 정보를 찾을 수 없어요');return;}
+  var commission=cmData.find(function(c){return c.id===cmReviewCommissionId;});
   var txt=document.getElementById('cmWrText').value.trim();
-  cmReviews.unshift({who:'나',type:cmState.wrType==='good'?'호':'불호',ctype:cmState.wrCtype,txt:txt||'(내용 없음)',date:'2026.07.30'});
-  NOTIFS.unshift({type:"commission",icon:"🎨",txt:"내 커미션에 새 후기가 달렸어요",time:"방금",post:null,read:false,cmTarget:"reviews"});
-  syncNotifBadge();
+  var sentiment=cmState.wrType;
+  var title=sentimentTitle(sentiment);
+  var saved=await window.supabase.from('posts').insert({
+    author_id:AUTH.user.id,
+    board:'review',
+    category:null,
+    title:title,
+    content:txt,
+    content_html:null,
+    stage:null,
+    reviewed_nickname:commission?commission.artist:null,
+    commission_post_id:null,
+    commission_sentiment:sentiment,
+    commission_id:cmReviewCommissionId,
+    commission_ctype:cmState.wrCtype,
+    commission_bad_reason:sentiment==='bad'?cmState.wrBadReason:null
+  }).select().single();
+  if(saved.error){toast('저장 실패: '+saved.error.message);return;}
+  POSTS.unshift({id:100000+saved.data.id,dbId:saved.data.id,authorId:AUTH.user.id,board:'review',title:title,category:null,
+    author:ME.nick,authorLevel:AUTH.profile?AUTH.profile.level:null,authorAvatar:AUTH.profile?AUTH.profile.avatar_url:null,
+    time:'방금',createdAt:new Date().toISOString(),likes:0,_liked:false,views:0,thumb:'none',stage:null,images:undefined,
+    isManagerPick:false,pickPosition:null,pickedAt:null,adLocked:false,
+    reviewedNickname:commission?commission.artist:null,commissionPostId:null,commissionSentiment:sentiment,
+    commissionId:cmReviewCommissionId,commissionCtype:cmState.wrCtype,commissionBadReason:sentiment==='bad'?cmState.wrBadReason:null,
+    content:txt?txt.split('\n').filter(Boolean):[],html:undefined,comments:[]});
   toast('후기가 등록되었어요! 감사합니다','😊');
-  cmOpenReviews();
+  cmOpenReviews(cmReviewCommissionId);
 }
 function cmOpenRegister(editId){
   if(!AUTH.user){
@@ -2058,10 +2119,18 @@ function reviewsAboutHTML(nickname){
   if(!reviews.length)return"";
   var groups=[],byKey={};
   reviews.forEach(function(r){
-    var key=r.commissionPostId||"deleted";
+    var key=r.commissionId?("c"+r.commissionId):(r.commissionPostId||"deleted");
     if(!byKey[key]){
-      var cp=r.commissionPostId?POSTS.find(function(p){return p.dbId===r.commissionPostId}):null;
-      byKey[key]={title:cp?cp.title:"삭제된 커미션 글",deleted:!cp,posts:[]};
+      var title,deleted=false;
+      if(r.commissionId){
+        var commission=cmData.find(function(x){return x.id===r.commissionId});
+        title=commission?commission.title:"커미션 페이지의 후기";
+      }else{
+        var cp=r.commissionPostId?POSTS.find(function(p){return p.dbId===r.commissionPostId}):null;
+        title=cp?cp.title:"삭제된 커미션 글";
+        deleted=!cp;
+      }
+      byKey[key]={title:title,deleted:deleted,posts:[]};
       groups.push(byKey[key]);
     }
     byKey[key].posts.push(r);

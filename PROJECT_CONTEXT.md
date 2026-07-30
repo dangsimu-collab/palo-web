@@ -124,7 +124,7 @@ Supabase 프로젝트: https://qabbdgfottbnapmyjudy.supabase.co
 | 테이블 | 주요 컬럼 | 비고 |
 |---|---|---|
 | `profiles` | `id`(uuid, PK, = auth.users.id), `nickname`(text), `level`(**integer**, 2026-07-29부터 — 예전엔 text였음), `score`(int, 누적 점수, 안 줄어듦), `ad_points`(int, 2026-07-29 추가 — 광고 포인트, 광고 집행 시 차감될 예정), `last_score_date`/`daily_score_earned`(글/댓글 일일 20점 상한 계산용, 좋아요·도움돼요는 예외), `last_activity_at`(timestamptz, 1분 연속 작성 제한용), `pinned_post_id`(FK→posts, nullable, `on delete set null`, 2026-07-29 추가 — 프로필 최상단에 보여줄 "대표 글" 지정용), `avatar_url`(text, nullable, 2026-07-30 추가 — 프로필 이미지), `is_admin`(bool), `is_banned`(bool), `created_at` | `auth.users`에 새 유저 생기면 트리거로 자동 생성. **`score`/`level`/`ad_points`/`daily_score_earned`/`last_score_date`/`last_activity_at`은 `guard_profile_score_columns()` 트리거로 보호됨** — 신뢰된 서버 함수(`app.trusted_score_update` 세션 신호를 켠 함수)만 바꿀 수 있고, 유저가 직접 `.update()`로 건드리면 조용히 원래 값으로 되돌아감(2026-07-29, 유저 광고 시스템 작업 중 발견한 기존 구멍을 소급 적용해서 막음). **`pinned_post_id`는 별도 트리거(`guard_pinned_post()`)로 "본인 글만" 지정 가능하도록 보호됨**(아래 참고) |
-| `posts` | `id`(bigint PK), `author_id`(uuid, nullable), `board`(text), `category`(text, 말머리), `title`, `content`(text, 순수 텍스트 — 검색용), `content_html`(text, nullable, 2026-07-29 추가 — 서식·인라인 이미지/동영상 포함한 실제 렌더링용 HTML, DOMPurify로 살균 후 저장), `stage`(text, 러프/선화/채색/완성), `views`(int), `is_manager_pick`(bool, 2026-07-29 추가), `pick_position`(int, nullable, 2026-07-29 추가), `picked_at`(timestamptz, nullable, 2026-07-29 추가), `reviewed_nickname`(text, nullable, 2026-07-30 추가 — 커미션 후기가 누구에 대한 건지), `commission_post_id`(FK→posts, nullable, `on delete set null`, 2026-07-30 추가 — 후기가 어느 구직 글에 대한 건지), `commission_sentiment`(text, nullable, `good`/`bad`만 허용하는 체크 제약, 2026-07-30 추가 — 만족/불호 후기), `created_at` | `is_manager_pick`/`pick_position`/`picked_at`은 `guard_manager_pick_columns()` 트리거로 보호됨 — 관리자가 아니면 update 시 조용히 원래 값으로 되돌아감(아래 "매니저 픽" 절 참고). `board='review'`인 글은 `guard_review_requires_login()` 트리거로 비로그인 작성이 막힘(아래 "커미션 후기" 절 참고) |
+| `posts` | `id`(bigint PK), `author_id`(uuid, nullable), `board`(text), `category`(text, 말머리), `title`, `content`(text, 순수 텍스트 — 검색용), `content_html`(text, nullable, 2026-07-29 추가 — 서식·인라인 이미지/동영상 포함한 실제 렌더링용 HTML, DOMPurify로 살균 후 저장), `stage`(text, 러프/선화/채색/완성), `views`(int), `is_manager_pick`(bool, 2026-07-29 추가), `pick_position`(int, nullable, 2026-07-29 추가), `picked_at`(timestamptz, nullable, 2026-07-29 추가), `reviewed_nickname`(text, nullable, 2026-07-30 추가 — 커미션 후기가 누구에 대한 건지), `commission_post_id`(FK→posts, nullable, `on delete set null`, 2026-07-30 추가 — 후기가 어느 구직 글에 대한 건지), `commission_sentiment`(text, nullable, `good`/`bad`만 허용하는 체크 제약, 2026-07-30 추가 — 만족/불호 후기), `commission_id`(FK→commissions, nullable, `on delete set null`, 2026-07-30 추가 — **새 커미션 페이지**의 후기가 어느 커미션에 대한 건지, `commission_post_id`와는 별개 통로), `commission_ctype`(text, nullable, 2026-07-30 추가 — 후기 작성 시 고른 커미션 타입, 실제로는 그 커미션의 태그 중 하나), `commission_bad_reason`(text, nullable, 2026-07-30 추가 — 불호 후기일 때만 채워짐), `created_at` | `is_manager_pick`/`pick_position`/`picked_at`은 `guard_manager_pick_columns()` 트리거로 보호됨 — 관리자가 아니면 update 시 조용히 원래 값으로 되돌아감(아래 "매니저 픽" 절 참고). `board='review'`인 글은 `guard_review_requires_login()` 트리거로 비로그인 작성이 막힘(아래 "커미션 후기" 절 참고). **`posts_commission_link_check` 제약**으로 `commission_post_id`와 `commission_id`가 동시에 채워지는 것 방지(한 후기는 둘 중 한 경로로만 연결) |
 | `comments` | `id`(bigint PK), `post_id`(FK→posts), `author_id`(uuid, nullable), `content`, `parent_id`(FK→comments, 대댓글용, **UI 미구현**), `created_at` | |
 | `likes` | `user_id`(uuid — 로그인 시 실제 계정, 비로그인 시 `palo_anon_id`), `post_id`(FK→posts), `created_at` | PK가 `(user_id, post_id)` 복합키 — 중복 방지의 핵심 |
 | `post_images` | `id`(bigint PK), `post_id`(FK→posts), `url`(text, Storage 공개 URL), `sort`(int) | |
@@ -212,6 +212,25 @@ grant execute on function public.increment_post_views(bigint) to anon, authentic
 **`storage.objects` (commission-images 버킷, 2026-07-30 추가):**
 - select: `commission_images_bucket_select_all` — `bucket_id='commission-images'`이면 누구나
 - insert/delete: `commission_images_bucket_insert_own` / `..._delete_own` — `bucket_id='commission-images'` and `(storage.foldername(name))[1] = auth.uid()::text`(업로드 경로의 첫 폴더가 본인 uid일 때만)
+
+**커미션 페이지 후기 알림 트리거 (2026-07-30 추가):**
+```sql
+create or replace function public.notify_new_commission_review() returns trigger as $$
+declare
+  v_owner uuid;
+begin
+  if new.board='review' and new.commission_id is not null then
+    select author_id into v_owner from public.commissions where id=new.commission_id;
+    if v_owner is not null and v_owner<>new.author_id then
+      insert into public.notifications(user_id,type,icon,content,link_post_id,is_read)
+      values(v_owner,'commission','🎨','내 커미션에 새 후기가 달렸어요',new.id,false);
+    end if;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+```
+`posts` INSERT 후 실행되는 트리거 — `notify_new_comment`/`notify_new_like`와 같은 패턴. **알림은 후기를 쓴 사람이 아니라 그 커미션의 주인에게 감**(자기 자신에게는 안 감). `notifications.type='commission'`은 클라이언트의 알림함 필터 탭("커미션")과도 맞물림.
 
 **RLS 순환 참조(recursion) 주의 — 실제로 겪은 버그:** 위 정책들을 처음 만들 때 `conversations`/`messages` 조회 여부를 `reports` 서브쿼리로 확인하고, 반대로 `reports` INSERT는 `conversations` 서브쿼리로 참여자를 확인하도록 짰더니 `reports → conversations → reports → ...`로 서로가 서로를 참조하는 순환이 생겨 `infinite recursion detected in policy for relation "reports"` 에러가 났음(실제로 신고 접수 시 발생, `CREATE POLICY` 시점엔 에러 없이 통과해서 뒤늦게 발견됨). **고친 방법**: `is_admin()`과 똑같은 패턴으로, 테이블을 직접 서브쿼리하는 대신 **security definer 함수로 감싸서 그 함수를 호출**하도록 정책을 다시 씀 — security definer 함수 내부의 쿼리는 RLS를 우회하기 때문에 순환이 끊김:
 
@@ -533,7 +552,20 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **로딩 순서**: `openCommissionList()`가 이제 async — 화면 뼈대(검색창·탭·태그칩)와 "불러오는 중..." 그리드를 먼저 그린 뒤, `cmLoadCommissions()`가 끝나면 그리드만 다시 채움. 최초 1회만 불러오고(`cmDataLoaded` 플래그) 그 다음부터는 캐시 재사용 — `cmSubmitReg()`(등록/수정 저장)와 `cmBulkStatus()`(전체 열기/마감) 성공 시 이 플래그를 `false`로 돌려서, 다음에 목록을 열 때만 새로 불러오게 함(매번 실시간 재조회는 안 함 — `posts`가 저장 후 로컬 배열만 patch하고 재조회 안 하는 것과 같은 절충).
 - **상세의 작가 프로필 줄**: 실제 데이터는 `d.authorId`가 있으므로 프롬프트1 때 만든 스텁(`cmOpenArtistProfile()`) 대신 곧바로 기존 `openUserProfile(d.authorId)`로 연결됨(실제 프로필 페이지 URL `/user/{uuid}`까지 정상 전환되는 것 확인). `authorId`가 없는 경우(등록 화면의 "미리보기"처럼 아직 저장 전인 내 글 미리보기)만 예전 스텁을 계속 사용.
 - **카드에서 조회수·좋아요 표시를 뺌**: 시안/데모 데이터엔 있었지만 `commissions` 테이블엔 애초에 그런 컬럼이 없고, 사용자의 프롬프트3 스펙에도 "썸네일·작가 닉네임·제목·가격·접수상태"까지만 명시돼 있어서, 있지도 않은 값을 0으로 채워 보여주는 대신 아예 뺌(범위 밖 기능을 임의로 추가하지 않음).
+  - **(2026-07-30 후속 디자인 요청으로 재추가)**: 사용자가 "디자인적으로 아쉽다"며 제목 폰트 확대(15→17px)·가격 폰트 축소(15→13px, 브랜드색 포인트)·태그 표시(`.cm-c-tags`)·하트/리뷰 수(`.cm-c-meta`)를 다시 요청 — 단, 하트·리뷰 수는 실제로 세는 기능이 아직 없어서 **항상 0으로 고정 표시**(`d.likes||0`, `d.reviewCount||0`) 중임을 사용자에게 명시적으로 고지함. 커미션 좋아요(북마크)는 프롬프트5, 리뷰 수는 바로 아래 프롬프트4에서 실제 데이터가 생기니 그때 카드에도 실제 숫자를 연결할 것.
 - **빈 상태 구분**: "아직 등록된 커미션이 없어요"(전체가 비어있을 때)와 "검색 결과가 없어요"(검색어에 안 걸릴 때)를 별개 메시지로 분리.
+
+### 커미션 페이지 — 프롬프트4: 후기 시스템 연결 (2026-07-30 추가)
+"다음으로 넘어가줘"로 시작 — 커미션 상세의 후기 섹션(그동안 데모 `cmReviews`)을 아래 "커미션 후기 시스템" 절에서 설명하는 **기존 실제 후기 시스템**과 연결. 시작 전에 기존 시스템을 정밀 조사해서 확인한 중요한 사실: **기존 시스템에는 "커미션 타입"(두상/흉상/반신 등) 개념이 아예 없음** — `CM_TYPES`는 이번 커미션 페이지 시안에만 있던 데모 개념이었음. 이 간극을 메우기 위해 `posts`에 새 컬럼 3개 추가(`commission_id` bigint FK→`commissions`, `commission_ctype` text, `commission_bad_reason` text) — 기존 `commission_post_id`(trade 구직글 연동, 그대로 유지)와는 완전히 별개 통로라서 서로 안 섞임. `posts_commission_link_check` 제약으로 한 후기가 두 통로에 동시에 연결되는 것도 방지.
+- **상세 화면**: `cmCommissionReviews(commissionId)`가 `POSTS`(이미 세션에 로드된 전체 글)를 `board==='review' && commissionId===이 커미션`으로 필터링 — 별도 쿼리 없이 이미 메모리에 있는 데이터로 처리. 카드 렌더링은 데모용 `cmReviewCardHTML`(삭제함) 대신 **기존 시스템의 진짜 렌더러 `reviewCardHTML`/`reviewAlbumHTML`을 그대로 재사용** — 카드를 누르면 그 후기 글 자체(`openPost()`)로 이동하는 것까지 기존 동작 그대로 따라옴.
+- **더보기 페이지 · 후기 쓰기**: `cmOpenReviews(commissionId)`가 이 커미션의 후기만 모아 호/불호 요약과 함께 보여주고, `cmOpenWrite(commissionId)`가 실제 저장 폼. **자기 자신의 커미션에는 "후기 쓰기" 버튼 자체가 안 뜸**(`AUTH.user.id !== 커미션 author_id`, 기존 `openReviewFor()`의 셀프 후기 방지 관례를 그대로 따름). 저장은 `submitPost()`를 거치지 않고 `cmSubmitReview()`가 직접 `posts`에 insert(같은 테이블·같은 `board='review'`·같은 DB 트리거 `guard_review_requires_login()`이 그대로 적용되니 보안 경로는 동일, UI만 커미션 페이지 전용 폼을 씀).
+- **알림은 리뷰어가 아니라 커미션 주인에게**: 처음엔 프롬프트1 데모 코드가 "글쓴이 본인 알림함"에 넣고 있었는데(1인 테스트 환경이라 안 드러났던 설계 결함), 실제 다인 사용자 환경에선 완전히 틀린 대상이라 새 DB 트리거 `notify_new_commission_review()`로 교체 — `commission_id`로 `commissions.author_id`를 조회해서 그 주인에게만 알림 insert(자기 자신이 자기 커미션에 쓴 경우는 제외). 기존 `notify_new_comment`/`notify_new_like`와 동일한 패턴.
+- **커미션 타입 선택지 = 그 커미션의 실제 태그**: 고정 `CM_TYPES` 대신 리뷰 대상 커미션이 등록 시 입력한 진짜 태그 목록(`commission.tags`)을 선택지로 보여줌 — `cmData`에 아직 없는 커미션이면(세션 중 목록을 한 번도 안 열어본 경우 등) `CM_TYPES`로 폴백.
+- **불호 이유**: "불호 후기" 선택 시에만 이유 선택지(퀄리티 불만족/마감 기한 미준수/소통이 어려웠어요/스타일이 요청과 달랐어요/기타, `CM_BAD_REASONS`)가 나타나고 하나 골라야 등록 가능 — "호 후기"로 바꾸면 자동으로 숨겨지고 선택 초기화.
+- **"100% 기한 준수" → 실제 만족율**: 상세 상단 배지를 하드코딩 문구에서 실제 호 후기 비율(`good/(good+bad)*100%`)로 교체, 후기가 하나도 없으면 배지 자체를 안 보여줌(가짜 0%/100% 대신 아예 표시 안 함).
+- **프로필 연동 유지**: 기존 `reviewsAboutHTML()`(프로필의 "이 사람에 대한 커미션 후기" 그룹핑)은 `reviewedNickname` 일치만으로 이미 자동으로 새 방식 후기도 집계했지만, 그룹 키가 `commissionPostId` 기준이라 새 방식 후기는 전부 "🗑️ 삭제된 커미션 글"로 잘못 뜰 뻔했음 — 그룹 키를 `commissionId` 유무로 분기하고, 새 방식이면 `cmData`에서 실시간으로 커미션 제목을 찾아 표시(없으면 "커미션 페이지의 후기"로 중립적 대체, "삭제됨"으로 오인되지 않게). **`openProfile()`/`openUserProfile()`을 async로 바꾸는 손이 큰 리팩터는 피하고**, 이미 세션에 로드된 `cmData`만으로 처리되는 저위험 방식을 택함(이 페이지는 과거 `.profile` 클래스 오작동 버그 이력이 있어 최소 변경 원칙 적용).
+- **🐛 발견한 CSS 버그(디자인 안 먹던 원인)**: `.cm-write-btn`이 `.cm-sub-top .cm-write-btn{...}`로만 정의돼 있어서, 상세 화면 후기 섹션 안에 새로 추가한 "✍️ 후기 쓰기" 버튼(`.cm-sub-top` 바깥)은 완전히 민무늬 버튼으로 보였음. `.cm-write-btn` 기본 스타일을 전역으로 빼고 `.cm-sub-top .cm-write-btn{margin-left:auto}`만 컨텍스트별 오버라이드로 남김.
+- **테스트 시 유의점**: 실제 저장은 로그인 계정 2개(커미션 주인 1 + 리뷰어 1, 본인 커미션엔 후기 못 씀)가 있어야 끝까지 확인 가능 — AI 쪽은 로그아웃 가드 동작과 화면 렌더링(타입 목록·불호 이유 토글·만족율 계산)까지 `AUTH.user`를 임시로 가짜 값으로 바꿔가며 확인했고, 실제 인증을 거친 저장/알림 수신은 사용자가 직접 확인함.
 
 ### 커미션 후기 시스템 (2026-07-30 추가)
 "커미션 후기" 게시판(`review`)에 글을 쓸 때, 실제 존재하는 "커미션 구인구직" 게시판의 "구직" 말머리 글과 반드시 연결하도록 만들어서 아무 닉네임이나 적어 넣는 걸 막고, 작성을 최대한 간단하게(만족/불호 선택 + 선택적 한 줄 후기) 만든 기능. 단계별로 사용자 피드백을 받아가며 여러 번 방향이 바뀜(별점 → 만족/불호로 최종 변경 등) — 아래는 최종 상태 기준.

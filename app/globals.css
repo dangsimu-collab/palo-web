@@ -821,9 +821,10 @@
   .cm-status{position:absolute;top:10px;right:10px;font-size:11px;font-weight:700;padding:4px 8px;border-radius:8px}
   .cm-status.open{background:rgba(63,143,95,.92);color:#fff}
   .cm-c-artist{font-size:13px;color:var(--muted);margin:10px 2px 4px;font-weight:500}
-  .cm-c-title{font-size:15px;font-weight:700;line-height:1.35;margin:0 2px 6px;
+  .cm-c-title{font-size:17px;font-weight:700;line-height:1.3;margin:0 2px 6px;
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  .cm-c-price{font-size:15px;font-weight:800;margin:0 2px}
+  .cm-c-price{font-size:13px;font-weight:700;color:var(--brand-2);margin:0 2px}
+  .cm-c-tags{font-size:11.5px;color:var(--muted);margin:5px 2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .cm-c-meta{display:flex;gap:10px;margin:6px 2px 0;font-size:11.5px;color:var(--muted)}
 
   .cm-d-top{position:sticky;top:0;z-index:20;background:var(--bg);display:flex;align-items:center;
@@ -911,24 +912,13 @@
   .cm-rv-box.good .cm-n{color:#3f8f5f}
   .cm-rv-box.bad .cm-n{color:#c05a5a}
   .cm-rv-box .cm-l{font-size:12.5px;color:var(--muted)}
-  /* 후기 카드 */
-  .cm-rv-item{border:1px solid var(--line-2);border-radius:14px;padding:15px;margin-bottom:10px}
-  .cm-rv-item .cm-r1{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-  .cm-rv-item .cm-ava{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#f7d5e6,#e8a5c8)}
-  .cm-rv-item .cm-who{font-size:13.5px;font-weight:700}
-  .cm-rv-item .cm-tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;margin-left:auto}
-  .cm-rv-item .cm-tag.good{background:#e6f5ea;color:#3f8f5f}
-  .cm-rv-item .cm-tag.bad{background:#fbe9e7;color:#c05a5a}
-  .cm-rv-item .cm-ctype{font-size:11.5px;color:var(--brand-2);background:var(--brand-soft);
-    padding:3px 9px;border-radius:8px;display:inline-block;margin-bottom:7px}
-  .cm-rv-item .cm-txt{font-size:14px;line-height:1.6;color:var(--ink-2)}
-  .cm-rv-item .cm-date{font-size:11.5px;color:var(--muted-2);margin-top:8px}
 
   /* 후기 전체/작성 페이지 공통 상단 */
   .cm-sub-top{position:sticky;top:0;z-index:20;background:var(--bg);display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--line-2)}
   .cm-sub-top svg{width:24px;height:24px;cursor:pointer;flex-shrink:0}
   .cm-sub-top b{font-size:18px;font-weight:800}
-  .cm-sub-top .cm-write-btn{margin-left:auto;background:var(--brand);color:#fff;font-size:13.5px;font-weight:700;padding:8px 15px;border-radius:20px;border:none;cursor:pointer}
+  .cm-write-btn{background:var(--brand);color:#fff;font-size:13.5px;font-weight:700;padding:8px 15px;border-radius:20px;border:none;cursor:pointer}
+  .cm-sub-top .cm-write-btn{margin-left:auto}
   /* 후기 전체 페이지 */
   .cm-rv-all{padding:18px}
   /* 후기 작성 페이지 */
