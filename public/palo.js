@@ -448,19 +448,11 @@ function renderList(){
   if(location.pathname!=="/"){history.pushState({},"","/");document.title="Palo · 그림 그리는 사람들의 커뮤니티";}
   var main=document.getElementById("main");var arr=filteredPosts();
   var sub=state.query?('"'+esc(state.query)+'" 검색 결과 '+arr.length+'건'):(state.sort==="new"?"방금 올라온 이야기부터":"반응 많은 순으로");
-  var isCommission=(state.board==="trade"||state.board==="review")&&!state.query;
   var h='<div class="board-head">'+
-    (isCommission?
-      ('<div class="bh-title commission-tabs">'+
-        '<button class="commission-tab'+(state.board==="trade"?" on":"")+'" onclick="switchCommissionTab(\'trade\')">구인구직</button>'+
-        '<button class="commission-tab'+(state.board==="review"?" on":"")+'" onclick="switchCommissionTab(\'review\')">후기</button>'+
-      '</div>'):
-      ('<div class="bh-title"><h1 class="serif">'+esc(state.query?"검색":boardName(state.board))+'</h1><span class="sub">'+sub+'</span></div>')
-    )+
+    ('<div class="bh-title"><h1 class="serif">'+esc(state.query?"검색":boardName(state.board))+'</h1><span class="sub">'+sub+'</span></div>')+
     '<div class="bh-controls">'+
       '<div class="sortbar"><button class="'+(state.sort==="new"?"on":"")+'" onclick="setSort(\'new\')">최신</button><button class="'+(state.sort==="hot"?"on":"")+'" onclick="setSort(\'hot\')">인기</button></div>'+
-      (state.board!=="review"?('<div class="sortbar viewbar"><button class="'+(state.viewMode==="list"?"on":"")+'" onclick="setViewMode(\'list\')">☰ 목록형</button><button class="'+(state.viewMode==="album"?"on":"")+'" onclick="setViewMode(\'album\')">▦ 앨범형</button></div>'):'')+
-      (isCommission?'<button class="d-act" onclick="openCommissionWrite()">＋ 글쓰기</button>':'')+
+      '<div class="sortbar viewbar"><button class="'+(state.viewMode==="list"?"on":"")+'" onclick="setViewMode(\'list\')">☰ 목록형</button><button class="'+(state.viewMode==="album"?"on":"")+'" onclick="setViewMode(\'album\')">▦ 앨범형</button></div>'+
     '</div>'+
     '</div>';
   h+=tagFilterBarHTML();
@@ -898,29 +890,431 @@ function selectBoard(id){
   window.scrollTo({top:0,behavior:"smooth"});
   setTimeout(renderList,200);
 }
-function openCommissionHub(tab){
-  state.board=(tab==="review")?"review":"trade";
-  state.query="";state.tag=null;page=1;
-  document.getElementById("searchInput").value="";var m=document.getElementById("searchInputM");if(m)m.value="";
-  renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
-  renderChips();closeDrawer();closeSheet();syncTabs("commission");
-  var main=document.getElementById("main");
-  main.innerHTML=skeletonHTML();
+/* ===== 커미션 페이지 (cm-) : 화면 시안 이식 · 데모 데이터 ===== */
+var cmGrads=['linear-gradient(135deg,#f7d5e6,#e8a5c8)','linear-gradient(135deg,#d5e3f7,#a5c0e8)',
+  'linear-gradient(135deg,#f7e6d5,#e8c8a5)','linear-gradient(135deg,#e0d5f7,#bfa5e8)',
+  'linear-gradient(135deg,#d5f7e3,#a5e8c0)','linear-gradient(135deg,#f7d5d5,#e8a5a5)'];
+var cmRegGrads=['linear-gradient(135deg,#f7d5e6,#e8a5c8)','linear-gradient(135deg,#d5e3f7,#a5c0e8)','linear-gradient(135deg,#f7e6d5,#e8c8a5)','linear-gradient(135deg,#e0d5f7,#bfa5e8)','linear-gradient(135deg,#d5f7e3,#a5e8c0)'];
+var cmData=[
+  {artist:'유씨',title:'《LD 두상 낙서 커미션》',price:'3,000P',status:'open',views:1240,likes:89,tags:['두상']},
+  {artist:'오덕찜',title:'LD 일러스트',price:'19,000P~',status:'',views:3200,likes:210,tags:['두상','흉상','반신']},
+  {artist:'그럴수도있지',title:'똥같은 여캐 낙서커미션',price:'3,000P~',status:'open',views:890,likes:67,tags:['전신']},
+  {artist:'소금',title:'[0.8] 증명사진 두상 LD 커미션',price:'8,000P',status:'',views:1500,likes:124,tags:['두상']},
+  {artist:'말랑',title:'[빠른마감] 반신 채색 커미션',price:'13,000P~',status:'open',views:2100,likes:156,tags:['반신']},
+  {artist:'핑크빛달팽이',title:'낙서 말아드림',price:'13,000P~',status:'',views:980,likes:78,tags:['배경']}
+];
+var cmReviews=[
+  {who:'달빛초',type:'호',ctype:'반신',txt:'퀄리티 미쳤어요... 명암 표현이 진짜 섬세하고 기한도 딱 맞춰주셨어요! 재의뢰 무조건 합니다 🥹',date:'2026.07.28'},
+  {who:'구름사탕',type:'호',ctype:'두상',txt:'캐릭터 특징 너무 잘 살려주셨어요 소통도 친절하시고 만족스러운 거래였습니다!',date:'2026.07.20'},
+  {who:'초코라떼',type:'불호',ctype:'흉상',txt:'그림은 좋았는데 예정보다 조금 늦어졌어요. 그래도 결과물은 만족합니다.',date:'2026.07.12'}
+];
+var cmMyCommissions=[
+  {id:1,title:'LD 반신 채색 커미션',price:'19000',tags:['반신','두상','빠른마감'],status:'open',period:'3~7일 이내',slots:'8',desc:'그림체 아래 샘플 확인해주세요.\n두상/흉상/반신 작업 가능합니다.',usage:'',policy:'',imgs:3,grad:0},
+  {id:2,title:'SD 이모티콘 커미션',price:'8000',tags:['SD','이모티콘'],status:'close',period:'5~10일',slots:'5',desc:'귀여운 SD 이모티콘 그려드려요!',usage:'',policy:'',imgs:2,grad:2}
+];
+var CM_TYPES=['두상','흉상','반신','전신','SD','이모티콘','배경','기타'];
+var CM_TAGS=['두상','반신','전신','SD','이모티콘','배경','Live2D'];
+var cmState={activeTag:0,wrType:null,wrCtype:null,query:''};
+var cmReg={imgs:0,tags:[],status:'open',editingId:null};
+var cmDetailCtx={from:'list',idx:0};
+var cmPreviewObj=null;
+function cmQ(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
+function openCommissionList(){
+  closeDrawer();closeSheet();syncTabs("commission");
+  document.getElementById("main").innerHTML=cmListHTML();
   window.scrollTo({top:0,behavior:"smooth"});
-  setTimeout(renderList,200);
 }
-function switchCommissionTab(tab){
-  state.board=(tab==="review")?"review":"trade";
-  state.query="";state.tag=null;page=1;
-  syncTabs("commission");
-  renderList();
+function cmCardHTML(d,idx){
+  var g=cmGrads[idx%cmGrads.length];
+  var status=d.status==='open'?'<div class="cm-status open">오픈중</div>':'';
+  return '<div class="cm-card" onclick="cmOpenDetail('+idx+')">'+
+    '<div class="cm-thumb" style="background:'+g+'">'+status+
+      '<div class="cm-bookmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4z"/></svg></div></div>'+
+    '<div class="cm-c-artist">'+esc(d.artist)+'</div>'+
+    '<div class="cm-c-title">'+esc(d.title)+'</div>'+
+    '<div class="cm-c-price">'+esc(d.price)+'</div>'+
+    '<div class="cm-c-meta"><span>👁 '+d.views+'</span><span>♥ '+d.likes+'</span></div></div>';
+}
+function cmFilteredIdx(){
+  var q=(cmState.query||'').trim().toLowerCase();
+  var idxs=cmData.map(function(d,i){return i;});
+  if(!q)return idxs;
+  return idxs.filter(function(i){
+    var d=cmData[i];
+    var hay=(d.title+' '+(d.tags||[]).join(' ')).toLowerCase();
+    return hay.indexOf(q)>=0;
+  });
+}
+function cmGridHTML(){
+  var idxs=cmFilteredIdx();
+  if(idxs.length===0)return '<div class="cm-my-empty">검색 결과가 없어요.<br>다른 제목이나 태그로 찾아보세요.</div>';
+  return idxs.map(function(i){return cmCardHTML(cmData[i],i);}).join('');
+}
+function cmSearch(v){
+  cmState.query=v;
+  document.getElementById('cmGrid').innerHTML=cmGridHTML();
+}
+function cmListHTML(){
+  var chips=CM_TAGS.map(function(t,i){return '<div class="cm-chip'+(i===cmState.activeTag?' on':'')+'" onclick="cmSetTag('+i+')">'+esc(t)+'</div>';}).join('');
+  return '<div class="cm-root">'+
+    '<div class="cm-top">'+
+      '<div class="cm-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>'+
+        '<input id="cmSearchInput" type="text" placeholder="커미션 검색 (제목·태그)" value="'+esc(cmState.query||'')+'" oninput="cmSearch(this.value)"></div>'+
+      '<div class="cm-tabs"><div class="cm-tab on">홈</div><div class="cm-tab">재방문 BEST<span class="cm-hot">●</span></div>'+
+        '<div class="cm-tab">신상 BEST<span class="cm-hot">●</span></div><div class="cm-tab">추천</div>'+
+        '<div class="cm-tab">신규</div><div class="cm-tab">인기</div></div>'+
+      '<div class="cm-top-line"></div>'+
+    '</div>'+
+    '<div class="cm-sec"><div class="cm-sec-h">지금 많이 찾는 태그</div></div>'+
+    '<div class="cm-chips">'+chips+'</div>'+
+    '<div class="cm-grid" id="cmGrid">'+cmGridHTML()+'</div>'+
+  '</div>';
+}
+function cmSetTag(i){cmState.activeTag=i;openCommissionList();}
+function cmComingSoon(){toast("아직 준비 중인 기능이에요","🛠")}
+function cmReviewCardHTML(r){
+  var cls=r.type==='호'?'good':'bad';
+  return '<div class="cm-rv-item"><div class="cm-r1"><div class="cm-ava"></div><span class="cm-who">'+esc(r.who)+'</span>'+
+    '<span class="cm-tag '+cls+'">'+(r.type==='호'?'😊 호':'😐 불호')+'</span></div>'+
+    '<span class="cm-ctype">'+esc(r.ctype)+' 커미션</span>'+
+    '<div class="cm-txt">'+esc(r.txt)+'</div>'+
+    '<div class="cm-date">'+r.date+'</div></div>';
+}
+function cmDetailHTML(d,idx){
+  var artist=d.artist||'나';
+  var title=d.title||'제목 없음';
+  var price=d.price||'0P~';
+  var period=d.period||'작가 설정 (예: 3~7일)';
+  var desc=d.desc||'그림체 아래 샘플(팬아트, 커미션 샘플) 확인해주세요.\n\n두상: 어깨선\n흉상: 명치선 - 허리 위\n반신: 골반 - 허벅지 중간\n\n추가금 문의 편하게 주세요.';
+  var usageHTML=d.usage?esc(d.usage).replace(/\n/g,'<br>'):'비상업적 용도의 굿즈 제작 및 나눔 가능<br>SNS 게시 가능<br>출처 표기 시 작가명 또는 SNS 계정으로 부탁드립니다!';
+  var policyHTML=d.policy?('<p>'+esc(d.policy).replace(/\n/g,'<br>')+'</p>'):('<ul><li>신청 수락 시 고지한 작업 기한까지 최종 작업물이 전달되지 않으면, 결제 금액이 신청자에게 환불될 수 있습니다.</li><li>작업물의 저작권은 별도 협의가 없는 한 작가에게 귀속됩니다.</li></ul>');
+  var tags=(d.tags&&d.tags.length)?d.tags:['두상','흉상','반신','드림'];
+  var usingReg=(typeof d.grad==='number');
+  var sliderBg=usingReg?cmRegGrads[d.grad%cmRegGrads.length]:cmGrads[idx%cmGrads.length];
+  var samples='';
+  if(usingReg){
+    var cnt=d.imgs||0;
+    if(cnt===0)samples='<div class="cm-s" style="background:var(--brand-soft)"></div>';
+    else for(var i=0;i<cnt;i++)samples+='<div class="cm-s" style="background:'+cmRegGrads[i%cmRegGrads.length]+'"></div>';
+  }else{
+    for(var j=0;j<6;j++)samples+='<div class="cm-s" style="background:'+cmGrads[(idx+j)%cmGrads.length]+'"></div>';
+  }
+  var goodCnt=cmReviews.filter(function(r){return r.type==='호'}).length;
+  var badCnt=cmReviews.filter(function(r){return r.type==='불호'}).length;
+  var channel=d.channel||(artist==='나'?'내 커미션':(artist+' 커미션'));
+  return '<div class="cm-root">'+
+    '<div class="cm-d-top"><div class="cm-left"><svg onclick="cmDetailBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></div>'+
+      '<div class="cm-right">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6 6l1.5 1.5M18 6l-1.5 1.5M6 18l1.5-1.5M18 18l-1.5-1.5"/></svg>'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V4M8 8l4-4 4 4"/><path d="M4 15v5h16v-5"/></svg>'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>'+
+      '</div></div>'+
+    '<div class="cm-slider" style="background:'+sliderBg+'"><div class="cm-dots"><i class="on"></i><i></i><i></i><i></i><i></i></div></div>'+
+    '<div class="cm-d-body">'+
+      '<div class="cm-verify"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>100% 기한 준수</div>'+
+      '<div class="cm-d-title">'+esc(title)+'</div>'+
+      '<div class="cm-d-price">'+esc(price)+'</div>'+
+      '<div class="cm-artist-row" onclick="cmOpenArtistProfile(\''+cmQ(artist)+'\')">'+
+        '<div class="cm-l"><div class="cm-ava"></div><div><span class="cm-nm">'+esc(artist)+'</span> <span class="cm-rv">'+cmReviews.length+'개 후기</span></div></div>'+
+        '<div class="cm-r"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 2l4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3"/></svg>0</span>'+
+        '<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-8-5-8-11a4.5 4.5 0 0 1 8-2.5A4.5 4.5 0 0 1 20 10c0 6-8 11-8 11z"/></svg>'+(d.likes||0)+'</span></div>'+
+      '</div>'+
+      '<div class="cm-stats"><div class="cm-stat"><span class="cm-k">신청 가능</span><span class="cm-v">'+esc(d.slots||'8')+'개 남음</span></div>'+
+        '<div class="cm-stat"><span class="cm-k">작업 기간</span><span class="cm-v">'+esc(period)+'</span></div></div>'+
+      '<div class="cm-desc">'+esc(desc)+'</div>'+
+      '<div class="cm-rv-sec"><div class="cm-rv-head"><b>커미션 후기 '+cmReviews.length+'</b><span class="cm-rv-more" onclick="cmOpenReviews()">더보기 ></span></div>'+
+        '<div class="cm-rv-summary"><div class="cm-rv-box good"><div class="cm-ic">😊</div><div class="cm-n">'+goodCnt+'</div><div class="cm-l">호 후기</div></div>'+
+          '<div class="cm-rv-box bad"><div class="cm-ic">😐</div><div class="cm-n">'+badCnt+'</div><div class="cm-l">불호 후기</div></div></div>'+
+        '<div>'+cmReviews.map(cmReviewCardHTML).join('')+'</div></div>'+
+      '<div class="cm-samples">'+samples+'</div>'+
+      '<div class="cm-acc open"><div class="cm-acc-h" onclick="this.parentElement.classList.toggle(\'open\')"><b>작업물 사용 권한</b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 15l6-6 6 6"/></svg></div>'+
+        '<div class="cm-acc-c"><p>'+usageHTML+'</p></div></div>'+
+      '<div class="cm-acc open"><div class="cm-acc-h" onclick="this.parentElement.classList.toggle(\'open\')"><b>거래 정책 안내</b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 15l6-6 6 6"/></svg></div>'+
+        '<div class="cm-acc-c">'+policyHTML+'</div></div>'+
+      '<div class="cm-d-tags">'+tags.map(function(t){return '<div class="cm-t">#'+esc(t)+'</div>';}).join('')+'</div>'+
+      '<div class="cm-sub-card"><div class="cm-l"><div class="cm-ci">P</div><div><div class="cm-nm">'+esc(channel)+'</div><div class="cm-cnt">구독자 115명</div></div></div><div class="cm-btn" onclick="cmComingSoon()">구독</div></div>'+
+    '</div>'+
+    '<div class="cm-pad"></div>'+
+    '<div class="cm-apply-bar"><div class="cm-bm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4z"/></svg></div>'+
+      '<div class="cm-ask" onclick="cmComingSoon()">문의하기</div><div class="cm-apply" onclick="cmComingSoon()">신청하기</div></div>'+
+  '</div>';
+}
+function cmOpenDetail(idx){
+  cmDetailCtx={from:'list',idx:idx};
+  document.getElementById("main").innerHTML=cmDetailHTML(cmData[idx],idx);
   window.scrollTo({top:0,behavior:"smooth"});
 }
-function openCommissionWrite(){
-  var board=(state.board==="trade"||state.board==="review")?state.board:"trade";
-  openWrite();
-  pickBoard(board);
+function cmDetailBack(){
+  if(cmDetailCtx.from==='register')cmRenderRegisterScreen();
+  else openCommissionList();
 }
+function cmBackToDetail(){
+  if(cmDetailCtx.from==='register'&&cmPreviewObj){
+    document.getElementById("main").innerHTML=cmDetailHTML(cmPreviewObj,cmDetailCtx.idx);
+    window.scrollTo({top:0,behavior:"smooth"});
+  }else{
+    cmOpenDetail(cmDetailCtx.idx);
+  }
+}
+function cmOpenArtistProfile(name){
+  document.getElementById("main").innerHTML='<div class="cm-root">'+
+    '<div class="cm-pf-top"><svg onclick="cmBackToDetail()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>작가 프로필</b></div>'+
+    '<div class="cm-pf-head"><div class="cm-pf-ava"></div><div class="cm-pf-name">'+esc(name)+'</div><div class="cm-pf-grade">🎨 채색반</div>'+
+      '<div class="cm-pf-stats"><div><div class="cm-n">'+cmReviews.length+'</div><div class="cm-l">후기</div></div>'+
+        '<div><div class="cm-n">'+cmReviews.filter(function(r){return r.type==="호"}).length+'</div><div class="cm-l">호 후기</div></div>'+
+        '<div><div class="cm-n">115</div><div class="cm-l">구독자</div></div></div></div>'+
+    '<div class="cm-pf-note">※ 실제로는 기존에 만든 작가 프로필 화면으로 연결됩니다.<br>(여기선 연결 예시만 표시)</div>'+
+  '</div>';
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function cmOpenReviews(){
+  var goodCnt=cmReviews.filter(function(r){return r.type==='호'}).length;
+  var badCnt=cmReviews.filter(function(r){return r.type==='불호'}).length;
+  document.getElementById("main").innerHTML='<div class="cm-root">'+
+    '<div class="cm-sub-top"><svg onclick="cmBackToDetail()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>'+
+      '<b>커미션 후기</b><button class="cm-write-btn" onclick="cmOpenWrite()">후기 쓰기</button></div>'+
+    '<div class="cm-rv-all"><div class="cm-rv-summary">'+
+      '<div class="cm-rv-box good"><div class="cm-ic">😊</div><div class="cm-n">'+goodCnt+'</div><div class="cm-l">호 후기</div></div>'+
+      '<div class="cm-rv-box bad"><div class="cm-ic">😐</div><div class="cm-n">'+badCnt+'</div><div class="cm-l">불호 후기</div></div></div>'+
+      '<div>'+cmReviews.map(cmReviewCardHTML).join('')+'</div>'+
+    '</div></div>';
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function cmOpenWrite(){
+  cmState.wrType=null;cmState.wrCtype=null;
+  document.getElementById("main").innerHTML='<div class="cm-root">'+
+    '<div class="cm-sub-top"><svg onclick="cmOpenReviews()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>후기 작성</b></div>'+
+    '<div class="cm-wr">'+
+      '<div class="cm-wr-label">이 커미션 어떠셨나요?</div>'+
+      '<div class="cm-hb">'+
+        '<div class="cm-hb-btn good" id="cmHbGood" onclick="cmSelectHB(\'good\')"><div class="cm-ic">😊</div><div class="cm-t">호 후기</div></div>'+
+        '<div class="cm-hb-btn bad" id="cmHbBad" onclick="cmSelectHB(\'bad\')"><div class="cm-ic">😐</div><div class="cm-t">불호 후기</div></div>'+
+      '</div>'+
+      '<div class="cm-wr-label">커미션 타입 <span class="cm-wr-sub">어떤 커미션이었나요?</span></div>'+
+      '<div class="cm-wr-types" id="cmWrTypes">'+CM_TYPES.map(function(t){return '<div class="cm-wr-type" onclick="cmSelectType(this,\''+t+'\')">'+esc(t)+'</div>';}).join('')+'</div>'+
+      '<div class="cm-wr-label">후기 내용 <span class="cm-wr-sub">선택 · 한 줄도 좋아요</span></div>'+
+      '<textarea class="cm-wr-text" id="cmWrText" placeholder="작가님과의 거래는 어떠셨나요? (안 쓰셔도 괜찮아요)"></textarea>'+
+      '<div class="cm-wr-hint">💡 솔직하고 예의 있는 후기는 다른 분들께 큰 도움이 돼요.</div>'+
+    '</div>'+
+    '<div class="cm-wr-submit"><button id="cmWrSubmit" onclick="cmSubmitReview()" disabled>후기 등록하기</button></div>'+
+  '</div>';
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function cmSelectHB(v){
+  cmState.wrType=v;
+  document.getElementById('cmHbGood').classList.toggle('sel',v==='good');
+  document.getElementById('cmHbBad').classList.toggle('sel',v==='bad');
+  cmCheckWriteSubmit();
+}
+function cmSelectType(el,t){
+  cmState.wrCtype=t;
+  document.querySelectorAll('.cm-wr-type').forEach(function(x){x.classList.remove('sel')});
+  el.classList.add('sel');
+  cmCheckWriteSubmit();
+}
+function cmCheckWriteSubmit(){
+  document.getElementById('cmWrSubmit').disabled=!(cmState.wrType&&cmState.wrCtype);
+}
+function cmSubmitReview(){
+  var txt=document.getElementById('cmWrText').value.trim();
+  cmReviews.unshift({who:'나',type:cmState.wrType==='good'?'호':'불호',ctype:cmState.wrCtype,txt:txt||'(내용 없음)',date:'2026.07.30'});
+  NOTIFS.unshift({type:"commission",icon:"🎨",txt:"내 커미션에 새 후기가 달렸어요",time:"방금",post:null,read:false,cmTarget:"reviews"});
+  syncNotifBadge();
+  toast('후기가 등록되었어요! 감사합니다','😊');
+  cmOpenReviews();
+}
+function cmOpenRegister(editId){
+  cmReg={imgs:0,tags:[],status:'open',editingId:editId||null,title:'',price:'',period:'',slots:'',desc:'',usage:'',policy:''};
+  if(editId){
+    var c=cmMyCommissions.find(function(x){return x.id===editId});
+    if(c){
+      cmReg.imgs=c.imgs;cmReg.tags=c.tags.slice();cmReg.status=c.status;
+      cmReg.title=c.title;cmReg.price=c.price;cmReg.period=c.period;cmReg.slots=c.slots;
+      cmReg.desc=c.desc;cmReg.usage=c.usage||'';cmReg.policy=c.policy||'';
+    }
+  }
+  cmRenderRegisterScreen();
+}
+function cmSyncReg(){
+  cmReg.title=document.getElementById('cmRegTitle').value;
+  cmReg.price=document.getElementById('cmRegPrice').value;
+  cmReg.period=document.getElementById('cmRegPeriod').value;
+  cmReg.slots=document.getElementById('cmRegSlots').value;
+  cmReg.desc=document.getElementById('cmRegDesc').value;
+  cmReg.usage=document.getElementById('cmRegUsage').value;
+  cmReg.policy=document.getElementById('cmRegPolicy').value;
+}
+function cmRenderRegisterScreen(){
+  var editing=!!cmReg.editingId;
+  var imgsHTML='';
+  for(var i=0;i<cmReg.imgs;i++){
+    imgsHTML+='<div class="cm-reg-img" style="background:'+cmRegGrads[i%cmRegGrads.length]+'"><div class="cm-del" onclick="cmDelSampleImg(this)">×</div></div>';
+  }
+  imgsHTML+='<div class="cm-reg-addimg" onclick="cmAddSampleImg()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 8v8M8 12h8"/></svg><span class="cm-cnt" id="cmRegImgCnt">'+cmReg.imgs+'/10</span></div>';
+  var tagsHTML=cmReg.tags.map(function(t){return '<div class="cm-reg-tagchip">#'+esc(t)+'<span class="cm-x" onclick="cmRemoveTag(\''+cmQ(t)+'\')">×</span></div>';}).join('');
+  document.getElementById("main").innerHTML='<div class="cm-root">'+
+    '<div class="cm-sub-top"><svg onclick="'+(editing?'cmOpenMy()':'openCommissionList()')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg><b>'+(editing?'커미션 수정':'커미션 등록')+'</b></div>'+
+    '<div class="cm-reg">'+
+      '<div class="cm-reg-label">샘플 이미지 <span class="cm-reg-req">*</span> <span class="cm-reg-sub">최대 10장</span></div>'+
+      '<div class="cm-reg-imgs" id="cmRegImgs">'+imgsHTML+'</div>'+
+      '<div class="cm-reg-label">커미션 제목 <span class="cm-reg-req">*</span></div>'+
+      '<input class="cm-reg-input" id="cmRegTitle" placeholder="예: LD 반신 채색 커미션" oninput="cmCheckReg()" value="'+esc(cmReg.title)+'">'+
+      '<div class="cm-reg-label">가격 <span class="cm-reg-req">*</span></div>'+
+      '<div class="cm-reg-price"><input class="cm-reg-input" id="cmRegPrice" type="number" placeholder="19000" oninput="cmCheckReg()" value="'+esc(cmReg.price)+'"><span class="cm-unit">P ~</span></div>'+
+      '<div class="cm-reg-label">커미션 태그 <span class="cm-reg-req">*</span> <span class="cm-reg-sub">최대 5개 · 검색어 노출에 사용돼요</span></div>'+
+      '<input class="cm-reg-input" id="cmRegTagInput" placeholder="예: 반신, 두상, 빠른마감 (입력 후 Enter)" onkeydown="cmOnTagKey(event)">'+
+      '<div class="cm-reg-taglist" id="cmRegTagList">'+tagsHTML+'</div>'+
+      '<div class="cm-reg-taghint'+(cmReg.tags.length>=5?' full':'')+'" id="cmRegTagHint">'+cmReg.tags.length+'/5개</div>'+
+      '<div class="cm-reg-label">접수 상태</div>'+
+      '<div class="cm-reg-toggle"><div class="cm-reg-tg'+(cmReg.status==='open'?' sel':'')+'" id="cmTgOpen" onclick="cmSetStatus(\'open\')">🟢 접수중</div>'+
+        '<div class="cm-reg-tg'+(cmReg.status==='close'?' sel':'')+'" id="cmTgClose" onclick="cmSetStatus(\'close\')">⛔ 마감</div></div>'+
+      '<div class="cm-reg-label">작업 기간 <span class="cm-reg-sub">직접 입력</span></div>'+
+      '<input class="cm-reg-input" id="cmRegPeriod" placeholder="예: 3~7일 이내" oninput="cmCheckReg()" value="'+esc(cmReg.period)+'">'+
+      '<div class="cm-reg-label">신청 가능 수 <span class="cm-reg-sub">몇 명까지 받을지</span></div>'+
+      '<input class="cm-reg-input" id="cmRegSlots" type="number" placeholder="예: 8" oninput="cmCheckReg()" value="'+esc(cmReg.slots)+'">'+
+      '<div class="cm-reg-label">커미션 설명 <span class="cm-reg-req">*</span></div>'+
+      '<textarea class="cm-reg-textarea" id="cmRegDesc" placeholder="그림체, 작업 범위(두상/흉상/반신), 추가금 안내 등을 자유롭게 적어주세요." oninput="cmCheckReg()">'+esc(cmReg.desc)+'</textarea>'+
+      '<div class="cm-reg-label">작업물 사용 권한 <span class="cm-reg-sub">선택</span></div>'+
+      '<textarea class="cm-reg-textarea" id="cmRegUsage" placeholder="예: 비상업적 굿즈/SNS 게시 가능, 출처 표기 부탁" oninput="cmCheckReg()">'+esc(cmReg.usage)+'</textarea>'+
+      '<div class="cm-reg-label">거래 안내 / 정책 <span class="cm-reg-sub">선택</span></div>'+
+      '<textarea class="cm-reg-textarea" id="cmRegPolicy" placeholder="예: 작업 시작 후 단순 변심 환불 불가, 저작권은 작가 귀속 등" oninput="cmCheckReg()">'+esc(cmReg.policy)+'</textarea>'+
+    '</div>'+
+    '<div class="cm-reg-bottom"><button class="cm-prev" onclick="cmPreviewReg()">미리보기</button>'+
+      '<button class="cm-reg-btn" id="cmRegSubmit" onclick="cmSubmitReg()" disabled>'+(editing?'수정 완료':'등록하기')+'</button></div>'+
+  '</div>';
+  window.scrollTo({top:0,behavior:"smooth"});
+  cmCheckReg();
+}
+function cmAddSampleImg(){
+  if(cmReg.imgs>=10){toast('최대 10장까지 올릴 수 있어요','⚠');return;}
+  cmReg.imgs++;
+  var g=cmRegGrads[(cmReg.imgs-1)%cmRegGrads.length];
+  var addbtn=document.querySelector('#cmRegImgs .cm-reg-addimg');
+  var img=document.createElement('div');
+  img.className='cm-reg-img';
+  img.style.background=g;
+  img.innerHTML='<div class="cm-del" onclick="cmDelSampleImg(this)">×</div>';
+  document.getElementById('cmRegImgs').insertBefore(img,addbtn);
+  document.getElementById('cmRegImgCnt').textContent=cmReg.imgs+'/10';
+  cmCheckReg();
+}
+function cmDelSampleImg(el){
+  el.parentElement.remove();
+  cmReg.imgs--;
+  document.getElementById('cmRegImgCnt').textContent=cmReg.imgs+'/10';
+  cmCheckReg();
+}
+function cmOnTagKey(e){
+  if(e.key==='Enter'){
+    e.preventDefault();
+    var inp=document.getElementById('cmRegTagInput');
+    var v=inp.value.trim().replace(/,/g,'');
+    if(!v)return;
+    if(cmReg.tags.length>=5){toast('태그는 최대 5개까지 입력할 수 있어요','⚠');return;}
+    if(cmReg.tags.indexOf(v)>=0){inp.value='';return;}
+    cmReg.tags.push(v);
+    inp.value='';
+    cmRenderTagList();
+    cmCheckReg();
+  }
+}
+function cmRemoveTag(t){
+  cmReg.tags=cmReg.tags.filter(function(x){return x!==t});
+  cmRenderTagList();
+  cmCheckReg();
+}
+function cmRenderTagList(){
+  document.getElementById('cmRegTagList').innerHTML=cmReg.tags.map(function(t){
+    return '<div class="cm-reg-tagchip">#'+esc(t)+'<span class="cm-x" onclick="cmRemoveTag(\''+cmQ(t)+'\')">×</span></div>';
+  }).join('');
+  var hint=document.getElementById('cmRegTagHint');
+  hint.textContent=cmReg.tags.length+'/5개';
+  hint.classList.toggle('full',cmReg.tags.length>=5);
+}
+function cmSetStatus(v){
+  cmReg.status=v;
+  document.getElementById('cmTgOpen').classList.toggle('sel',v==='open');
+  document.getElementById('cmTgClose').classList.toggle('sel',v==='close');
+}
+function cmCheckReg(){
+  cmSyncReg();
+  var ok=cmReg.imgs>0&&
+    cmReg.title.trim()&&
+    cmReg.price&&
+    cmReg.tags.length>0&&
+    cmReg.desc.trim();
+  document.getElementById('cmRegSubmit').disabled=!ok;
+}
+function cmPreviewReg(){
+  cmSyncReg();
+  var title=cmReg.title.trim()||'제목 없음';
+  var price=(cmReg.price?Number(cmReg.price).toLocaleString():'0')+'P~';
+  var period=cmReg.period.trim()||'작가 설정';
+  var slots=cmReg.slots.trim();
+  var desc=cmReg.desc.trim()||'(설명 없음)';
+  var usage=cmReg.usage.trim();
+  var policy=cmReg.policy.trim();
+  cmPreviewObj={artist:'나',channel:'내 커미션',title:title,price:price,period:period,slots:slots,
+    desc:desc,usage:usage,policy:policy,tags:cmReg.tags.slice(),imgs:cmReg.imgs,grad:0,likes:0};
+  cmDetailCtx={from:'register',idx:0};
+  document.getElementById('main').innerHTML=cmDetailHTML(cmPreviewObj,0);
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function cmSubmitReg(){
+  cmSyncReg();
+  var c={
+    title:cmReg.title.trim(),
+    price:cmReg.price,
+    tags:cmReg.tags.slice(),
+    status:cmReg.status,
+    period:cmReg.period.trim(),
+    slots:cmReg.slots,
+    desc:cmReg.desc.trim(),
+    usage:cmReg.usage.trim(),
+    policy:cmReg.policy.trim(),
+    imgs:cmReg.imgs,grad:0
+  };
+  if(cmReg.editingId){
+    var idx=cmMyCommissions.findIndex(function(x){return x.id===cmReg.editingId});
+    c.id=cmReg.editingId;c.grad=cmMyCommissions[idx].grad;
+    cmMyCommissions[idx]=c;
+    toast('커미션이 수정되었어요!','✏️');
+  }else{
+    c.id=Date.now();c.grad=cmMyCommissions.length;
+    cmMyCommissions.push(c);
+    toast('커미션이 등록되었어요!','🎨');
+  }
+  cmOpenMy();
+}
+function cmMyListHTML(){
+  if(cmMyCommissions.length===0)return '<div class="cm-my-empty">아직 등록한 커미션이 없어요.<br>+ 새 커미션 버튼으로 등록해보세요!</div>';
+  return cmMyCommissions.map(function(c){
+    var st=c.status==='open'?'<span class="cm-my-badge open">🟢 접수중</span>':'<span class="cm-my-badge close">⛔ 마감</span>';
+    return '<div class="cm-my-item"><div class="cm-my-thumb" style="background:'+cmRegGrads[c.grad%cmRegGrads.length]+'"></div>'+
+      '<div class="cm-my-info"><div class="cm-my-title">'+esc(c.title)+'</div>'+
+        '<div class="cm-my-price">'+Number(c.price).toLocaleString()+'P~</div>'+st+'</div>'+
+      '<button class="cm-my-edit" onclick="cmOpenRegister('+c.id+')">수정</button></div>';
+  }).join('');
+}
+function cmOpenMy(){
+  document.getElementById("main").innerHTML='<div class="cm-root">'+
+    '<div class="cm-sub-top"><svg onclick="openCommissionList()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>내 커미션</b>'+
+      '<button class="cm-write-btn" onclick="cmOpenRegister()">+ 새 커미션</button></div>'+
+    '<div class="cm-my-bulk"><button class="cm-open-all" onclick="cmBulkStatus(\'open\')">🟢 전체 열기</button>'+
+      '<button class="cm-close-all" onclick="cmBulkStatus(\'close\')">⛔ 전체 마감</button></div>'+
+    '<div class="cm-my-list" id="cmMyList">'+cmMyListHTML()+'</div>'+
+  '</div>';
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function cmBulkStatus(status){
+  if(cmMyCommissions.length===0){toast('등록된 커미션이 없어요','⚠');return;}
+  cmMyCommissions.forEach(function(c){c.status=status;});
+  document.getElementById('cmMyList').innerHTML=cmMyListHTML();
+  toast(status==='open'?'커미션을 모두 열었어요':'커미션을 모두 마감했어요',status==='open'?'🟢':'⛔');
+}
+new MutationObserver(function(){
+  document.body.classList.toggle('cm-page',!!document.querySelector('#main>.cm-root'));
+}).observe(document.body,{childList:true,subtree:true});
 function tagFilterBarHTML(){
   var tags=TAGS_BY_BOARD[state.board];
   if(!tags||state.query)return"";
@@ -1491,7 +1885,7 @@ function delNotif(i){
 }
 function renderNotifs(){
   var el=document.getElementById("npList");if(!el)return;
-  var tabs=[["all","전체"],["cm","댓글"],["like","좋아요"],["chat","채팅"],["sys","공지"]];
+  var tabs=[["all","전체"],["cm","댓글"],["like","좋아요"],["chat","채팅"],["commission","커미션"],["sys","공지"]];
   var th='<div class="np-tabs">'+tabs.map(function(t){
     return '<button class="np-tab'+(notifFilter===t[0]?' on':'')+'" onclick="event.stopPropagation();setNotifFilter(\''+t[0]+'\')">'+t[1]+'</button>';
   }).join("")+'</div>';
@@ -1519,6 +1913,7 @@ function notifClick(i){
   if(n.dbId)window.supabase.from("notifications").update({is_read:true}).eq("id",n.dbId).then(function(){});
   if(n.chatUser)openChat(n.chatUser);
   else if(n.post)openPost(n.post);
+  else if(n.cmTarget==="reviews")cmOpenReviews();
   else openRules();
 }
 function markAllRead(){
