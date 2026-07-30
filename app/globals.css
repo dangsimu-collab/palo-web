@@ -873,7 +873,7 @@
   .cm-chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
   .cm-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 12px;padding:14px 18px 32px}
   .cm-card{cursor:pointer}
-  .cm-thumb{position:relative;width:100%;aspect-ratio:1/1;border-radius:var(--r);overflow:hidden;background:var(--brand-soft)}
+  .cm-thumb{position:relative;width:100%;aspect-ratio:1/1;border-radius:var(--r);overflow:hidden;background:var(--brand-soft);border:1px solid var(--line)}
   .cm-bookmark{position:absolute;bottom:9px;right:9px;width:32px;height:32px;background:rgba(255,255,255,.85);
     border-radius:50%;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
   .cm-bookmark svg{width:17px;height:17px;color:var(--ink-2)}
