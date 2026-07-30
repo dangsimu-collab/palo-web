@@ -906,8 +906,8 @@ var cmMyList=[]; // cmOpenMy()가 Supabase에서 실제로 불러와 채움
 var CM_IMAGE_BUCKET='commission-images';
 var CM_TYPES=['두상','흉상','반신','전신','SD','이모티콘','배경','기타'];
 var CM_BAD_REASONS=['퀄리티 불만족','마감 기한 미준수','소통이 어려웠어요','스타일이 요청과 달랐어요','기타'];
-var CM_TAGS=['두상','반신','전신','SD','이모티콘','배경','Live2D'];
-var cmState={activeTag:0,wrType:null,wrCtype:null,query:''};
+var cmTopTags=[]; // cmLoadCommissions()가 실제 사용 빈도순으로 채움
+var cmState={activeTag:null,wrType:null,wrCtype:null,query:''};
 var cmReg={images:[],tags:[],status:'open',editingId:null};
 var cmDetailCtx={from:'list',idx:0};
 var cmPreviewObj=null;
@@ -930,7 +930,15 @@ async function cmLoadCommissions(){
       images:imgs,likes:0
     };
   });
+  cmTopTags=cmComputeTopTags();
   cmDataLoaded=true;
+}
+function cmComputeTopTags(){
+  var counts={};
+  cmData.forEach(function(d){(d.tags||[]).forEach(function(t){counts[t]=(counts[t]||0)+1;});});
+  var tags=Object.keys(counts);
+  tags.sort(function(a,b){return counts[b]-counts[a];});
+  return tags.slice(0,10);
 }
 async function openCommissionList(){
   closeDrawer();closeSheet();syncTabs("commission");
@@ -938,6 +946,8 @@ async function openCommissionList(){
   window.scrollTo({top:0,behavior:"smooth"});
   if(!cmDataLoaded){
     await cmLoadCommissions();
+    var chipsEl=document.querySelector('.cm-chips');
+    if(chipsEl)chipsEl.innerHTML=cmChipsHTML();
     var gridEl=document.getElementById('cmGrid');
     if(gridEl)gridEl.innerHTML=cmGridHTML();
   }
@@ -958,6 +968,9 @@ function cmCardHTML(d,idx){
 function cmFilteredIdx(){
   var q=(cmState.query||'').trim().toLowerCase();
   var idxs=cmData.map(function(d,i){return i;});
+  if(cmState.activeTag){
+    idxs=idxs.filter(function(i){return (cmData[i].tags||[]).indexOf(cmState.activeTag)>=0;});
+  }
   if(!q)return idxs;
   return idxs.filter(function(i){
     var d=cmData[i];
@@ -969,15 +982,19 @@ function cmGridHTML(){
   if(!cmDataLoaded)return '<div class="cm-my-empty">불러오는 중...</div>';
   if(cmData.length===0)return '<div class="cm-my-empty">아직 등록된 커미션이 없어요.</div>';
   var idxs=cmFilteredIdx();
-  if(idxs.length===0)return '<div class="cm-my-empty">검색 결과가 없어요.<br>다른 제목이나 태그로 찾아보세요.</div>';
+  if(idxs.length===0)return '<div class="cm-my-empty">'+(cmState.query?'검색 결과가 없어요.<br>다른 제목이나 태그로 찾아보세요.':'이 태그의 커미션이 아직 없어요.')+'</div>';
   return idxs.map(function(i){return cmCardHTML(cmData[i],i);}).join('');
 }
 function cmSearch(v){
   cmState.query=v;
   document.getElementById('cmGrid').innerHTML=cmGridHTML();
 }
+function cmChipsHTML(){
+  var all='<div class="cm-chip'+(cmState.activeTag?'':' on')+'" onclick="cmSetTag(null)">전체</div>';
+  var rest=cmTopTags.map(function(t){return '<div class="cm-chip'+(cmState.activeTag===t?' on':'')+'" onclick="cmSetTag(\''+cmQ(t)+'\')">'+esc(t)+'</div>';}).join('');
+  return all+rest;
+}
 function cmListHTML(){
-  var chips=CM_TAGS.map(function(t,i){return '<div class="cm-chip'+(i===cmState.activeTag?' on':'')+'" onclick="cmSetTag('+i+')">'+esc(t)+'</div>';}).join('');
   return '<div class="cm-root">'+
     '<div class="cm-top">'+
       '<div class="cm-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>'+
@@ -988,11 +1005,17 @@ function cmListHTML(){
       '<div class="cm-top-line"></div>'+
     '</div>'+
     '<div class="cm-sec"><div class="cm-sec-h">지금 많이 찾는 태그</div></div>'+
-    '<div class="cm-chips">'+chips+'</div>'+
+    '<div class="cm-chips">'+cmChipsHTML()+'</div>'+
     '<div class="cm-grid" id="cmGrid">'+cmGridHTML()+'</div>'+
   '</div>';
 }
-function cmSetTag(i){cmState.activeTag=i;openCommissionList();}
+function cmSetTag(t){
+  cmState.activeTag=t;
+  var chipsEl=document.querySelector('.cm-chips');
+  if(chipsEl)chipsEl.innerHTML=cmChipsHTML();
+  var gridEl=document.getElementById('cmGrid');
+  if(gridEl)gridEl.innerHTML=cmGridHTML();
+}
 function cmComingSoon(){toast("아직 준비 중인 기능이에요","🛠")}
 function cmDetailHTML(d,idx){
   var artist=d.artist||'나';
