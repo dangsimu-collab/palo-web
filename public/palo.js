@@ -416,11 +416,6 @@ function pagerHTML(tp){
   return h+'</nav>';
 }
 function gotoPage(n){page=n;renderList();window.scrollTo({top:0,behavior:"smooth"});}
-function skeletonHTML(){
-  var r='<div class="list">';
-  for(var i=0;i<5;i++)r+='<div class="skel-row"><div class="skel-main"><div class="skel-line t"></div><div class="skel-line m"></div></div><div class="skel-thumb"></div></div>';
-  return r+'</div>';
-}
 function adRow(){
   if(ACTIVE_ADS.length){
     var weights=computeAdWeights(ACTIVE_ADS);
@@ -886,10 +881,8 @@ function selectBoard(id){
   document.getElementById("searchInput").value="";var m=document.getElementById("searchInputM");if(m)m.value="";
   renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
   renderChips();closeDrawer();closeSheet();syncTabs(id);
-  var main=document.getElementById("main");
-  main.innerHTML=skeletonHTML();
+  renderList();
   window.scrollTo({top:0,behavior:"smooth"});
-  setTimeout(renderList,200);
 }
 /* ===== 커미션 페이지 (cm-) : 화면 시안 이식 · 데모 데이터 ===== */
 var cmGrads=['linear-gradient(135deg,#f7d5e6,#e8a5c8)','linear-gradient(135deg,#d5e3f7,#a5c0e8)',
