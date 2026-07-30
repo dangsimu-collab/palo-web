@@ -837,9 +837,14 @@
   /* 상세 하단 광고 */
   .d-ad{margin:0 24px 22px}
 
-  /* 커미션 화면에서는 기존 게시판 이동 UI(상단 칩바 · 데스크톱 사이드바)를 숨김 */
+  /* 커미션 화면에서는 기존 게시판 이동 UI(상단 칩바 · 데스크톱 사이드바)를 숨김.
+     데스크톱 3단 그리드에서 사이드바만 display:none으로 빼면 나머지 그리드 아이템이
+     앞 트랙으로 당겨져 커미션 내용이 좁은 칸에 찌그러지므로, 모바일과 동일하게
+     그리드 자체를 block으로 접고 양쪽 사이드바를 모두 숨겨 .cm-root(max-width:480,
+     margin:0 auto)가 화면 중앙에 정상 배치되도록 한다. */
   body.cm-page .catbar{display:none}
-  body.cm-page .side-l{display:none}
+  body.cm-page .wrap.grid{display:block}
+  body.cm-page .side-l,body.cm-page .side-r{display:none}
   /* 커미션 화면에서는 Palo 기본 검색(모바일 아이콘 · 데스크톱 검색창)을 숨기고,
      그 자리에 내 커미션 버튼을 노출 */
   .cm-header-my-btn{display:none}
