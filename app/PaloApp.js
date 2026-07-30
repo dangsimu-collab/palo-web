@@ -14,7 +14,7 @@ export default function PaloApp() {
   return (
     <>
       <div dangerouslySetInnerHTML={{ __html: BODY_HTML }} />
-      <Script src="/palo.js" strategy="afterInteractive" />
+      <Script src={`/palo.js?v=${process.env.NEXT_PUBLIC_BUILD_ID}`} strategy="afterInteractive" />
     </>
   );
 }
