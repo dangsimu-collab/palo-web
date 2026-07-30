@@ -894,7 +894,6 @@ function selectBoard(id){
 var cmGrads=['linear-gradient(135deg,#f7d5e6,#e8a5c8)','linear-gradient(135deg,#d5e3f7,#a5c0e8)',
   'linear-gradient(135deg,#f7e6d5,#e8c8a5)','linear-gradient(135deg,#e0d5f7,#bfa5e8)',
   'linear-gradient(135deg,#d5f7e3,#a5e8c0)','linear-gradient(135deg,#f7d5d5,#e8a5a5)'];
-var cmRegGrads=['linear-gradient(135deg,#f7d5e6,#e8a5c8)','linear-gradient(135deg,#d5e3f7,#a5c0e8)','linear-gradient(135deg,#f7e6d5,#e8c8a5)','linear-gradient(135deg,#e0d5f7,#bfa5e8)','linear-gradient(135deg,#d5f7e3,#a5e8c0)'];
 var cmData=[
   {artist:'유씨',title:'《LD 두상 낙서 커미션》',price:'3,000P',status:'open',views:1240,likes:89,tags:['두상']},
   {artist:'오덕찜',title:'LD 일러스트',price:'19,000P~',status:'',views:3200,likes:210,tags:['두상','흉상','반신']},
@@ -908,14 +907,12 @@ var cmReviews=[
   {who:'구름사탕',type:'호',ctype:'두상',txt:'캐릭터 특징 너무 잘 살려주셨어요 소통도 친절하시고 만족스러운 거래였습니다!',date:'2026.07.20'},
   {who:'초코라떼',type:'불호',ctype:'흉상',txt:'그림은 좋았는데 예정보다 조금 늦어졌어요. 그래도 결과물은 만족합니다.',date:'2026.07.12'}
 ];
-var cmMyCommissions=[
-  {id:1,title:'LD 반신 채색 커미션',price:'19000',tags:['반신','두상','빠른마감'],status:'open',period:'3~7일 이내',slots:'8',desc:'그림체 아래 샘플 확인해주세요.\n두상/흉상/반신 작업 가능합니다.',usage:'',policy:'',imgs:3,grad:0},
-  {id:2,title:'SD 이모티콘 커미션',price:'8000',tags:['SD','이모티콘'],status:'close',period:'5~10일',slots:'5',desc:'귀여운 SD 이모티콘 그려드려요!',usage:'',policy:'',imgs:2,grad:2}
-];
+var cmMyList=[]; // cmOpenMy()가 Supabase에서 실제로 불러와 채움
+var CM_IMAGE_BUCKET='commission-images';
 var CM_TYPES=['두상','흉상','반신','전신','SD','이모티콘','배경','기타'];
 var CM_TAGS=['두상','반신','전신','SD','이모티콘','배경','Live2D'];
 var cmState={activeTag:0,wrType:null,wrCtype:null,query:''};
-var cmReg={imgs:0,tags:[],status:'open',editingId:null};
+var cmReg={images:[],tags:[],status:'open',editingId:null};
 var cmDetailCtx={from:'list',idx:0};
 var cmPreviewObj=null;
 function cmQ(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
@@ -989,13 +986,13 @@ function cmDetailHTML(d,idx){
   var usageHTML=d.usage?esc(d.usage).replace(/\n/g,'<br>'):'비상업적 용도의 굿즈 제작 및 나눔 가능<br>SNS 게시 가능<br>출처 표기 시 작가명 또는 SNS 계정으로 부탁드립니다!';
   var policyHTML=d.policy?('<p>'+esc(d.policy).replace(/\n/g,'<br>')+'</p>'):('<ul><li>신청 수락 시 고지한 작업 기한까지 최종 작업물이 전달되지 않으면, 결제 금액이 신청자에게 환불될 수 있습니다.</li><li>작업물의 저작권은 별도 협의가 없는 한 작가에게 귀속됩니다.</li></ul>');
   var tags=(d.tags&&d.tags.length)?d.tags:['두상','흉상','반신','드림'];
-  var usingReg=(typeof d.grad==='number');
-  var sliderBg=usingReg?cmRegGrads[d.grad%cmRegGrads.length]:cmGrads[idx%cmGrads.length];
+  var hasImages=!!(d.images&&d.images.length);
+  var sliderBg=hasImages?("url('"+cmQ(d.images[0])+"') center/cover"):cmGrads[idx%cmGrads.length];
   var samples='';
-  if(usingReg){
-    var cnt=d.imgs||0;
-    if(cnt===0)samples='<div class="cm-s" style="background:var(--brand-soft)"></div>';
-    else for(var i=0;i<cnt;i++)samples+='<div class="cm-s" style="background:'+cmRegGrads[i%cmRegGrads.length]+'"></div>';
+  if(hasImages){
+    samples=d.images.map(function(u){return '<div class="cm-s" style="background-image:url(\''+cmQ(u)+'\');background-size:cover;background-position:center"></div>';}).join('');
+  }else if(d.images){
+    samples='<div class="cm-s" style="background:var(--brand-soft)"></div>';
   }else{
     for(var j=0;j<6;j++)samples+='<div class="cm-s" style="background:'+cmGrads[(idx+j)%cmGrads.length]+'"></div>';
   }
@@ -1124,11 +1121,16 @@ function cmSubmitReview(){
   cmOpenReviews();
 }
 function cmOpenRegister(editId){
-  cmReg={imgs:0,tags:[],status:'open',editingId:editId||null,title:'',price:'',period:'',slots:'',desc:'',usage:'',policy:''};
+  if(!AUTH.user){
+    toast('로그인 후 커미션을 등록할 수 있어요','🔒');
+    loginWithGoogle();
+    return;
+  }
+  cmReg={images:[],tags:[],status:'open',editingId:editId||null,title:'',price:'',period:'',slots:'',desc:'',usage:'',policy:''};
   if(editId){
-    var c=cmMyCommissions.find(function(x){return x.id===editId});
+    var c=cmMyList.find(function(x){return x.id===editId});
     if(c){
-      cmReg.imgs=c.imgs;cmReg.tags=c.tags.slice();cmReg.status=c.status;
+      cmReg.images=c.images.slice();cmReg.tags=c.tags.slice();cmReg.status=c.status;
       cmReg.title=c.title;cmReg.price=c.price;cmReg.period=c.period;cmReg.slots=c.slots;
       cmReg.desc=c.desc;cmReg.usage=c.usage||'';cmReg.policy=c.policy||'';
     }
@@ -1146,16 +1148,16 @@ function cmSyncReg(){
 }
 function cmRenderRegisterScreen(){
   var editing=!!cmReg.editingId;
-  var imgsHTML='';
-  for(var i=0;i<cmReg.imgs;i++){
-    imgsHTML+='<div class="cm-reg-img" style="background:'+cmRegGrads[i%cmRegGrads.length]+'"><div class="cm-del" onclick="cmDelSampleImg(this)">×</div></div>';
-  }
-  imgsHTML+='<div class="cm-reg-addimg" onclick="cmAddSampleImg()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 8v8M8 12h8"/></svg><span class="cm-cnt" id="cmRegImgCnt">'+cmReg.imgs+'/10</span></div>';
+  var imgsHTML=cmReg.images.map(function(url,i){
+    return '<div class="cm-reg-img" style="background-image:url(\''+cmQ(url)+'\');background-size:cover;background-position:center"><div class="cm-del" onclick="cmDelSampleImg('+i+')">×</div></div>';
+  }).join('');
+  imgsHTML+='<div class="cm-reg-addimg" onclick="cmPickSampleImg()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 8v8M8 12h8"/></svg><span class="cm-cnt" id="cmRegImgCnt">'+cmReg.images.length+'/10</span></div>';
   var tagsHTML=cmReg.tags.map(function(t){return '<div class="cm-reg-tagchip">#'+esc(t)+'<span class="cm-x" onclick="cmRemoveTag(\''+cmQ(t)+'\')">×</span></div>';}).join('');
   document.getElementById("main").innerHTML='<div class="cm-root">'+
     '<div class="cm-sub-top"><svg onclick="'+(editing?'cmOpenMy()':'openCommissionList()')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg><b>'+(editing?'커미션 수정':'커미션 등록')+'</b></div>'+
     '<div class="cm-reg">'+
       '<div class="cm-reg-label">샘플 이미지 <span class="cm-reg-req">*</span> <span class="cm-reg-sub">최대 10장</span></div>'+
+      '<input type="file" id="cmRegFileInput" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="cmOnRegFileChange(event)">'+
       '<div class="cm-reg-imgs" id="cmRegImgs">'+imgsHTML+'</div>'+
       '<div class="cm-reg-label">커미션 제목 <span class="cm-reg-req">*</span></div>'+
       '<input class="cm-reg-input" id="cmRegTitle" placeholder="예: LD 반신 채색 커미션" oninput="cmCheckReg()" value="'+esc(cmReg.title)+'">'+
@@ -1185,23 +1187,55 @@ function cmRenderRegisterScreen(){
   window.scrollTo({top:0,behavior:"smooth"});
   cmCheckReg();
 }
-function cmAddSampleImg(){
-  if(cmReg.imgs>=10){toast('최대 10장까지 올릴 수 있어요','⚠');return;}
-  cmReg.imgs++;
-  var g=cmRegGrads[(cmReg.imgs-1)%cmRegGrads.length];
-  var addbtn=document.querySelector('#cmRegImgs .cm-reg-addimg');
-  var img=document.createElement('div');
-  img.className='cm-reg-img';
-  img.style.background=g;
-  img.innerHTML='<div class="cm-del" onclick="cmDelSampleImg(this)">×</div>';
-  document.getElementById('cmRegImgs').insertBefore(img,addbtn);
-  document.getElementById('cmRegImgCnt').textContent=cmReg.imgs+'/10';
-  cmCheckReg();
+function cmPickSampleImg(){
+  if(cmReg.images.length>=10){toast('최대 10장까지 올릴 수 있어요','⚠');return;}
+  document.getElementById('cmRegFileInput').click();
 }
-function cmDelSampleImg(el){
-  el.parentElement.remove();
-  cmReg.imgs--;
-  document.getElementById('cmRegImgCnt').textContent=cmReg.imgs+'/10';
+function cmOnRegFileChange(e){
+  var f=e.target.files[0];
+  e.target.value='';
+  if(f)cmUploadSampleImg(f);
+}
+async function cmUploadSampleImg(file){
+  if(!AUTH.user){toast('로그인 후 이용할 수 있어요','🔒');return;}
+  if(ALLOWED_IMAGE_TYPES.indexOf(file.type)===-1){toast('이미지 파일만 올릴 수 있어요');return;}
+  if(file.size>MAX_IMAGE_BYTES){toast('40MB 이하 이미지만 올릴 수 있어요');return;}
+  if(cmReg.images.length>=10){toast('최대 10장까지 올릴 수 있어요','⚠');return;}
+  var uploadBlob=file,ext=(file.name.match(/\.([^.]+)$/)||[,'png'])[1];
+  if(file.type!=='image/gif'){
+    toast('이미지 압축 중...');
+    try{
+      var compressed=await compressImage(file);
+      uploadBlob=compressed.blob;ext=compressed.ext;
+    }catch(err){console.error('이미지 압축 실패, 원본으로 업로드:',err);}
+  }
+  toast('이미지 업로드 중...');
+  var path=AUTH.user.id+'/'+Date.now()+'-'+file.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_.-]/g,'_')+'.'+ext;
+  var up=await window.supabase.storage.from(CM_IMAGE_BUCKET).upload(path,uploadBlob,{contentType:uploadBlob.type});
+  if(up.error){toast('업로드 실패: '+up.error.message);return;}
+  var pub=window.supabase.storage.from(CM_IMAGE_BUCKET).getPublicUrl(path);
+  cmReg.images.push(pub.data.publicUrl);
+  cmRenderRegImgs();
+  cmCheckReg();
+  toast('이미지를 넣었어요');
+}
+function cmRenderRegImgs(){
+  var wrap=document.getElementById('cmRegImgs');
+  var addbtn=wrap.querySelector('.cm-reg-addimg');
+  wrap.querySelectorAll('.cm-reg-img').forEach(function(x){x.remove()});
+  cmReg.images.forEach(function(url,i){
+    var img=document.createElement('div');
+    img.className='cm-reg-img';
+    img.style.backgroundImage="url('"+url.replace(/'/g,"\\'")+"')";
+    img.style.backgroundSize='cover';img.style.backgroundPosition='center';
+    img.innerHTML='<div class="cm-del" onclick="cmDelSampleImg('+i+')">×</div>';
+    wrap.insertBefore(img,addbtn);
+  });
+  document.getElementById('cmRegImgCnt').textContent=cmReg.images.length+'/10';
+}
+function cmDelSampleImg(i){
+  cmReg.images.splice(i,1);
+  cmRenderRegImgs();
   cmCheckReg();
 }
 function cmOnTagKey(e){
@@ -1238,7 +1272,7 @@ function cmSetStatus(v){
 }
 function cmCheckReg(){
   cmSyncReg();
-  var ok=cmReg.imgs>0&&
+  var ok=cmReg.images.length>0&&
     cmReg.title.trim()&&
     cmReg.price&&
     cmReg.tags.length>0&&
@@ -1255,60 +1289,87 @@ function cmPreviewReg(){
   var usage=cmReg.usage.trim();
   var policy=cmReg.policy.trim();
   cmPreviewObj={artist:'나',channel:'내 커미션',title:title,price:price,period:period,slots:slots,
-    desc:desc,usage:usage,policy:policy,tags:cmReg.tags.slice(),imgs:cmReg.imgs,grad:0,likes:0};
+    desc:desc,usage:usage,policy:policy,tags:cmReg.tags.slice(),images:cmReg.images.slice(),likes:0};
   cmDetailCtx={from:'register',idx:0};
   document.getElementById('main').innerHTML=cmDetailHTML(cmPreviewObj,0);
   window.scrollTo({top:0,behavior:'smooth'});
 }
-function cmSubmitReg(){
+async function cmSubmitReg(){
   cmSyncReg();
-  var c={
+  if(!AUTH.user){toast('로그인 후 이용할 수 있어요','🔒');return;}
+  var row={
     title:cmReg.title.trim(),
     price:cmReg.price,
     tags:cmReg.tags.slice(),
     status:cmReg.status,
     period:cmReg.period.trim(),
     slots:cmReg.slots,
-    desc:cmReg.desc.trim(),
-    usage:cmReg.usage.trim(),
-    policy:cmReg.policy.trim(),
-    imgs:cmReg.imgs,grad:0
+    description:cmReg.desc.trim(),
+    usage_rights:cmReg.usage.trim(),
+    trade_policy:cmReg.policy.trim()
   };
+  var commissionId;
   if(cmReg.editingId){
-    var idx=cmMyCommissions.findIndex(function(x){return x.id===cmReg.editingId});
-    c.id=cmReg.editingId;c.grad=cmMyCommissions[idx].grad;
-    cmMyCommissions[idx]=c;
-    toast('커미션이 수정되었어요!','✏️');
+    var upd=await window.supabase.from('commissions').update(row).eq('id',cmReg.editingId).select().single();
+    if(upd.error){toast('수정 실패: '+upd.error.message);return;}
+    commissionId=cmReg.editingId;
+    var delImgs=await window.supabase.from('commission_images').delete().eq('commission_id',commissionId);
+    if(delImgs.error)console.error(delImgs.error);
   }else{
-    c.id=Date.now();c.grad=cmMyCommissions.length;
-    cmMyCommissions.push(c);
-    toast('커미션이 등록되었어요!','🎨');
+    row.author_id=AUTH.user.id;
+    var saved=await window.supabase.from('commissions').insert(row).select().single();
+    if(saved.error){toast('등록 실패: '+saved.error.message);return;}
+    commissionId=saved.data.id;
   }
+  if(cmReg.images.length){
+    var imgRows=cmReg.images.map(function(url,i){return{commission_id:commissionId,url:url,sort:i};});
+    var savedImgs=await window.supabase.from('commission_images').insert(imgRows);
+    if(savedImgs.error)console.error(savedImgs.error);
+  }
+  toast(cmReg.editingId?'커미션이 수정되었어요!':'커미션이 등록되었어요!',cmReg.editingId?'✏️':'🎨');
   cmOpenMy();
 }
 function cmMyListHTML(){
-  if(cmMyCommissions.length===0)return '<div class="cm-my-empty">아직 등록한 커미션이 없어요.<br>+ 새 커미션 버튼으로 등록해보세요!</div>';
-  return cmMyCommissions.map(function(c){
+  if(cmMyList.length===0)return '<div class="cm-my-empty">아직 등록한 커미션이 없어요.<br>+ 새 커미션 버튼으로 등록해보세요!</div>';
+  return cmMyList.map(function(c){
     var st=c.status==='open'?'<span class="cm-my-badge open">🟢 접수중</span>':'<span class="cm-my-badge close">⛔ 마감</span>';
-    return '<div class="cm-my-item"><div class="cm-my-thumb" style="background:'+cmRegGrads[c.grad%cmRegGrads.length]+'"></div>'+
+    var thumbStyle=c.images[0]?("background-image:url('"+esc(c.images[0])+"');background-size:cover;background-position:center"):'background:var(--brand-soft)';
+    return '<div class="cm-my-item"><div class="cm-my-thumb" style="'+thumbStyle+'"></div>'+
       '<div class="cm-my-info"><div class="cm-my-title">'+esc(c.title)+'</div>'+
         '<div class="cm-my-price">'+Number(c.price).toLocaleString()+'P~</div>'+st+'</div>'+
       '<button class="cm-my-edit" onclick="cmOpenRegister('+c.id+')">수정</button></div>';
   }).join('');
 }
-function cmOpenMy(){
+async function cmOpenMy(){
+  if(!AUTH.user){
+    toast('로그인 후 내 커미션을 볼 수 있어요','🔒');
+    loginWithGoogle();
+    return;
+  }
   document.getElementById("main").innerHTML='<div class="cm-root">'+
     '<div class="cm-sub-top"><svg onclick="openCommissionList()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>내 커미션</b>'+
       '<button class="cm-write-btn" onclick="cmOpenRegister()">+ 새 커미션</button></div>'+
     '<div class="cm-my-bulk"><button class="cm-open-all" onclick="cmBulkStatus(\'open\')">🟢 전체 열기</button>'+
       '<button class="cm-close-all" onclick="cmBulkStatus(\'close\')">⛔ 전체 마감</button></div>'+
-    '<div class="cm-my-list" id="cmMyList">'+cmMyListHTML()+'</div>'+
+    '<div class="cm-my-list" id="cmMyList"><div class="cm-my-empty">불러오는 중...</div></div>'+
   '</div>';
   window.scrollTo({top:0,behavior:"smooth"});
+  var res=await window.supabase.from('commissions').select('*,commission_images(url,sort)').eq('author_id',AUTH.user.id).order('created_at',{ascending:false});
+  if(res.error){toast('불러오기 실패: '+res.error.message);return;}
+  cmMyList=res.data.map(function(row){
+    var imgs=(row.commission_images||[]).slice().sort(function(a,b){return a.sort-b.sort;}).map(function(x){return x.url;});
+    return{id:row.id,title:row.title,price:row.price,tags:row.tags||[],status:row.status,period:row.period,
+      slots:row.slots,desc:row.description,usage:row.usage_rights,policy:row.trade_policy,images:imgs};
+  });
+  var listEl=document.getElementById('cmMyList');
+  if(listEl)listEl.innerHTML=cmMyListHTML();
 }
-function cmBulkStatus(status){
-  if(cmMyCommissions.length===0){toast('등록된 커미션이 없어요','⚠');return;}
-  cmMyCommissions.forEach(function(c){c.status=status;});
+async function cmBulkStatus(status){
+  if(!AUTH.user)return;
+  if(cmMyList.length===0){toast('등록된 커미션이 없어요','⚠');return;}
+  var upd=await window.supabase.from('commissions').update({status:status}).eq('author_id',AUTH.user.id);
+  if(upd.error){toast('처리 실패: '+upd.error.message);return;}
+  cmMyList.forEach(function(c){c.status=status;});
   document.getElementById('cmMyList').innerHTML=cmMyListHTML();
   toast(status==='open'?'커미션을 모두 열었어요':'커미션을 모두 마감했어요',status==='open'?'🟢':'⛔');
 }

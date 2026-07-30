@@ -140,9 +140,12 @@ Supabase 프로젝트: https://qabbdgfottbnapmyjudy.supabase.co
 | `score_awarded_likes` | `user_id`, `post_id`(FK→posts) | PK가 `(user_id,post_id)`. "이 사람이 이 글로 추천 점수를 받은 적 있는지" 영구 기록(2026-07-29 추가, 좋아요 취소 후 재클릭 악용 방지) — RLS만 켜고 정책은 없음, 클라이언트 접근 완전 차단 |
 | `score_awarded_helpful` | `user_id`, `comment_id`(FK→comments) | 위와 동일한 목적, 도움돼요용 |
 | `user_ads` | `id`(bigint PK), `user_id`(FK→profiles), `image_url`(text), `linked_post_id`(FK→posts, `on delete cascade`), `points_spent`(int), `duration_days`(int), `status`(text: pending/active/rejected/expired/removed_by_admin), `created_at`, `expires_at`(nullable — `pending` 상태일 땐 아직 안 채워짐) | 유저 이미지 배너 광고(2026-07-29 추가). insert/update는 RLS 정책 없음 — `create_user_ad()`(생성, `pending`)/`approve_user_ad()`/`reject_user_ad()`(관리자 사전 승인·거절)/`admin_remove_ad()`(사후 삭제) RPC로만 상태 변경. 글이 삭제되면 광고도 cascade로 자동 삭제 |
+| `commissions` | `id`(bigint PK), `author_id`(uuid, FK→auth.users, `on delete cascade`), `title`, `price`(text), `tags`(**text[]**, 최대 5개 체크 제약 `commissions_tags_max5`), `status`(text: open/close), `period`, `slots`, `description`, `usage_rights`, `trade_policy`, `created_at` | 2026-07-30 추가(커미션 페이지 프롬프트2). `posts`와 달리 **비로그인 등록 자체가 불가** — "내 커미션"이라는 소유 개념이 필수라서. 이 프로젝트에서 처음으로 실제 Postgres `text[]` 컬럼을 쓴 사례 |
+| `commission_images` | `id`(bigint PK), `commission_id`(FK→commissions, `on delete cascade`), `url`(text, Storage 공개 URL), `sort`(int), `created_at` | 2026-07-30 추가. `post_images`와 달리 **insert/delete 모두 처음부터 소유자로 좁혀서 만듦**(아래 RLS 참고) — `post_images`의 "누구나 insert 가능"한 미해결 보안 부채를 반복하지 않기로 함 |
 
 ### Storage 버킷
 - `post-images` (Public) — 글 첨부 이미지. 업로드 경로는 `${Date.now()}-${파일명}` 형태(폴더 구분 없음).
+- `commission-images` (Public, 2026-07-30 추가) — 커미션 샘플 이미지. `post-images`와 별도 버킷. 업로드 경로는 `${작성자uid}/${Date.now()}-${파일명}` 형태 — 폴더명이 업로더의 uid라서, Storage RLS가 `(storage.foldername(name))[1] = auth.uid()::text`만으로 본인 파일만 업로드/삭제 가능하도록 검사(테이블 조인 없이 경로만으로 판단하는 표준 Supabase 패턴).
 
 ### RLS(Row Level Security) 정책 — 현재 최종 상태
 
@@ -196,6 +199,19 @@ grant execute on function public.increment_post_views(bigint) to anon, authentic
 - insert: `reports_insert_all_temp` — 글 신고·광고 신고는 누구나(익명 포함). 채팅 신고는 `reporter_id = auth.uid()`이고 `is_conversation_participant(conversation_id)`가 true일 때만(그 대화 참여자 본인만 신고 가능)
 - select/update: `reports_select_admin` / `reports_update_admin` — `is_admin()`만
 - **(2026-07-29, 이후 "신고된 대화만" → "전체 대화 열람"으로 확장됨. 아래 `conversations`/`messages` 절 참고)**
+
+**`commissions` (2026-07-30 추가):**
+- select: `commissions_select_all` — 누구나
+- insert: `commissions_insert_own` — `auth.uid() = author_id`(비로그인 등록 불가, `posts`와 다른 점)
+- update/delete: `commissions_update_own` / `commissions_delete_own` — 둘 다 `auth.uid() = author_id`, 남의 커미션은 절대 수정 불가
+
+**`commission_images` (2026-07-30 추가):**
+- select: `commission_images_select_all` — 누구나
+- insert/delete: `commission_images_insert_own` / `commission_images_delete_own` — `exists(select 1 from commissions where id=commission_id and author_id=auth.uid())`, 즉 그 커미션의 주인만
+
+**`storage.objects` (commission-images 버킷, 2026-07-30 추가):**
+- select: `commission_images_bucket_select_all` — `bucket_id='commission-images'`이면 누구나
+- insert/delete: `commission_images_bucket_insert_own` / `..._delete_own` — `bucket_id='commission-images'` and `(storage.foldername(name))[1] = auth.uid()::text`(업로드 경로의 첫 폴더가 본인 uid일 때만)
 
 **RLS 순환 참조(recursion) 주의 — 실제로 겪은 버그:** 위 정책들을 처음 만들 때 `conversations`/`messages` 조회 여부를 `reports` 서브쿼리로 확인하고, 반대로 `reports` INSERT는 `conversations` 서브쿼리로 참여자를 확인하도록 짰더니 `reports → conversations → reports → ...`로 서로가 서로를 참조하는 순환이 생겨 `infinite recursion detected in policy for relation "reports"` 에러가 났음(실제로 신고 접수 시 발생, `CREATE POLICY` 시점엔 에러 없이 통과해서 뒤늦게 발견됨). **고친 방법**: `is_admin()`과 똑같은 패턴으로, 테이블을 직접 서브쿼리하는 대신 **security definer 함수로 감싸서 그 함수를 호출**하도록 정책을 다시 씀 — security definer 함수 내부의 쿼리는 RLS를 우회하기 때문에 순환이 끊김:
 
@@ -488,8 +504,8 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 ### 커미션 페이지 (2026-07-30 신규, 시안 기반 · 프롬프트1 — 화면·데모 데이터만, 실제 DB 연동 전)
 사용자가 만든 HTML 시안(`커미션페이지_시안.html`)의 디자인·화면 구조를 Palo의 "커미션" 섹션에 그대로 이식. Palo는 `#main`을 통째로 갈아끼우는 SPA라, 시안의 `.page`/`go()` 토글 라우터 대신 화면마다 렌더 함수를 하나씩 만드는 기존 방식(`renderList()` 등과 동일 패턴)으로 재구성함.
 - **CSS**: 시안 CSS를 전부 `cm-` 접두사(`.cm-card`, `.cm-chip` 등)로 옮겨서 기존 `.tab`/`.chip`/`.card` 같은 전역 클래스와 충돌 방지. 색상은 새 변수를 선언하지 않고 Palo 기존 토큰에 매핑(`--brand-deep`→`--brand-2`, 시안의 `--ok`/불호색 → 기존 후기 시스템의 `#3f8f5f`/`#c05a5a`). `public/palo.js` 맨 아래 `/* ===== 커미션 페이지 (cm-) ===== */`부터가 이 기능 전체.
-- **화면 7개, 전부 데모/인메모리 데이터** (`cmData`, `cmReviews`, `cmMyCommissions` 등 — 실제 Supabase 연동은 다음 단계):
-  - `openCommissionList()`: 목록(카드 그리드, 태그 칩), `cmOpenDetail(idx)`: 상세(후기 요약·아코디언·구독 카드), `cmOpenArtistProfile(name)`: 작가 프로필(스텁 — 실제 유저 프로필 연결은 나중 단계에서 `openUserProfile()`로 교체 예정), `cmOpenReviews()`/`cmOpenWrite()`: 후기 전체보기·작성(호/불호 + 타입 선택), `cmOpenRegister(editId)`: 등록/수정 공용 폼, `cmOpenMy()`: 내 커미션 관리.
+- **화면 7개** (등록/수정/내 커미션은 아래 프롬프트2로 실제 DB 연동됨, 목록·상세·후기는 여전히 데모 데이터 — 프롬프트3 예정):
+  - `openCommissionList()`: 목록(카드 그리드, 태그 칩 — 데모 `cmData`), `cmOpenDetail(idx)`: 상세(후기 요약·아코디언·구독 카드), `cmOpenArtistProfile(name)`: 작가 프로필(스텁 — 실제 유저 프로필 연결은 나중 단계에서 `openUserProfile()`로 교체 예정), `cmOpenReviews()`/`cmOpenWrite()`: 후기 전체보기·작성(호/불호 + 타입 선택, 데모 `cmReviews`), `cmOpenRegister(editId)`: 등록/수정 공용 폼(**실제 DB**), `cmOpenMy()`: 내 커미션 관리(**실제 DB**).
   - 등록 폼은 화면을 나갔다 와도(미리보기 → 뒤로가기) 입력값이 안 사라지도록 `cmReg` 객체에 필드값을 실시간 동기화(`cmSyncReg()`, 모든 입력에 `oninput`) — `innerHTML` 통짜 교체 방식이라 DOM에만 값이 남아있으면 화면 전환 시 유실되기 때문.
 - **네비게이션 정리 (사용자가 여러 차례 피드백을 주며 다듬음)**:
   - 하단 탭바 "커미션"/데스크톱 헤더 버튼 → `openCommissionList()`.
@@ -497,9 +513,19 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
   - Palo 기본 검색이 있던 자리(헤더)에는 커미션 화면에서만 보이는 **"내 커미션" 버튼**(`.cm-header-my-btn`, `cmOpenMy()` 호출)이 대신 나타남 — 처음엔 이 자리에 "커미션 등록" 버튼을 넣었다가, 사용자가 "내 커미션 리스트를 보여주는 페이지가 맞다"고 정정해서 지금 형태로 바꿈. 커미션 등록은 "내 커미션" 화면 안의 "+ 새 커미션" 버튼으로 들어감(목록 화면 자체의 "+" FAB·상단 아이콘은 중복이라 전부 삭제).
   - 커미션 페이지 자체의 검색창("커미션 검색")은 실제로 동작함(`cmSearch()`) — 제목·태그만 매칭하는 전용 검색이라 Palo 전체 검색과 역할이 겹치지 않음.
   - 알림은 커미션 전용 알림함을 따로 만들지 않고 기존 Palo 알림함(`NOTIFS`)에 통합 — 알림함에 "커미션" 필터 탭 추가, 데모 후기를 작성하면(`cmSubmitReview()`) `NOTIFS`에 항목이 쌓이고 클릭하면 `cmOpenReviews()`로 이동(`n.cmTarget==="reviews"`). 커미션 페이지 자체의 알림 아이콘은 삭제함. "문의가 옴" 알림은 문의하기 버튼이 아직 기능이 없어서(다음 단계 예정) 보류.
-- **아직 안 됨(다음 단계 예정, 사용자의 원래 6단계 계획 기준)**: 실제 Supabase `commissions`/`commission_images` 테이블 + RLS(본인만 수정), 목록/상세/내 커미션 실데이터 연동, 커미션 상세에 기존 후기 시스템(위 "커미션 후기 시스템" 섹션) 연결, 문의하기·신청하기·구독·태그 필터 등 나머지 버튼 실제 동작, 로딩/빈 상태·모바일 오버플로 다듬기.
+- **아직 안 됨(다음 단계 예정, 사용자의 원래 6단계 계획 기준)**: 목록/상세를 실제 데이터로 연동(프롬프트3, 아래 참고), 커미션 상세에 기존 후기 시스템(위 "커미션 후기 시스템" 섹션) 연결, 문의하기·신청하기·구독·태그 필터 등 나머지 버튼 실제 동작, 로딩/빈 상태·모바일 오버플로 다듬기.
 - Next.js 개발 서버의 좌하단 dev indicator("N" 아이콘)가 새로 생긴 커미션 화면의 하단 고정 버튼과 겹쳐 보여서 `next.config.mjs`에 `devIndicators: false` 추가함(배포본에는 원래도 안 뜨는 요소).
 - **🐛 모바일에서 하단 고정 버튼이 안 보이던 버그**: 커미션 화면의 하단 고정 버튼바 3개(`.cm-apply-bar`/`.cm-wr-submit`/`.cm-reg-bottom`, 전부 시안에서 그대로 가져온 `bottom:0` 고정) 전부 Palo 자체의 모바일 하단 탭바(`.tabbar`, 역시 `bottom:0` 고정이지만 z-index가 더 높음)에 완전히 가려져 있었음 — 커미션 화면은 `#main` 안에 렌더링되고 탭바는 그 바깥의 항상 떠 있는 전역 UI라 이 둘이 서로 몰랐던 것. **고침**: `cmSyncTabbarHeight()`가 `.tabbar`의 실제 렌더링 높이(탭바가 숨겨지는 데스크톱 너비에서는 0)를 재서 `--cm-tabbar-h` CSS 변수로 저장(리사이즈 시·`#main` 변경 감지 MutationObserver 콜백에서 재계산), 위 3개 바의 `bottom` 값을 `var(--cm-tabbar-h,0px)`로 바꿔서 탭바 바로 위에 위치하도록 함. 각 화면의 스크롤 여백(`.cm-pad`/`.cm-reg`/`.cm-wr`의 하단 padding)도 같은 변수만큼 늘려서 내용이 버튼에 가리지 않게 함. **교훈**: `#main` 안에서 렌더링되는 화면이 자체적인 `position:fixed` 하단 바를 새로 만들 때는, Palo의 전역 하단 탭바(모바일에서 항상 떠 있음)와 겹치지 않는지 반드시 확인할 것 — 데스크톱 폭에서는 탭바가 아예 없어서 이 문제가 재현되지 않고, 실기기가 아닌 브라우저 뷰포트 에뮬레이션만으로는 겹침 자체는 보여도 "화면 밖으로 나갔다"는 사용자 표현과 바로 연결짓기 어려웠음 — 사용자가 보내준 스크린샷으로 확정함.
+
+### 커미션 페이지 — 프롬프트2: 등록/수정 실제 DB 연동 (2026-07-30 추가)
+사용자의 원래 6단계 계획 중 2단계. "등록해도 새로고침하면 사라지는" 데모 상태였던 등록/수정/내 커미션 화면을 실제 Supabase에 연결. 스키마·RLS·Storage 버킷은 4절 `commissions`/`commission_images`/`commission-images` 항목 참고.
+- **이미지 업로드는 기존 게시글 업로드 흐름을 그대로 재사용**: `compressImage()`/`ALLOWED_IMAGE_TYPES`/`MAX_IMAGE_BYTES` 전부 공용, GIF는 압축 건너뛰고 원본 업로드하는 것도 동일. 다만 **버킷은 `post-images`와 공유하지 않고 `commission-images`로 새로 분리**하고, 업로드 경로를 `${작성자uid}/${Date.now()}-${파일명}`으로 만들어서 Storage RLS가 테이블 조인 없이 폴더명만으로 "본인 파일인지" 판단할 수 있게 함(`cmUploadSampleImg()`).
+- **등록 폼의 이미지 상태가 카운터(`imgs`)에서 실제 URL 배열(`cmReg.images`)로 바뀜**: 프롬프트1 때는 "+" 버튼을 누르면 그냥 숫자만 늘어나고 그라데이션 placeholder를 그렸는데, 이제 진짜 `<input type=file>`(`cmRegFileInput`, 화면엔 숨김)을 열어서 고른 파일을 업로드하고 받은 URL을 배열에 저장(`cmRenderRegImgs()`가 그 배열을 다시 그림). 삭제(`cmDelSampleImg(i)`)도 이제 인덱스 기반.
+- **저장 로직**: `cmSubmitReg()`가 `cmReg.editingId` 유무로 `commissions` insert/update 분기(기존 `submitPost()`의 `editingPostId` 패턴과 동일한 구조), 그 다음 항상 `commission_images`를 **전부 delete 후 현재 배열 전체를 다시 insert**(수정 시 이미지 순서·개수가 달라져도 항상 최종 상태와 일치하게, `submitPost()`가 `post_images`를 다루는 방식과 동일).
+- **"내 커미션"이 이제 실제 내 데이터를 불러옴**: `cmOpenMy()`가 `commissions`를 `commission_images(url,sort)`와 함께 한 번에 조회(`.select('*,commission_images(url,sort)')`)해서 `cmMyList`(세션 캐시)에 저장 — 데모 배열 `cmMyCommissions`는 완전히 삭제됨. `cmOpenRegister(editId)`(수정 진입)와 `cmBulkStatus()`(전체 열기/마감)도 전부 이 실데이터 기준으로 동작.
+- **로그인 필수**: `posts`와 달리 커미션은 익명 등록 개념이 없으므로, `cmOpenRegister()`/`cmOpenMy()` 진입 시점에 `AUTH.user` 체크 → 없으면 토스트 + `loginWithGoogle()` 즉시 호출. RLS도 `auth.uid()=author_id`로 막혀있어 클라이언트 체크를 우회해도 서버에서 다시 막힘(이중 방어).
+- **미리보기 화면도 실제 이미지 반영**: `cmDetailHTML()`의 슬라이더/샘플 그리드 렌더링을 "그라데이션 placeholder 개수" 방식에서 "`d.images` 배열이 있으면 실제 이미지, 없으면 데모 그라데이션" 방식으로 바꿈 — 프롬프트1 때 쓰던 `cmRegGrads`(그라데이션 placeholder 팔레트)는 완전히 불필요해져서 삭제.
+- **테스트 시 유의점**: 등록/수정은 실제 Google 로그인이 필요해서 AI가 브라우저 자동화로 직접 끝까지 검증할 수 없었음(로그인 안 된 상태에서의 가드 동작까지만 자동 확인) — 실제 저장 확인은 사용자가 로그인 후 직접 등록·새로고침·수정까지 해보고 확정함.
 
 ### 커미션 후기 시스템 (2026-07-30 추가)
 "커미션 후기" 게시판(`review`)에 글을 쓸 때, 실제 존재하는 "커미션 구인구직" 게시판의 "구직" 말머리 글과 반드시 연결하도록 만들어서 아무 닉네임이나 적어 넣는 걸 막고, 작성을 최대한 간단하게(만족/불호 선택 + 선택적 한 줄 후기) 만든 기능. 단계별로 사용자 피드백을 받아가며 여러 번 방향이 바뀜(별점 → 만족/불호로 최종 변경 등) — 아래는 최종 상태 기준.
