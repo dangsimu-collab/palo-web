@@ -922,7 +922,7 @@ function cmRowToData(row,artistNickname){
     artist:artistNickname||'탈퇴한 사용자',
     title:row.title,price:row.price,status:row.status,tags:row.tags||[],
     period:row.period,slots:row.slots,desc:row.description,usage:row.usage_rights,policy:row.trade_policy,
-    images:imgs,likes:0,createdAt:row.created_at,
+    images:imgs,likes:0,createdAt:row.created_at,form:row.application_form||[],
     reviewCount:revs.length,satisfaction:revs.length?(goodCount/revs.length):0
   };
 }
@@ -1096,16 +1096,136 @@ function cmCancelChatRef(){
   var hint=document.getElementById('cmChatRefHint');
   if(hint)hint.remove();
 }
-async function cmOpenCommissionById(commissionId){
+var cmApp={commissionId:null,images:[]};
+async function cmApply(authorId,commissionId,commissionTitle){
+  if(!AUTH.user){toast('로그인 후 신청할 수 있어요','🔒');loginWithGoogle();return;}
+  if(AUTH.user.id===authorId){toast('본인 커미션은 신청할 수 없어요');return;}
+  var idx=await cmEnsureCommissionInData(commissionId);
+  if(idx<0){toast('커미션을 찾을 수 없어요');return;}
+  cmApp={commissionId:commissionId,images:[]};
+  cmRenderApplyForm(cmData[idx]);
+}
+function cmApplyFieldInputHTML(f){
+  if(f.type==='checkbox'){
+    return '<label class="cm-apply-check"><input type="checkbox" id="cmAppField_'+esc(f.id)+'" onchange="cmCheckApplySubmit()"> '+esc(f.label)+(f.required?' <span class="cm-reg-req">*</span>':'')+'</label>';
+  }
+  return '<div class="cm-reg-label">'+esc(f.label)+(f.required?' <span class="cm-reg-req">*</span>':'')+'</div>'+
+    '<input class="cm-reg-input" id="cmAppField_'+esc(f.id)+'" oninput="cmCheckApplySubmit()">';
+}
+function cmApplyImgsHTML(){
+  var imgsHTML=cmApp.images.map(function(url,i){
+    return '<div class="cm-reg-img" style="background-image:url(\''+cmQ(url)+'\');background-size:cover;background-position:center"><div class="cm-del" onclick="cmDelApplyImg('+i+')">×</div></div>';
+  }).join('');
+  imgsHTML+='<div class="cm-reg-addimg" onclick="cmPickApplyImg()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 8v8M8 12h8"/></svg><span class="cm-cnt" id="cmAppImgCnt">'+cmApp.images.length+'/5</span></div>';
+  return imgsHTML;
+}
+function cmRenderApplyForm(commission){
+  var form=commission.form||[];
+  var policyHTML=commission.policy?esc(commission.policy).replace(/\n/g,'<br>'):'Palo는 결제를 중계하지 않아요. 작업 범위·기한·환불 등 세부 사항은 작가와 직접 협의해주세요.<br>저작권은 별도 협의가 없는 한 작가에게 귀속됩니다.';
+  document.getElementById("main").innerHTML='<div class="cm-root">'+
+    '<div class="cm-sub-top"><svg onclick="cmOpenCommissionById('+commission.id+')" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>커미션 신청서</b></div>'+
+    '<div class="cm-reg">'+
+      '<div class="cm-reg-label">참고 이미지 <span class="cm-reg-sub">선택 · 최대 5장</span></div>'+
+      '<input type="file" id="cmAppFileInput" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="cmOnApplyFileChange(event)">'+
+      '<div class="cm-reg-imgs" id="cmAppImgs">'+cmApplyImgsHTML()+'</div>'+
+      '<div class="cm-reg-label">추가 요청사항 <span class="cm-reg-sub">선택</span></div>'+
+      '<textarea class="cm-reg-textarea" id="cmAppExtra" placeholder="원하는 스타일, 참고 사항 등을 자유롭게 적어주세요."></textarea>'+
+      (form.length?('<div class="cm-reg-label">작가가 요청한 항목</div>'+form.map(cmApplyFieldInputHTML).join('<div style="height:14px"></div>')):'')+
+      '<div class="cm-reg-label">거래 정책</div>'+
+      '<div class="cm-apply-policy">'+policyHTML+'</div>'+
+      '<label class="cm-apply-check"><input type="checkbox" id="cmAppAgree" onchange="cmCheckApplySubmit()"> 위 거래 정책에 동의하며, 혹시 분쟁이 생기면 이 내용을 기준으로 처리하는 데 동의합니다. <span class="cm-reg-req">*</span></label>'+
+    '</div>'+
+    '<div class="cm-reg-bottom"><button class="cm-reg-btn" id="cmAppSubmit" style="flex:1" onclick="cmSubmitApplication('+commission.id+')" disabled>신청서 제출하기</button></div>'+
+  '</div>';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function cmPickApplyImg(){
+  if(cmApp.images.length>=5){toast('최대 5장까지 올릴 수 있어요','⚠');return;}
+  document.getElementById('cmAppFileInput').click();
+}
+function cmOnApplyFileChange(e){
+  var f=e.target.files[0];
+  e.target.value='';
+  if(f)cmUploadApplyImg(f);
+}
+async function cmUploadApplyImg(file){
+  if(!AUTH.user){toast('로그인 후 이용할 수 있어요','🔒');return;}
+  if(ALLOWED_IMAGE_TYPES.indexOf(file.type)===-1){toast('이미지 파일만 올릴 수 있어요');return;}
+  if(file.size>MAX_IMAGE_BYTES){toast('40MB 이하 이미지만 올릴 수 있어요');return;}
+  if(cmApp.images.length>=5){toast('최대 5장까지 올릴 수 있어요','⚠');return;}
+  var uploadBlob=file,ext=(file.name.match(/\.([^.]+)$/)||[,'png'])[1];
+  if(file.type!=='image/gif'){
+    toast('이미지 압축 중...');
+    try{
+      var compressed=await compressImage(file);
+      uploadBlob=compressed.blob;ext=compressed.ext;
+    }catch(err){console.error('이미지 압축 실패, 원본으로 업로드:',err);}
+  }
+  toast('이미지 업로드 중...');
+  var path=AUTH.user.id+'/applications/'+Date.now()+'-'+file.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_.-]/g,'_')+'.'+ext;
+  var up=await window.supabase.storage.from(CM_IMAGE_BUCKET).upload(path,uploadBlob,{contentType:uploadBlob.type});
+  if(up.error){toast('업로드 실패: '+up.error.message);return;}
+  var pub=window.supabase.storage.from(CM_IMAGE_BUCKET).getPublicUrl(path);
+  cmApp.images.push(pub.data.publicUrl);
+  document.getElementById('cmAppImgs').innerHTML=cmApplyImgsHTML();
+  toast('이미지를 넣었어요');
+}
+function cmDelApplyImg(i){
+  cmApp.images.splice(i,1);
+  document.getElementById('cmAppImgs').innerHTML=cmApplyImgsHTML();
+}
+function cmCheckApplySubmit(){
+  var commission=cmData.find(function(c){return c.id===cmApp.commissionId;});
+  var form=commission?(commission.form||[]):[];
+  var agreeEl=document.getElementById('cmAppAgree');
+  var ok=agreeEl&&agreeEl.checked;
+  form.forEach(function(f){
+    if(!f.required)return;
+    var el=document.getElementById('cmAppField_'+f.id);
+    if(!el)return;
+    if(f.type==='checkbox'){if(!el.checked)ok=false;}
+    else{if(!el.value.trim())ok=false;}
+  });
+  var btn=document.getElementById('cmAppSubmit');
+  if(btn)btn.disabled=!ok;
+}
+async function cmSubmitApplication(commissionId){
+  if(!AUTH.user)return;
+  var commission=cmData.find(function(c){return c.id===commissionId;});
+  var form=commission?(commission.form||[]):[];
+  var answers=form.map(function(f){
+    var el=document.getElementById('cmAppField_'+f.id);
+    var value=f.type==='checkbox'?(el?el.checked:false):(el?el.value.trim():'');
+    return{field_id:f.id,label:f.label,type:f.type,value:value};
+  });
+  var extra=document.getElementById('cmAppExtra').value.trim();
+  var payload={
+    commission_id:commissionId,
+    applicant_id:AUTH.user.id,
+    reference_images:cmApp.images,
+    extra_request:extra,
+    answers:answers,
+    agreed_policy_text:commission?(commission.policy||''):'',
+    status:'pending'
+  };
+  var res=await window.supabase.from('commission_applications').insert(payload);
+  if(res.error){toast('신청 실패: '+res.error.message);return;}
+  toast('신청서를 제출했어요! 작가의 확인을 기다려주세요','📝');
+  cmOpenCommissionById(commissionId);
+}
+async function cmEnsureCommissionInData(commissionId){
   if(!cmDataLoaded)await cmLoadCommissions();
   var idx=cmData.findIndex(function(d){return d.id===commissionId;});
-  if(idx<0){
-    var res=await window.supabase.from('commissions').select('*,commission_images(url,sort)').eq('id',commissionId).single();
-    if(res.error||!res.data){toast('커미션을 찾을 수 없어요(삭제되었을 수 있어요)');return;}
-    var profRes=await window.supabase.from('profiles').select('nickname').eq('id',res.data.author_id).single();
-    cmData.push(cmRowToData(res.data,profRes.data?profRes.data.nickname:null));
-    idx=cmData.length-1;
-  }
+  if(idx>=0)return idx;
+  var res=await window.supabase.from('commissions').select('*,commission_images(url,sort)').eq('id',commissionId).single();
+  if(res.error||!res.data)return -1;
+  var profRes=await window.supabase.from('profiles').select('nickname').eq('id',res.data.author_id).single();
+  cmData.push(cmRowToData(res.data,profRes.data?profRes.data.nickname:null));
+  return cmData.length-1;
+}
+async function cmOpenCommissionById(commissionId){
+  var idx=await cmEnsureCommissionInData(commissionId);
+  if(idx<0){toast('커미션을 찾을 수 없어요(삭제되었을 수 있어요)');return;}
   closeDrawer();closeSheet();syncTabs("commission");
   cmDetailCtx={from:'list',idx:idx};
   document.getElementById("main").innerHTML=cmDetailHTML(cmData[idx],idx);
@@ -1118,7 +1238,7 @@ function cmDetailHTML(d,idx){
   var period=d.period||'작가 설정 (예: 3~7일)';
   var desc=d.desc||'그림체 아래 샘플(팬아트, 커미션 샘플) 확인해주세요.\n\n두상: 어깨선\n흉상: 명치선 - 허리 위\n반신: 골반 - 허벅지 중간\n\n추가금 문의 편하게 주세요.';
   var usageHTML=d.usage?esc(d.usage).replace(/\n/g,'<br>'):'비상업적 용도의 굿즈 제작 및 나눔 가능<br>SNS 게시 가능<br>출처 표기 시 작가명 또는 SNS 계정으로 부탁드립니다!';
-  var policyHTML=d.policy?('<p>'+esc(d.policy).replace(/\n/g,'<br>')+'</p>'):('<ul><li>신청 수락 시 고지한 작업 기한까지 최종 작업물이 전달되지 않으면, 결제 금액이 신청자에게 환불될 수 있습니다.</li><li>작업물의 저작권은 별도 협의가 없는 한 작가에게 귀속됩니다.</li></ul>');
+  var policyHTML=d.policy?('<p>'+esc(d.policy).replace(/\n/g,'<br>')+'</p>'):('<ul><li>Palo는 결제를 중계하지 않으니, 작업 범위·기한·환불 등 세부 사항은 작가와 직접 협의해주세요.</li><li>저작권은 별도 협의가 없는 한 작가에게 귀속됩니다.</li></ul>');
   var tags=(d.tags&&d.tags.length)?d.tags:['두상','흉상','반신','드림'];
   var hasImages=!!(d.images&&d.images.length);
   var sliderBg=hasImages?("url('"+cmQ(d.images[0])+"') center/cover"):cmGrads[idx%cmGrads.length];
@@ -1175,7 +1295,8 @@ function cmDetailHTML(d,idx){
     '</div>'+
     '<div class="cm-pad"></div>'+
     '<div class="cm-apply-bar"><div class="cm-bm'+(bookmarked?' on':'')+'"'+(d.id!=null?(' onclick="cmToggleBookmark('+d.id+',this)"'):'')+'><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4z"/></svg></div>'+
-      '<div class="cm-ask" onclick="'+((d.authorId&&d.id!=null)?('cmOpenChatAbout(\''+cmQ(d.authorId)+'\','+d.id+',\''+cmQ(title)+'\')'):'cmComingSoon()')+'">문의하기</div><div class="cm-apply" onclick="cmComingSoon()">신청하기</div></div>'+
+      '<div class="cm-ask" onclick="'+((d.authorId&&d.id!=null)?('cmOpenChatAbout(\''+cmQ(d.authorId)+'\','+d.id+',\''+cmQ(title)+'\')'):'cmComingSoon()')+'">문의하기</div>'+
+      '<div class="cm-apply" onclick="'+((d.authorId&&d.id!=null)?('cmApply(\''+cmQ(d.authorId)+'\','+d.id+',\''+cmQ(title)+'\')'):'cmComingSoon()')+'">신청하기</div></div>'+
   '</div>';
 }
 function cmOpenDetail(idx){
@@ -1325,13 +1446,14 @@ function cmOpenRegister(editId){
     loginWithGoogle();
     return;
   }
-  cmReg={images:[],tags:[],status:'open',editingId:editId||null,title:'',price:'',period:'',slots:'',desc:'',usage:'',policy:''};
+  cmReg={images:[],tags:[],status:'open',editingId:editId||null,title:'',price:'',period:'',slots:'',desc:'',usage:'',policy:'',form:[]};
   if(editId){
     var c=cmMyList.find(function(x){return x.id===editId});
     if(c){
       cmReg.images=c.images.slice();cmReg.tags=c.tags.slice();cmReg.status=c.status;
       cmReg.title=c.title;cmReg.price=c.price;cmReg.period=c.period;cmReg.slots=c.slots;
       cmReg.desc=c.desc;cmReg.usage=c.usage||'';cmReg.policy=c.policy||'';
+      cmReg.form=(c.form||[]).map(function(f){return{id:f.id,type:f.type,label:f.label,required:!!f.required};});
     }
   }
   cmRenderRegisterScreen();
@@ -1379,12 +1501,41 @@ function cmRenderRegisterScreen(){
       '<textarea class="cm-reg-textarea" id="cmRegUsage" placeholder="예: 비상업적 굿즈/SNS 게시 가능, 출처 표기 부탁" oninput="cmCheckReg()">'+esc(cmReg.usage)+'</textarea>'+
       '<div class="cm-reg-label">거래 안내 / 정책 <span class="cm-reg-sub">선택</span></div>'+
       '<textarea class="cm-reg-textarea" id="cmRegPolicy" placeholder="예: 작업 시작 후 단순 변심 환불 불가, 저작권은 작가 귀속 등" oninput="cmCheckReg()">'+esc(cmReg.policy)+'</textarea>'+
+      '<div class="cm-reg-label">신청서 커스텀 항목 <span class="cm-reg-sub">참고 이미지·추가 요청사항은 신청서에 기본으로 포함돼요</span></div>'+
+      '<div class="cm-reg-formlist" id="cmRegFormList">'+cmFormListHTML()+'</div>'+
+      '<div class="cm-reg-formadd">'+
+        '<input class="cm-reg-input" id="cmFormFieldLabel" placeholder="예: 원하는 배경색">'+
+        '<select class="cm-reg-input" id="cmFormFieldType"><option value="text">텍스트 입력</option><option value="checkbox">체크박스(예/아니오)</option></select>'+
+        '<label class="cm-reg-formreq"><input type="checkbox" id="cmFormFieldRequired"> 필수 항목</label>'+
+        '<button type="button" class="cm-reg-formaddbtn" onclick="cmAddFormField()">+ 항목 추가</button>'+
+      '</div>'+
     '</div>'+
     '<div class="cm-reg-bottom"><button class="cm-prev" onclick="cmPreviewReg()">미리보기</button>'+
       '<button class="cm-reg-btn" id="cmRegSubmit" onclick="cmSubmitReg()" disabled>'+(editing?'수정 완료':'등록하기')+'</button></div>'+
   '</div>';
   window.scrollTo({top:0,behavior:"smooth"});
   cmCheckReg();
+}
+function cmFormListHTML(){
+  if(cmReg.form.length===0)return '<div class="cm-reg-sub">아직 추가한 항목이 없어요.</div>';
+  return cmReg.form.map(function(f,i){
+    return '<div class="cm-reg-formitem"><span>['+(f.type==='checkbox'?'체크박스':'텍스트')+'] '+esc(f.label)+(f.required?' <b>(필수)</b>':'')+'</span>'+
+      '<button type="button" onclick="cmRemoveFormField('+i+')">삭제</button></div>';
+  }).join('');
+}
+function cmAddFormField(){
+  var label=document.getElementById('cmFormFieldLabel').value.trim();
+  if(!label){toast('항목 이름을 입력해주세요');return;}
+  var type=document.getElementById('cmFormFieldType').value;
+  var required=document.getElementById('cmFormFieldRequired').checked;
+  cmReg.form.push({id:Date.now()+'-'+Math.random().toString(36).slice(2,8),type:type,label:label,required:required});
+  document.getElementById('cmFormFieldLabel').value='';
+  document.getElementById('cmFormFieldRequired').checked=false;
+  document.getElementById('cmRegFormList').innerHTML=cmFormListHTML();
+}
+function cmRemoveFormField(i){
+  cmReg.form.splice(i,1);
+  document.getElementById('cmRegFormList').innerHTML=cmFormListHTML();
 }
 function cmPickSampleImg(){
   if(cmReg.images.length>=10){toast('최대 10장까지 올릴 수 있어요','⚠');return;}
@@ -1505,7 +1656,8 @@ async function cmSubmitReg(){
     slots:cmReg.slots,
     description:cmReg.desc.trim(),
     usage_rights:cmReg.usage.trim(),
-    trade_policy:cmReg.policy.trim()
+    trade_policy:cmReg.policy.trim(),
+    application_form:cmReg.form
   };
   var commissionId;
   if(cmReg.editingId){
@@ -1541,24 +1693,27 @@ function cmMyListHTML(){
   }).join('');
 }
 var cmMyBookmarks=[];
+var cmMyApplications=[];
 async function cmOpenMy(tab){
   if(!AUTH.user){
     toast('로그인 후 내 커미션을 볼 수 있어요','🔒');
     loginWithGoogle();
     return;
   }
-  var activeTab=(tab==='bookmarks')?'bookmarks':'mine';
+  var activeTab=(tab==='bookmarks')?'bookmarks':(tab==='applications')?'applications':'mine';
+  var containerClass=activeTab==='bookmarks'?'cm-grid':'cm-my-list';
   document.getElementById("main").innerHTML='<div class="cm-root">'+
     '<div class="cm-sub-top"><svg onclick="openCommissionList()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>내 커미션</b>'+
       (activeTab==='mine'?'<button class="cm-write-btn" onclick="cmOpenRegister()">+ 새 커미션</button>':'')+
     '</div>'+
     '<div class="cm-tabs" style="padding:14px 18px 0">'+
       '<div class="cm-tab'+(activeTab==='mine'?' on':'')+'" onclick="cmOpenMy(\'mine\')">내가 등록한 커미션</div>'+
+      '<div class="cm-tab'+(activeTab==='applications'?' on':'')+'" onclick="cmOpenMy(\'applications\')">📝 신청 관리</div>'+
       '<div class="cm-tab'+(activeTab==='bookmarks'?' on':'')+'" onclick="cmOpenMy(\'bookmarks\')">🔖 보관함</div>'+
     '</div>'+
     (activeTab==='mine'?('<div class="cm-my-bulk"><button class="cm-open-all" onclick="cmBulkStatus(\'open\')">🟢 전체 열기</button>'+
       '<button class="cm-close-all" onclick="cmBulkStatus(\'close\')">⛔ 전체 마감</button></div>'):'')+
-    '<div class="'+(activeTab==='mine'?'cm-my-list':'cm-grid')+'" id="cmMyList"><div class="cm-my-empty">불러오는 중...</div></div>'+
+    '<div class="'+containerClass+'" id="cmMyList"><div class="cm-my-empty">불러오는 중...</div></div>'+
   '</div>';
   window.scrollTo({top:0,behavior:"smooth"});
   if(activeTab==='mine'){
@@ -1567,10 +1722,25 @@ async function cmOpenMy(tab){
     cmMyList=res.data.map(function(row){
       var imgs=(row.commission_images||[]).slice().sort(function(a,b){return a.sort-b.sort;}).map(function(x){return x.url;});
       return{id:row.id,title:row.title,price:row.price,tags:row.tags||[],status:row.status,period:row.period,
-        slots:row.slots,desc:row.description,usage:row.usage_rights,policy:row.trade_policy,images:imgs};
+        slots:row.slots,desc:row.description,usage:row.usage_rights,policy:row.trade_policy,images:imgs,
+        form:row.application_form||[]};
     });
     var listEl=document.getElementById('cmMyList');
     if(listEl)listEl.innerHTML=cmMyListHTML();
+  }else if(activeTab==='applications'){
+    var ares=await window.supabase.from('commission_applications').select('*,commissions!inner(title,author_id)').eq('commissions.author_id',AUTH.user.id).order('created_at',{ascending:false});
+    if(ares.error){toast('불러오기 실패: '+ares.error.message);return;}
+    var applicantIds=Array.from(new Set(ares.data.map(function(r){return r.applicant_id;})));
+    var aprofRes=applicantIds.length?await window.supabase.from('profiles').select('id,nickname').in('id',applicantIds):{data:[]};
+    var aprofById={};(aprofRes.data||[]).forEach(function(p){aprofById[p.id]=p.nickname;});
+    cmMyApplications=ares.data.map(function(row){
+      return{id:row.id,commissionId:row.commission_id,commissionTitle:row.commissions?row.commissions.title:'',
+        applicantId:row.applicant_id,applicantName:aprofById[row.applicant_id]||'알 수 없음',
+        images:row.reference_images||[],extraRequest:row.extra_request||'',answers:row.answers||[],
+        agreedPolicyText:row.agreed_policy_text||'',status:row.status,createdAt:row.created_at};
+    });
+    var appEl=document.getElementById('cmMyList');
+    if(appEl)appEl.innerHTML=cmMyApplicationsHTML();
   }else{
     if(cmBookmarkIds===null)await cmLoadMyBookmarks();
     var bres=await window.supabase.from('commission_bookmarks').select('commission_id,commissions(*,commission_images(url,sort))').eq('user_id',AUTH.user.id).order('created_at',{ascending:false});
@@ -1595,6 +1765,46 @@ async function cmOpenMy(tab){
         return cmCardHTML(bm,idx);
       }).join('');
     }
+  }
+}
+function cmMyApplicationsHTML(){
+  if(cmMyApplications.length===0)return '<div class="cm-my-empty">아직 들어온 신청이 없어요.</div>';
+  return cmMyApplications.map(function(a){
+    var statusLabel=a.status==='pending'?'<span class="cm-my-badge open">⏳ 대기중</span>':a.status==='accepted'?'<span class="cm-my-badge open">✅ 수락됨</span>':'<span class="cm-my-badge close">❌ 거절됨</span>';
+    var answersHTML=a.answers.length?a.answers.map(function(ans){
+      return '<div class="cm-app-answer"><b>'+esc(ans.label)+'</b> '+(ans.type==='checkbox'?(ans.value?'✅ 예':'❌ 아니오'):esc(ans.value||'(미입력)'))+'</div>';
+    }).join(''):'';
+    var imagesHTML=a.images.length?('<div class="cm-app-refimgs">'+a.images.map(function(u){return '<img src="'+esc(u)+'" alt="">';}).join('')+'</div>'):'';
+    var actionsHTML=a.status==='pending'?('<div class="cm-app-actions"><button class="cm-open-all" onclick="cmDecideApplication('+a.id+',\'accepted\')">✅ 수락</button>'+
+      '<button class="cm-close-all" onclick="cmDecideApplication('+a.id+',\'rejected\')">❌ 거절</button></div>'):'';
+    return '<div class="cm-app-card">'+
+      '<div class="cm-app-head"><b>'+esc(a.commissionTitle)+'</b>'+statusLabel+'</div>'+
+      '<div class="cm-app-applicant">신청자: '+esc(a.applicantName)+'</div>'+
+      (a.extraRequest?('<div class="cm-app-answer"><b>추가 요청사항</b> '+esc(a.extraRequest)+'</div>'):'')+
+      answersHTML+imagesHTML+
+      actionsHTML+
+    '</div>';
+  }).join('');
+}
+async function cmDecideApplication(applicationId,status){
+  var app=cmMyApplications.find(function(x){return x.id===applicationId;});
+  if(!app)return;
+  var upd=await window.supabase.from('commission_applications').update({status:status,decided_at:new Date().toISOString()}).eq('id',applicationId);
+  if(upd.error){toast('처리 실패: '+upd.error.message);return;}
+  app.status=status;
+  var listEl=document.getElementById('cmMyList');
+  if(listEl)listEl.innerHTML=cmMyApplicationsHTML();
+  if(status==='accepted'){
+    toast('신청을 수락했어요. 채팅으로 연결할게요','✅');
+    await cmOpenChatAbout(app.applicantId,app.commissionId,app.commissionTitle);
+    var acceptInp=document.getElementById('chatInput');
+    if(acceptInp){
+      var myNick=AUTH.profile?AUTH.profile.nickname:ME.nick;
+      acceptInp.value=myNick+'님이 커미션 신청을 수락했어요';
+      await sendChatMessage();
+    }
+  }else{
+    toast('신청을 거절했어요');
   }
 }
 async function cmBulkStatus(status){
@@ -2217,6 +2427,7 @@ function notifClick(i){
   if(n.chatUser)openChat(n.chatUser);
   else if(n.post)openPost(n.post);
   else if(n.cmTarget==="reviews")cmOpenReviews();
+  else if(n.type==="commission")cmOpenMy('applications');
   else openRules();
 }
 function markAllRead(){

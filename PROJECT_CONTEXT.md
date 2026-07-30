@@ -140,8 +140,9 @@ Supabase 프로젝트: https://qabbdgfottbnapmyjudy.supabase.co
 | `score_awarded_likes` | `user_id`, `post_id`(FK→posts) | PK가 `(user_id,post_id)`. "이 사람이 이 글로 추천 점수를 받은 적 있는지" 영구 기록(2026-07-29 추가, 좋아요 취소 후 재클릭 악용 방지) — RLS만 켜고 정책은 없음, 클라이언트 접근 완전 차단 |
 | `score_awarded_helpful` | `user_id`, `comment_id`(FK→comments) | 위와 동일한 목적, 도움돼요용 |
 | `user_ads` | `id`(bigint PK), `user_id`(FK→profiles), `image_url`(text), `linked_post_id`(FK→posts, `on delete cascade`), `points_spent`(int), `duration_days`(int), `status`(text: pending/active/rejected/expired/removed_by_admin), `created_at`, `expires_at`(nullable — `pending` 상태일 땐 아직 안 채워짐) | 유저 이미지 배너 광고(2026-07-29 추가). insert/update는 RLS 정책 없음 — `create_user_ad()`(생성, `pending`)/`approve_user_ad()`/`reject_user_ad()`(관리자 사전 승인·거절)/`admin_remove_ad()`(사후 삭제) RPC로만 상태 변경. 글이 삭제되면 광고도 cascade로 자동 삭제 |
-| `commissions` | `id`(bigint PK), `author_id`(uuid, FK→auth.users, `on delete cascade`), `title`, `price`(text), `tags`(**text[]**, 최대 5개 체크 제약 `commissions_tags_max5`), `status`(text: open/close), `period`, `slots`, `description`, `usage_rights`, `trade_policy`, `created_at` | 2026-07-30 추가(커미션 페이지 프롬프트2). `posts`와 달리 **비로그인 등록 자체가 불가** — "내 커미션"이라는 소유 개념이 필수라서. 이 프로젝트에서 처음으로 실제 Postgres `text[]` 컬럼을 쓴 사례 |
+| `commissions` | `id`(bigint PK), `author_id`(uuid, FK→auth.users, `on delete cascade`), `title`, `price`(text), `tags`(**text[]**, 최대 5개 체크 제약 `commissions_tags_max5`), `status`(text: open/close), `period`, `slots`, `description`, `usage_rights`, `trade_policy`, `application_form`(**jsonb**, nullable, 2026-07-30 추가 — `[{id,type:'text'|'checkbox',label,required}]`, 이 프로젝트 최초의 jsonb 컬럼, 신청하기 커스텀 폼용), `created_at` | 2026-07-30 추가(커미션 페이지 프롬프트2). `posts`와 달리 **비로그인 등록 자체가 불가** — "내 커미션"이라는 소유 개념이 필수라서. 이 프로젝트에서 처음으로 실제 Postgres `text[]` 컬럼을 쓴 사례 |
 | `commission_images` | `id`(bigint PK), `commission_id`(FK→commissions, `on delete cascade`), `url`(text, Storage 공개 URL), `sort`(int), `created_at` | 2026-07-30 추가. `post_images`와 달리 **insert/delete 모두 처음부터 소유자로 좁혀서 만듦**(아래 RLS 참고) — `post_images`의 "누구나 insert 가능"한 미해결 보안 부채를 반복하지 않기로 함 |
+| `commission_applications` | `id`(bigint PK), `commission_id`(FK→commissions, `on delete cascade`), `applicant_id`(uuid, FK→auth.users, `on delete cascade`), `reference_images`(text[] 또는 jsonb, 신청 시 첨부한 참고 이미지 URL 목록), `extra_request`(text), `answers`(jsonb, 제출 당시 커스텀 폼 응답 스냅샷 `[{field_id,label,type,value}]`), `agreed_policy_text`(text, 제출 당시 거래 정책 문구 스냅샷 — 나중에 작가가 정책을 바꿔도 신청 당시 합의 내용 보존), `status`(text: pending/accepted/rejected), `decided_at`(timestamptz, nullable), `created_at` | 2026-07-30 추가(커미션 페이지 프롬프트5 "신청하기"). **계좌·금융 정보는 이 테이블은 물론 어떤 테이블에도 저장하지 않음** — 수락 후 작가가 기존 1:1 채팅으로 직접 전달(사용자가 AskUserQuestion에서 명시적으로 선택한 방향) |
 
 ### Storage 버킷
 - `post-images` (Public) — 글 첨부 이미지. 업로드 경로는 `${Date.now()}-${파일명}` 형태(폴더 구분 없음).
@@ -215,6 +216,12 @@ grant execute on function public.increment_post_views(bigint) to anon, authentic
 
 **`commission_bookmarks` (2026-07-30 추가):** PK가 `(user_id, commission_id)` 복합키(중복 방지).
 - select/insert/delete: `commission_bookmarks_select_own` / `..._insert_own` / `..._delete_own` — 전부 `auth.uid() = user_id`, **남의 보관함은 조회조차 불가**(다른 소유권 테이블들과 달리 select도 본인만으로 좁힘 — 북마크는 `likes`와 달리 "누가 좋아했는지"가 아니라 순전히 개인 저장 목록이라 공개할 이유가 없다고 판단)
+
+**`commission_applications` (2026-07-30 추가):**
+- select: `commission_applications_select_related` — 본인이 신청한 것(`applicant_id=auth.uid()`) 또는 본인이 받은 신청(`exists(select 1 from commissions where id=commission_id and author_id=auth.uid())`)만, 남의 신청 내역은 누구도 조회 불가
+- insert: `commission_applications_insert_own` — `auth.uid()=applicant_id`
+- update: `commission_applications_update_owner` — 그 커미션의 작가만(`exists(...)` 위와 동일 서브쿼리), **수락/거절만 가능하도록 클라이언트가 `status`/`decided_at`만 update** — 신청자 본인은 update 불가(제출 후 응답 변조 방지)
+- delete: 정책 없음(삭제 기능 자체를 안 만듦 — 신청 기록은 분쟁 대비 증거 성격이라 남겨두는 게 맞다고 판단)
 
 **커미션 페이지 후기 알림 트리거 (2026-07-30 추가):**
 ```sql
@@ -580,7 +587,19 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
   - **커미션 참조 메시지 (사용자 피드백으로 두 번 방향 전환)**: 처음엔 "문의하기" 클릭 시 자동으로 "🎨 이 커미션에 대해 문의드려요: {제목}" 메시지를 즉시 전송하도록 만들었으나, 사용자가 "그렇게 하지 말고 채팅을 보내면 어떤 커미션인지 알 수 있게"로 요청 방향을 바꿈(자동 메시지가 아니라 사용자가 실제로 쓴 첫 메시지에 참조가 붙어야 함) — 최종적으로 `messages.commission_id`(FK→commissions, nullable) 컬럼을 추가하고, "문의하기"를 누르면 채팅방은 열되 아무것도 보내지 않고 `cmPendingChatRef`(어떤 대화에 어떤 커미션을 붙일지 기억)만 세팅 + 입력창 위에 "다음 메시지에 참조가 함께 전송돼요" 안내 칩(`.cm-chat-ref-hint`, 취소 가능)을 보여줌. 사용자가 실제로 `sendChatMessage()`로 메시지를 보내는 그 순간 `commission_id`가 함께 저장되고 안내 칩은 사라짐 — **다른 대화방으로 이동한 뒤 보내면 참조가 안 붙도록** `cmPendingChatRef.conversationId`와 현재 대화방 id를 비교해서만 적용(그렇지 않으면 엉뚱한 상대에게 참조가 잘못 붙을 위험).
   - `commission_id`가 붙은 메시지는 `chatMessagesHtml()`에서 일반 말풍선이 아니라 클릭 가능한 카드(`.chat-commission-ref`, 브랜드색 테두리+"→")로 렌더링되고, 누르면 `cmOpenCommissionById(commissionId)`가 그 커미션 상세로 이동시켜줌 — 목록을 아직 안 열어봐서 `cmData`에 없는 커미션이어도 그 자리에서 새로 불러옴(`cmRowToData()` 공용 헬퍼로 `cmLoadCommissions()`와 로직 공유, 중복 방지).
   - **🐛 Next.js 콘솔 오류 디버깅 경험**: 사용자가 `{}`만 뜨는 "Console Error" 오버레이 스크린샷을 보내왔는데, 원인 텍스트가 안 보여서 처음엔 특정이 어려웠음 — 코드에 있던 `console.error(res.error)` 호출이 Next dev 오버레이에 그대로 잡히면서 Supabase 에러 객체를 제대로 못 풀어써서 생긴 현상으로 추정하고, 이런 에러 핸들링을 전부 `console.error` 대신 `toast(...+error.message)`로 바꿔서 이후엔 앱 안에서 사람이 읽을 수 있는 메시지로 뜨도록 고침. 실제 근본 원인은 사용자가 아직 `messages.commission_id` 컬럼 SQL을 안 돌린 상태였던 것으로 확인됨(컬럼 없는 상태로 그 컬럼을 쓰는 쿼리를 실행해서 에러 발생). **교훈**: 이 프로젝트에서 Supabase 관련 에러 핸들링은 `console.error`보다 `toast`로 사용자에게 바로 보여주는 쪽이 Next dev 오버레이의 불친절한 렌더링을 피할 수 있어서 디버깅에도 더 유리함 — 앞으로도 이 패턴 유지할 것.
-- **신청하기·구독·공유**: 아직 시작 안 함.
+- **신청하기 (완료, 2026-07-30 — 사용자 요청으로 원래 스펙보다 크게 확장됨)**: 원래 계획("신청하기 → 문의 유도 안내")을 사용자가 진행 중 "작가가 미리 설정한 폼을 신청자가 작성 → 작가가 확인 후 수락 → 그때 계좌 정보를 전달하는 방식으로 해달라, 분쟁 시엔 그 폼 내용을 기준으로 처리"로 확장 요청. 결제 자체는 여전히 Palo가 중계하지 않음(신청서는 "이 조건으로 거래하기로 합의했다"는 기록일 뿐).
+  - **폼 구조 결정 (AskUserQuestion으로 확인)**: 기본 항목(참고 이미지 최대 5장·추가 요청사항, 둘 다 선택)은 고정, 그 위에 **작가가 직접 필드를 추가하는 커스텀 폼**(텍스트 입력형 + 체크박스형 두 종류 지원) — "그림 커미션이면 무조건 필요한 최소 항목 + 작가별 커스텀"으로 절충.
+  - **계좌 정보 처리 결정 (AskUserQuestion으로 확인, 사용자가 명시적으로 "DB에 저장 안 함, 채팅으로 직접 전달" 선택)**: 계좌번호 등 금융 정보를 저장하는 컬럼·테이블은 전혀 만들지 않음 — 수락 후 작가가 기존 1:1 채팅으로 직접 알려주는 방식. 민감정보 미저장 원칙을 스키마 설계 단계에서부터 지킴.
+  - **DB**: `commissions.application_form`(jsonb, `[{id,type:'text'|'checkbox',label,required}]`, 이 프로젝트 최초의 jsonb 컬럼) + 신규 테이블 `commission_applications`(아래 4절 참고, `answers`에 제출 당시 폼 항목별 응답을 스냅샷으로 저장하고 `agreed_policy_text`도 제출 당시 거래 정책 텍스트를 스냅샷으로 저장 — 나중에 작가가 정책 문구를 바꿔도 신청 당시 합의 내용이 그대로 보존되도록, "혹시 분쟁이 생기면 이 내용을 기준으로"라는 사용자 요구를 실제로 뒷받침하기 위한 설계).
+  - **등록 화면에 폼 빌더 추가**: `cmOpenRegister()`의 새 섹션에서 라벨+타입(텍스트/체크박스)+필수여부를 입력해 필드를 추가/삭제(`cmAddFormField()`/`cmRemoveFormField()`), 저장 시 `cmReg.form` 배열이 그대로 `application_form`에 저장됨. **🐛 필드 id 충돌 버그**: 처음엔 `Date.now()`만으로 id를 만들어서 같은 밀리초에 여러 필드를 추가하면 id가 겹쳤음(브라우저에서 `idsUnique:false`로 직접 재현·확인) — `Date.now()+'-'+Math.random().toString(36).slice(2,8)`로 고침.
+  - **신청서 작성 화면**(`cmRenderApplyForm()`): 참고 이미지(별도 업로드, `commission-images` 버킷의 `${uid}/applications/...` 경로 — 등록 이미지와 폴더만 다르고 같은 버킷·같은 RLS 재사용) + 추가 요청사항 + 작가가 만든 커스텀 필드들 + 거래 정책 표시 + "정책에 동의하며 분쟁 시 이 내용 기준" 필수 체크박스. 필수 항목이 모두 채워져야 제출 버튼 활성화(`cmCheckApplySubmit()`).
+  - **작가 쪽 관리**: "내 커미션" 화면에 **"📝 신청 관리"** 탭 신설(`cmOpenMy('applications')`) — 대기중/수락됨/거절됨 배지, 신청자 답변·참고 이미지 표시, 대기중 신청에만 수락/거절 버튼. `cmDecideApplication()`이 상태를 갱신하고, 수락 시 `cmOpenChatAbout()`으로 그 신청자와의 채팅방을 바로 열어줌(계좌 정보는 그 채팅에서 작가가 직접 타이핑해서 전달 — 자동 전송 아님, DB에도 안 남음).
+  - **수락 시 자동 안내 메시지 (2026-07-30, 사용자 요청으로 추가)**: 처음엔 채팅방만 열어주고 아무 메시지도 안 보냈는데, 사용자가 "수락 버튼을 누르면 '{작가 닉네임}님이 커미션 신청을 수락했어요' 메시지를 채팅방에 바로 보내달라"고 요청 — `cmDecideApplication()`이 채팅을 연 직후 `chatInput`에 그 문구를 채워 넣고 기존 `sendChatMessage()`를 그대로 호출하는 방식으로 구현(새 전송 로직을 만들지 않고 사람이 직접 타이핑해서 보내는 것과 동일한 경로를 재사용) — 그 덕에 이 메시지에도 `cmPendingChatRef`를 통해 커미션 참조가 자동으로 붙어서 클릭하면 해당 커미션으로 이동하는 카드로 렌더링됨.
+  - **문의하기와의 차이**: 문의하기는 구매자가 먼저 채팅을 열되 아무것도 자동 전송하지 않지만(사용자가 "자동 전송 말고 실제로 보낸 메시지에 참조가 붙게 해달라"고 명시적으로 요청했던 부분), 신청하기 수락은 작가의 명시적인 결정(수락 버튼 클릭) 자체가 곧 전달할 내용이라 자동 전송이 자연스럽다고 판단해 다르게 처리함.
+  - **아직 없음(알려진 한계, 사용자에게 별도로 알리지 않음)**: 신청자(구매자) 쪽에서 "내가 넣은 신청 현황"을 모아 보는 화면이 없음 — 현재는 알림 + 수락 시 채팅 연결로만 상태를 앎.
+  - **테스트**: 실제 신청→수락 흐름은 신청자·작가 두 실제 계정이 있어야 끝까지 검증 가능(가짜 UUID로는 `conversations` 외래키 제약에 걸림) — AI 쪽은 폼 렌더링·필수값 검증·정책 문구 표시까지 로그인 가드 우회(가짜 UUID)로 확인했고, 실제 DB 저장·수락·채팅 자동 메시지는 사용자가 직접 확인(2026-07-30, "잘 작동해"로 확정).
+- **거래 정책 기본 문구 수정 (2026-07-30)**: 신청서 화면(`cmRenderApplyForm`)과 상세 페이지 "거래 정책 안내"(`cmDetailHTML`)의 정책 기본값(작가가 직접 정책을 안 적었을 때만 보이는 폴백 텍스트)이 원래 시안의 문구("신청 수락 시 고지한 작업 기한까지 최종 작업물이 전달되지 않으면, 결제 금액이 신청자에게 환불될 수 있습니다")를 그대로 쓰고 있었는데, 사용자가 "Palo는 결제를 중계하지 않으니 이 문구는 실효성이 없고 오해의 소지가 있다"고 지적 — Palo가 결제/환불을 처리한다는 뉘앙스를 없애고 "Palo는 결제를 중계하지 않으니 세부 사항(작업 범위·기한·환불 등)은 작가와 직접 협의해주세요 / 저작권은 별도 협의가 없는 한 작가에게 귀속됩니다"로 두 곳 모두 교체.
+- **구독·공유**: 아직 시작 안 함.
 
 ### 커미션 후기 시스템 (2026-07-30 추가)
 "커미션 후기" 게시판(`review`)에 글을 쓸 때, 실제 존재하는 "커미션 구인구직" 게시판의 "구직" 말머리 글과 반드시 연결하도록 만들어서 아무 닉네임이나 적어 넣는 걸 막고, 작성을 최대한 간단하게(만족/불호 선택 + 선택적 한 줄 후기) 만든 기능. 단계별로 사용자 피드백을 받아가며 여러 번 방향이 바뀜(별점 → 만족/불호로 최종 변경 등) — 아래는 최종 상태 기준.
