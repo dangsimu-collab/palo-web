@@ -1016,7 +1016,7 @@ function cmRowToData(row,artistNickname){
     id:row.id,authorId:row.author_id,
     artist:artistNickname||'탈퇴한 사용자',
     title:row.title,price:row.price,status:row.status,tags:row.tags||[],
-    period:row.period,slots:row.slots,desc:row.description,usage:row.usage_rights,policy:row.trade_policy,
+    period:row.period,slots:row.slots,desc:row.description,descHtml:row.description_html||null,usage:row.usage_rights,policy:row.trade_policy,
     images:imgs,likes:0,createdAt:row.created_at,form:row.application_form||[],
     reviewCount:revs.length,satisfaction:revs.length?(goodCount/revs.length):0
   };
@@ -1403,6 +1403,7 @@ function cmDetailHTML(d,idx){
   var price=d.price||'0P~';
   var period=d.period||'작가 설정 (예: 3~7일)';
   var desc=d.desc||'그림체 아래 샘플(팬아트, 커미션 샘플) 확인해주세요.\n\n두상: 어깨선\n흉상: 명치선 - 허리 위\n반신: 골반 - 허벅지 중간\n\n추가금 문의 편하게 주세요.';
+  var descHTML=d.descHtml?sanitizePostHtml(d.descHtml):null;
   var usageHTML=d.usage?esc(d.usage).replace(/\n/g,'<br>'):'';
   var policyHTML=d.policy?('<p>'+esc(d.policy).replace(/\n/g,'<br>')+'</p>'):('<p>Palo는 결제를 중계하지 않으니, 작업 범위·기한·환불 등 세부 사항은 작가와 직접 협의해주세요.</p>');
   var tags=(d.tags&&d.tags.length)?d.tags:['두상','흉상','반신','드림'];
@@ -1444,7 +1445,7 @@ function cmDetailHTML(d,idx){
       '</div>'+
       '<div class="cm-stats"><div class="cm-stat"><span class="cm-k">신청 가능</span><span class="cm-v">'+esc(d.slots||'8')+'개 남음</span></div>'+
         '<div class="cm-stat"><span class="cm-k">작업 기간</span><span class="cm-v">'+esc(period)+'</span></div></div>'+
-      '<div class="cm-desc">'+esc(desc)+'</div>'+
+      '<div class="cm-desc">'+(descHTML?descHTML:esc(desc))+'</div>'+
       '<div class="cm-rv-sec"><div class="cm-rv-head"><b>커미션 후기 '+realReviews.length+'</b><span class="cm-rv-more" onclick="cmOpenReviews('+(d.id!=null?d.id:'null')+')">더보기 ></span></div>'+
         '<div class="cm-rv-summary"><div class="cm-rv-box good"><div class="cm-ic">😊</div><div class="cm-n">'+goodCnt+'</div><div class="cm-l">만족 후기</div></div>'+
           '<div class="cm-rv-box bad"><div class="cm-ic">😐</div><div class="cm-n">'+badCnt+'</div><div class="cm-l">불호 후기</div></div></div>'+
@@ -1666,13 +1667,13 @@ function cmOpenRegister(editId){
     loginWithGoogle();
     return;
   }
-  cmReg={images:[],tags:[],status:'open',editingId:editId||null,title:'',price:'',period:'',slots:'',desc:'',usage:'',policy:'',form:[]};
+  cmReg={images:[],tags:[],status:'open',editingId:editId||null,title:'',price:'',period:'',slots:'',desc:'',descHtml:'',usage:'',policy:'',form:[]};
   if(editId){
     var c=cmMyList.find(function(x){return x.id===editId});
     if(c){
       cmReg.images=c.images.slice();cmReg.tags=c.tags.slice();cmReg.status=c.status;
       cmReg.title=c.title;cmReg.price=c.price;cmReg.period=c.period;cmReg.slots=c.slots;
-      cmReg.desc=c.desc;cmReg.usage=c.usage||'';cmReg.policy=c.policy||'';
+      cmReg.desc=c.desc;cmReg.descHtml=c.descHtml||'';cmReg.usage=c.usage||'';cmReg.policy=c.policy||'';
       cmReg.form=(c.form||[]).map(function(f){return{id:f.id,type:f.type,label:f.label,required:!!f.required};});
     }
   }
@@ -1683,7 +1684,8 @@ function cmSyncReg(){
   cmReg.price=document.getElementById('cmRegPrice').value;
   cmReg.period=document.getElementById('cmRegPeriod').value;
   cmReg.slots=document.getElementById('cmRegSlots').value;
-  cmReg.desc=document.getElementById('cmRegDesc').value;
+  var descEl=document.getElementById('cmRegDescEditor');
+  if(descEl){cmReg.descHtml=sanitizePostHtml(descEl.innerHTML.trim());cmReg.desc=descEl.textContent.trim();}
   cmReg.usage=document.getElementById('cmRegUsage').value;
   cmReg.policy=document.getElementById('cmRegPolicy').value;
 }
@@ -1716,7 +1718,20 @@ function cmRenderRegisterScreen(){
       '<div class="cm-reg-label">신청 가능 수 <span class="cm-reg-sub">몇 명까지 받을지</span></div>'+
       '<input class="cm-reg-input" id="cmRegSlots" type="number" placeholder="예: 8" oninput="cmCheckReg()" value="'+esc(cmReg.slots)+'">'+
       '<div class="cm-reg-label">커미션 설명 <span class="cm-reg-req">*</span></div>'+
-      '<textarea class="cm-reg-textarea" id="cmRegDesc" placeholder="그림체, 작업 범위(두상/흉상/반신), 추가금 안내 등을 자유롭게 적어주세요." oninput="cmCheckReg()">'+esc(cmReg.desc)+'</textarea>'+
+      '<div class="cm-reg-toolbar">'+
+        '<button type="button" title="굵게" onmousedown="cmDescFmt(event,\'bold\')"><span style="font-weight:900">B</span></button>'+
+        '<span class="cm-reg-tb-div"></span>'+
+        '<div class="cm-reg-sizegroup">'+
+          '<button type="button" onmousedown="event.preventDefault();cmDescSetSize(12)">작게</button>'+
+          '<button type="button" onmousedown="event.preventDefault();cmDescSetSize(14.5)">보통</button>'+
+          '<button type="button" onmousedown="event.preventDefault();cmDescSetSize(18)">크게</button>'+
+          '<button type="button" onmousedown="event.preventDefault();cmDescSetSize(22)">아주 크게</button>'+
+        '</div>'+
+        '<span class="cm-reg-tb-div"></span>'+
+        '<button type="button" title="이미지" onmousedown="cmDescPickImage(event)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5-5 4 3 3-2 4 4"/></svg></button>'+
+      '</div>'+
+      '<input type="file" id="cmRegDescFileInput" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="cmDescOnFile(event)">'+
+      '<div class="cm-reg-editor" id="cmRegDescEditor" contenteditable="true" data-ph="그림체, 작업 범위(두상/흉상/반신), 추가금 안내 등을 자유롭게 적어주세요." oninput="cmCheckReg()">'+(cmReg.descHtml||(cmReg.desc?esc(cmReg.desc).replace(/\n/g,"<br>"):''))+'</div>'+
       '<div class="cm-reg-label">작업물 사용 권한 <span class="cm-reg-sub">선택</span></div>'+
       '<textarea class="cm-reg-textarea" id="cmRegUsage" placeholder="예: 비상업적 굿즈/SNS 게시 가능, 출처 표기 부탁" oninput="cmCheckReg()">'+esc(cmReg.usage)+'</textarea>'+
       '<div class="cm-reg-label">거래 안내 / 정책 <span class="cm-reg-sub">선택</span></div>'+
@@ -1808,6 +1823,73 @@ function cmDelSampleImg(i){
   cmRenderRegImgs();
   cmCheckReg();
 }
+/* ---- 커미션 설명란 서식 툴바(굵게/글자크기/이미지) ---- */
+function cmDescFmt(e,cmd){
+  e.preventDefault();
+  document.getElementById('cmRegDescEditor').focus();
+  document.execCommand(cmd,false,null);
+  cmCheckReg();
+}
+var cmDescSavedRange=null;
+function cmDescSaveSelection(){
+  var sel=window.getSelection();
+  if(sel&&sel.rangeCount>0){
+    var r=sel.getRangeAt(0);
+    var el=document.getElementById('cmRegDescEditor');
+    if(el&&el.contains(r.commonAncestorContainer))cmDescSavedRange=r.cloneRange();
+  }
+}
+function cmDescRestoreSelection(){
+  var el=document.getElementById('cmRegDescEditor');
+  el.focus();
+  var sel=window.getSelection();
+  sel.removeAllRanges();
+  if(cmDescSavedRange)sel.addRange(cmDescSavedRange);
+  else{var r=document.createRange();r.selectNodeContents(el);r.collapse(false);sel.addRange(r);}
+}
+function cmDescSetSize(px){
+  document.getElementById('cmRegDescEditor').focus();
+  document.execCommand('fontSize',false,'7');
+  document.querySelectorAll('#cmRegDescEditor font[size="7"]').forEach(function(f){
+    var span=document.createElement('span');
+    span.style.fontSize=px+'px';
+    while(f.firstChild)span.appendChild(f.firstChild);
+    f.parentNode.replaceChild(span,f);
+  });
+  cmCheckReg();
+}
+function cmDescPickImage(e){
+  e.preventDefault();
+  cmDescSaveSelection();
+  document.getElementById('cmRegDescFileInput').click();
+}
+function cmDescOnFile(e){
+  var f=e.target.files[0];
+  e.target.value='';
+  if(f)cmUploadDescImg(f);
+}
+async function cmUploadDescImg(file){
+  if(!AUTH.user){toast('로그인 후 이용할 수 있어요','🔒');return;}
+  if(ALLOWED_IMAGE_TYPES.indexOf(file.type)===-1){toast('이미지 파일만 올릴 수 있어요');return;}
+  if(file.size>MAX_IMAGE_BYTES){toast('40MB 이하 이미지만 올릴 수 있어요');return;}
+  var uploadBlob=file,ext=(file.name.match(/\.([^.]+)$/)||[,'png'])[1];
+  if(file.type!=='image/gif'){
+    toast('이미지 압축 중...');
+    try{
+      var compressed=await compressImage(file);
+      uploadBlob=compressed.blob;ext=compressed.ext;
+    }catch(err){console.error('이미지 압축 실패, 원본으로 업로드:',err);}
+  }
+  toast('이미지 업로드 중...');
+  var path=AUTH.user.id+'/desc/'+Date.now()+'-'+file.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_.-]/g,'_')+'.'+ext;
+  var up=await window.supabase.storage.from(CM_IMAGE_BUCKET).upload(path,uploadBlob,{contentType:uploadBlob.type});
+  if(up.error){toast('업로드 실패: '+up.error.message);return;}
+  var pub=window.supabase.storage.from(CM_IMAGE_BUCKET).getPublicUrl(path);
+  cmDescRestoreSelection();
+  document.execCommand('insertHTML',false,'<img src="'+esc(pub.data.publicUrl)+'"><br>');
+  cmCheckReg();
+  toast('이미지를 넣었어요');
+}
 function cmOnTagKey(e){
   if(e.key==='Enter'){
     e.preventDefault();
@@ -1859,7 +1941,7 @@ function cmPreviewReg(){
   var usage=cmReg.usage.trim();
   var policy=cmReg.policy.trim();
   cmPreviewObj={artist:'나',channel:'내 커미션',title:title,price:price,period:period,slots:slots,
-    desc:desc,usage:usage,policy:policy,tags:cmReg.tags.slice(),images:cmReg.images.slice(),likes:0};
+    desc:desc,descHtml:cmReg.descHtml,usage:usage,policy:policy,tags:cmReg.tags.slice(),images:cmReg.images.slice(),likes:0};
   cmDetailCtx={from:'register',idx:0};
   document.getElementById('main').innerHTML=cmDetailHTML(cmPreviewObj,0);
   window.scrollTo({top:0,behavior:'smooth'});
@@ -1875,6 +1957,7 @@ async function cmSubmitReg(){
     period:cmReg.period.trim(),
     slots:cmReg.slots,
     description:cmReg.desc.trim(),
+    description_html:cmReg.descHtml||null,
     usage_rights:cmReg.usage.trim(),
     trade_policy:cmReg.policy.trim(),
     application_form:cmReg.form
@@ -1942,7 +2025,7 @@ async function cmOpenMy(tab){
     cmMyList=res.data.map(function(row){
       var imgs=(row.commission_images||[]).slice().sort(function(a,b){return a.sort-b.sort;}).map(function(x){return x.url;});
       return{id:row.id,title:row.title,price:row.price,tags:row.tags||[],status:row.status,period:row.period,
-        slots:row.slots,desc:row.description,usage:row.usage_rights,policy:row.trade_policy,images:imgs,
+        slots:row.slots,desc:row.description,descHtml:row.description_html||null,usage:row.usage_rights,policy:row.trade_policy,images:imgs,
         form:row.application_form||[]};
     });
     var listEl=document.getElementById('cmMyList');
