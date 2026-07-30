@@ -907,7 +907,7 @@ var CM_IMAGE_BUCKET='commission-images';
 var CM_TYPES=['두상','흉상','반신','전신','SD','이모티콘','배경','기타'];
 var CM_BAD_REASONS=['퀄리티 불만족','마감 기한 미준수','소통이 어려웠어요','스타일이 요청과 달랐어요','기타'];
 var cmTopTags=[]; // cmLoadCommissions()가 실제 사용 빈도순으로 채움
-var cmState={activeTag:null,wrType:null,wrCtype:null,query:''};
+var cmState={activeTag:null,wrType:null,wrCtype:null,query:'',sort:'home'};
 var cmReg={images:[],tags:[],status:'open',editingId:null};
 var cmDetailCtx={from:'list',idx:0};
 var cmPreviewObj=null;
@@ -922,12 +922,15 @@ async function cmLoadCommissions(){
   cmData=res.data.map(function(row){
     var imgs=(row.commission_images||[]).slice().sort(function(a,b){return a.sort-b.sort;}).map(function(x){return x.url;});
     var prof=profById[row.author_id];
+    var revs=POSTS.filter(function(p){return p.board==='review'&&p.commissionId===row.id;});
+    var goodCount=revs.filter(function(r){return r.commissionSentiment==='good';}).length;
     return{
       id:row.id,authorId:row.author_id,
       artist:prof?prof.nickname:'탈퇴한 사용자',
       title:row.title,price:row.price,status:row.status,tags:row.tags||[],
       period:row.period,slots:row.slots,desc:row.description,usage:row.usage_rights,policy:row.trade_policy,
-      images:imgs,likes:0
+      images:imgs,likes:0,createdAt:row.created_at,
+      reviewCount:revs.length,satisfaction:revs.length?(goodCount/revs.length):0
     };
   });
   cmTopTags=cmComputeTopTags();
@@ -978,12 +981,43 @@ function cmFilteredIdx(){
     return hay.indexOf(q)>=0;
   });
 }
+function cmSortedFilteredIdx(){
+  var idxs=cmFilteredIdx();
+  if(cmState.sort==='new'){
+    idxs=idxs.slice().sort(function(a,b){return (cmData[b].createdAt||'').localeCompare(cmData[a].createdAt||'');});
+  }else if(cmState.sort==='hot'){
+    idxs=idxs.slice().sort(function(a,b){return (cmData[b].reviewCount||0)-(cmData[a].reviewCount||0);});
+  }else if(cmState.sort==='recommend'){
+    idxs=idxs.slice().sort(function(a,b){
+      var ra=cmData[a],rb=cmData[b];
+      var sa=ra.reviewCount?ra.satisfaction:-1,sb=rb.reviewCount?rb.satisfaction:-1;
+      if(sb!==sa)return sb-sa;
+      return (rb.reviewCount||0)-(ra.reviewCount||0);
+    });
+  }
+  return idxs;
+}
 function cmGridHTML(){
   if(!cmDataLoaded)return '<div class="cm-my-empty">불러오는 중...</div>';
   if(cmData.length===0)return '<div class="cm-my-empty">아직 등록된 커미션이 없어요.</div>';
-  var idxs=cmFilteredIdx();
+  var idxs=cmSortedFilteredIdx();
   if(idxs.length===0)return '<div class="cm-my-empty">'+(cmState.query?'검색 결과가 없어요.<br>다른 제목이나 태그로 찾아보세요.':'이 태그의 커미션이 아직 없어요.')+'</div>';
   return idxs.map(function(i){return cmCardHTML(cmData[i],i);}).join('');
+}
+function cmSetSort(key){
+  cmState.sort=key;
+  var tabsEl=document.querySelector('.cm-tabs');
+  if(tabsEl)tabsEl.innerHTML=cmTabsHTML();
+  var gridEl=document.getElementById('cmGrid');
+  if(gridEl)gridEl.innerHTML=cmGridHTML();
+}
+function cmTabsHTML(){
+  return '<div class="cm-tab'+(cmState.sort==='home'?' on':'')+'" onclick="cmSetSort(\'home\')">홈</div>'+
+    '<div class="cm-tab">재방문 BEST<span class="cm-hot">●</span></div>'+
+    '<div class="cm-tab">신상 BEST<span class="cm-hot">●</span></div>'+
+    '<div class="cm-tab'+(cmState.sort==='recommend'?' on':'')+'" onclick="cmSetSort(\'recommend\')">추천</div>'+
+    '<div class="cm-tab'+(cmState.sort==='new'?' on':'')+'" onclick="cmSetSort(\'new\')">신규</div>'+
+    '<div class="cm-tab'+(cmState.sort==='hot'?' on':'')+'" onclick="cmSetSort(\'hot\')">인기</div>';
 }
 function cmSearch(v){
   cmState.query=v;
@@ -999,9 +1033,7 @@ function cmListHTML(){
     '<div class="cm-top">'+
       '<div class="cm-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>'+
         '<input id="cmSearchInput" type="text" placeholder="커미션 검색 (제목·태그)" value="'+esc(cmState.query||'')+'" oninput="cmSearch(this.value)"></div>'+
-      '<div class="cm-tabs"><div class="cm-tab on">홈</div><div class="cm-tab">재방문 BEST<span class="cm-hot">●</span></div>'+
-        '<div class="cm-tab">신상 BEST<span class="cm-hot">●</span></div><div class="cm-tab">추천</div>'+
-        '<div class="cm-tab">신규</div><div class="cm-tab">인기</div></div>'+
+      '<div class="cm-tabs">'+cmTabsHTML()+'</div>'+
       '<div class="cm-top-line"></div>'+
     '</div>'+
     '<div class="cm-sec"><div class="cm-sec-h">지금 많이 찾는 태그</div></div>'+
