@@ -492,11 +492,10 @@ function renderList(){
         '<div class="ptitle">'+(p.isManagerPick?'<span class="pick-badge">📌 매니저 픽</span> ':'')+esc(p.title)+'</div>'+
         '<div class="pmeta">'+
           '<span class="cat '+c.cls+'">'+c.label+'</span>'+
-          '<span class="who"'+(p.authorId?' style="cursor:pointer" onclick="event.stopPropagation();openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+'</span>'+levelBadgeHtml(p.authorLevel,"lv-badge")+
+          '<span class="who"'+(p.authorId?' style="cursor:pointer" onclick="event.stopPropagation();openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+'</span>'+
           '<span class="sep"></span><span class="mt">'+p.time+'</span>'+
           '<span class="sep"></span><span class="mv">조회 '+fmtViews(p.views)+'</span>'+
           (p.likes?'<span class="sep"></span><span class="ml">추천 '+p.likes+'</span>':'')+
-          (p.reviewedNickname?'<span class="sep"></span><span class="mv">@'+esc(p.reviewedNickname)+' 후기</span>':'')+
         '</div>'+
       '</div>'+
       thumb+
@@ -1516,8 +1515,7 @@ function profileRow(p){
     '<div class="pmain"><div class="ptitle">'+esc(p.title)+'</div>'+
     '<div class="pmeta"><span class="cat '+c.cls+'">'+c.label+'</span>'+
     '<span class="mt">'+p.time+'</span><span class="sep"></span><span class="mv">조회 '+fmtViews(p.views)+'</span>'+
-    (p.likes?'<span class="sep"></span><span class="ml">추천 '+p.likes+'</span>':'')+
-    (p.reviewedNickname?'<span class="sep"></span><span class="mv">@'+esc(p.reviewedNickname)+' 후기</span>':'')+'</div></div>'+
+    (p.likes?'<span class="sep"></span><span class="ml">추천 '+p.likes+'</span>':'')+'</div></div>'+
     postThumbHTML(p)+
     '<div class="pcmt"><span class="cn">'+p.comments.length+'</span><span class="cl">댓글</span></div></div>';
 }
