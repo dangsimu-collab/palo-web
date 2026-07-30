@@ -20,6 +20,7 @@ var CATMAP={talk:{label:"수다",cls:"talk-c"},ask:{label:"고민",cls:"help-c"}
   sketch:{label:"그림공부",cls:"tip-c"},trade:{label:"거래",cls:"free-c"},used:{label:"거래",cls:"free-c"},
   review:{label:"후기",cls:"free-c"},adult:{label:"에치치",cls:"help-c"}};
 
+var postsLoaded=false; // loadRealPosts()가 실제 글을 POSTS에 합친 뒤 true — 이 전에는 데모 글로 renderList()를 강제로 돌리지 않음(로그인 리다이렉트 직후 더미 글이 잠깐 보이는 버그 방지)
 var POSTS=[
   {id:1,board:"crit",title:"숲 속 마녀 러프 구도 3개 뽑았는데 뭐가 제일 나을까요?",author:"달빛초",time:"10분 전",likes:34,views:210,thumb:"t1",stage:"러프",
    content:["구도를 세 개 잡아봤는데 각각 장단이 있어서 결정을 못 하겠어요.","1번은 안정적인데 심심하고, 2번은 역동적인데 시선이 분산되고, 3번은 마음엔 드는데 배경이 비어 보여요.","여러분이라면 어떤 걸 밀고 가시겠어요? 이유도 같이 들려주시면 정말 감사하겠습니다 🙏"],
@@ -308,6 +309,7 @@ async function loadRealPosts(){
       content:(row.content||"").split("\n").filter(Boolean),html:row.content_html||undefined,comments:commentsByPost[row.id]||[]};
   });
   POSTS=real.concat(POSTS);
+  postsLoaded=true;
   renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
   renderTrend();
   var initialDbId=getPostIdFromPath();
@@ -3462,6 +3464,10 @@ syncNotifBadge();
   function ensureRendered(){
     var m=document.getElementById("main");
     if(m && m.innerHTML.trim().length<50){
+      // postsLoaded가 false면 loadRealPosts()가 아직 안 끝난 것 — 여기서 데모 글로 renderList()를 돌리면
+      // "더미 글이 잠깐 보였다 실제 글로 바뀌는" 깜빡임이 생김(로그인 리다이렉트 직후 특히 잘 보임).
+      // 곧 loadRealPosts()가 끝나면 스스로 renderList()를 부르니, 그때까진 목록만 건너뛰고 기다림.
+      if(!postsLoaded&&window.supabase)return;
       try{ renderChips();renderHot();renderTrend();renderList(); }catch(e){}
     }
   }
