@@ -206,7 +206,7 @@ async function loadRealPosts(){
       time:timeAgo(row.created_at),createdAt:row.created_at,likes:likers.length,_liked:likers.indexOf(myLikeId())>-1,
       views:row.views,thumb:"none",stage:row.stage,images:imagesByPost[row.id],
       isManagerPick:!!row.is_manager_pick,pickPosition:row.pick_position,pickedAt:row.picked_at,adLocked:!!adLockedIds[row.id],
-      reviewedNickname:row.reviewed_nickname||null,commissionPostId:row.commission_post_id||null,commissionSentiment:row.commission_sentiment||null,
+      reviewedNickname:row.reviewed_nickname||null,reviewedUserId:row.reviewed_user_id||null,commissionPostId:row.commission_post_id||null,commissionSentiment:row.commission_sentiment||null,
       commissionId:row.commission_id||null,commissionCtype:row.commission_ctype||null,commissionBadReason:row.commission_bad_reason||null,
       content:(row.content||"").split("\n").filter(Boolean),html:row.content_html||undefined,comments:commentsByPost[row.id]||[]};
   });
@@ -1121,7 +1121,7 @@ function cmApplyImgsHTML(){
 }
 function cmRenderApplyForm(commission){
   var form=commission.form||[];
-  var policyHTML=commission.policy?esc(commission.policy).replace(/\n/g,'<br>'):'Palo는 결제를 중계하지 않아요. 작업 범위·기한·환불 등 세부 사항은 작가와 직접 협의해주세요.<br>저작권은 별도 협의가 없는 한 작가에게 귀속됩니다.';
+  var policyHTML=commission.policy?esc(commission.policy).replace(/\n/g,'<br>'):'Palo는 결제를 중계하지 않아요. 작업 범위·기한·환불 등 세부 사항은 작가와 직접 협의해주세요.';
   document.getElementById("main").innerHTML='<div class="cm-root">'+
     '<div class="cm-sub-top"><svg onclick="cmOpenCommissionById('+commission.id+')" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>커미션 신청서</b></div>'+
     '<div class="cm-reg">'+
@@ -1237,8 +1237,8 @@ function cmDetailHTML(d,idx){
   var price=d.price||'0P~';
   var period=d.period||'작가 설정 (예: 3~7일)';
   var desc=d.desc||'그림체 아래 샘플(팬아트, 커미션 샘플) 확인해주세요.\n\n두상: 어깨선\n흉상: 명치선 - 허리 위\n반신: 골반 - 허벅지 중간\n\n추가금 문의 편하게 주세요.';
-  var usageHTML=d.usage?esc(d.usage).replace(/\n/g,'<br>'):'비상업적 용도의 굿즈 제작 및 나눔 가능<br>SNS 게시 가능<br>출처 표기 시 작가명 또는 SNS 계정으로 부탁드립니다!';
-  var policyHTML=d.policy?('<p>'+esc(d.policy).replace(/\n/g,'<br>')+'</p>'):('<ul><li>Palo는 결제를 중계하지 않으니, 작업 범위·기한·환불 등 세부 사항은 작가와 직접 협의해주세요.</li><li>저작권은 별도 협의가 없는 한 작가에게 귀속됩니다.</li></ul>');
+  var usageHTML=d.usage?esc(d.usage).replace(/\n/g,'<br>'):'';
+  var policyHTML=d.policy?('<p>'+esc(d.policy).replace(/\n/g,'<br>')+'</p>'):('<p>Palo는 결제를 중계하지 않으니, 작업 범위·기한·환불 등 세부 사항은 작가와 직접 협의해주세요.</p>');
   var tags=(d.tags&&d.tags.length)?d.tags:['두상','흉상','반신','드림'];
   var hasImages=!!(d.images&&d.images.length);
   var sliderBg=hasImages?("url('"+cmQ(d.images[0])+"') center/cover"):cmGrads[idx%cmGrads.length];
@@ -1286,8 +1286,8 @@ function cmDetailHTML(d,idx){
         (canReview?'<button class="cm-write-btn" style="margin-top:10px" onclick="cmOpenWrite('+d.id+')">✍️ 후기 쓰기</button>':'')+
       '</div>'+
       '<div class="cm-samples">'+samples+'</div>'+
-      '<div class="cm-acc open"><div class="cm-acc-h" onclick="this.parentElement.classList.toggle(\'open\')"><b>작업물 사용 권한</b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 15l6-6 6 6"/></svg></div>'+
-        '<div class="cm-acc-c"><p>'+usageHTML+'</p></div></div>'+
+      (usageHTML?('<div class="cm-acc open"><div class="cm-acc-h" onclick="this.parentElement.classList.toggle(\'open\')"><b>작업물 사용 권한</b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 15l6-6 6 6"/></svg></div>'+
+        '<div class="cm-acc-c"><p>'+usageHTML+'</p></div></div>'):'')+
       '<div class="cm-acc open"><div class="cm-acc-h" onclick="this.parentElement.classList.toggle(\'open\')"><b>거래 정책 안내</b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 15l6-6 6 6"/></svg></div>'+
         '<div class="cm-acc-c">'+policyHTML+'</div></div>'+
       '<div class="cm-d-tags">'+tags.map(function(t){return '<div class="cm-t">#'+esc(t)+'</div>';}).join('')+'</div>'+
@@ -1423,6 +1423,7 @@ async function cmSubmitReview(){
     content_html:null,
     stage:null,
     reviewed_nickname:commission?commission.artist:null,
+    reviewed_user_id:commission?commission.authorId:null,
     commission_post_id:null,
     commission_sentiment:sentiment,
     commission_id:cmReviewCommissionId,
@@ -1434,7 +1435,7 @@ async function cmSubmitReview(){
     author:ME.nick,authorLevel:AUTH.profile?AUTH.profile.level:null,authorAvatar:AUTH.profile?AUTH.profile.avatar_url:null,
     time:'방금',createdAt:new Date().toISOString(),likes:0,_liked:false,views:0,thumb:'none',stage:null,images:undefined,
     isManagerPick:false,pickPosition:null,pickedAt:null,adLocked:false,
-    reviewedNickname:commission?commission.artist:null,commissionPostId:null,commissionSentiment:sentiment,
+    reviewedNickname:commission?commission.artist:null,reviewedUserId:commission?commission.authorId:null,commissionPostId:null,commissionSentiment:sentiment,
     commissionId:cmReviewCommissionId,commissionCtype:cmState.wrCtype,commissionBadReason:sentiment==='bad'?cmState.wrBadReason:null,
     content:txt?txt.split('\n').filter(Boolean):[],html:undefined,comments:[]});
   toast('후기가 등록되었어요! 감사합니다','😊');
@@ -1929,13 +1930,14 @@ function selectCommissionPost(postId){
   var p=POSTS.find(function(x){return x.id===postId});if(!p)return;
   edState.commissionPostId=p.dbId;
   edState.reviewedNick=p.author;
+  edState.reviewedUserId=p.authorId||null;
   document.getElementById("edReviewNickInput").value="";
   document.getElementById("edCommissionList").style.display="none";
   document.getElementById("edCommissionList").innerHTML="";
   renderCommissionSelected();
 }
 function clearCommissionSelection(){
-  edState.commissionPostId=null;edState.reviewedNick=null;
+  edState.commissionPostId=null;edState.reviewedNick=null;edState.reviewedUserId=null;
   renderCommissionSelected();
 }
 function renderCommissionSelected(){
@@ -1947,7 +1949,7 @@ function renderCommissionSelected(){
 }
 function openWrite(){
   editingPostId=null;
-  edState={board:(state.board!=="all"&&state.board!=="sketch")?state.board:null,tag:null,img:false,images:[],commissionPostId:null,reviewedNick:null,sentiment:null};
+  edState={board:(state.board!=="all"&&state.board!=="sketch")?state.board:null,tag:null,img:false,images:[],commissionPostId:null,reviewedNick:null,reviewedUserId:null,sentiment:null};
   buildBoardMenu();refreshBoardLabel();renderEdTags();
   document.getElementById("wTitle").value="";
   document.getElementById("edReviewNickInput").value="";
@@ -1965,7 +1967,7 @@ function openEditPost(id){
   if(!p.dbId||!AUTH.user||p.authorId!==AUTH.user.id){toast("수정 권한이 없어요");return;}
   if(p.adLocked){toast("광고를 집행 중인 글은 수정할 수 없어요");return;}
   editingPostId=id;
-  edState={board:p.board,tag:p.category||null,img:!!(p.images&&p.images.length),images:p.images?p.images.slice():[],commissionPostId:p.commissionPostId||null,reviewedNick:p.reviewedNickname||null,sentiment:p.commissionSentiment||null};
+  edState={board:p.board,tag:p.category||null,img:!!(p.images&&p.images.length),images:p.images?p.images.slice():[],commissionPostId:p.commissionPostId||null,reviewedNick:p.reviewedNickname||null,reviewedUserId:p.reviewedUserId||null,sentiment:p.commissionSentiment||null};
   buildBoardMenu();refreshBoardLabel();renderEdTags();
   document.getElementById("wTitle").value=stripTag(p.title,p.category);
   document.getElementById("edReviewNickInput").value="";
@@ -2016,6 +2018,7 @@ function openReviewFor(postId){
   pickBoard("review");
   edState.commissionPostId=p.dbId;
   edState.reviewedNick=p.author;
+  edState.reviewedUserId=p.authorId||null;
   renderCommissionSelected();
 }
 function closeWrite(){editingPostId=null;document.getElementById("writeModal").classList.remove("open");document.body.style.overflow=""}
@@ -2039,7 +2042,7 @@ function pickBoard(id){
   document.getElementById("edCrit").checked=(id==="crit");
   if(id!=="review"){
     document.getElementById("edReviewNickInput").value="";
-    edState.commissionPostId=null;edState.reviewedNick=null;edState.sentiment=null;
+    edState.commissionPostId=null;edState.reviewedNick=null;edState.reviewedUserId=null;edState.sentiment=null;
   }
   updateReviewNickField();}
 function refreshBoardLabel(){
@@ -2237,6 +2240,7 @@ async function submitPost(){
   var title=isReview?sentimentTitle(sentiment):((edState.tag?"["+edState.tag+"] ":"")+t);
   var stage=(["러프","선화","채색","완성"].indexOf(edState.tag)>-1)?edState.tag:null;
   var reviewedNick=isReview?edState.reviewedNick:null;
+  var reviewedUserId=isReview?edState.reviewedUserId:null;
   var commissionPostId=isReview?edState.commissionPostId:null;
 
   if(editingPostId){
@@ -2245,7 +2249,7 @@ async function submitPost(){
     if(window.supabase&&ep.dbId){
       var upd=await window.supabase.from("posts").update({
         board:edState.board,category:edState.tag,title:title,content:text,content_html:html||null,
-        stage:edState.img?(stage||"완성"):null,reviewed_nickname:reviewedNick,commission_post_id:commissionPostId,
+        stage:edState.img?(stage||"완성"):null,reviewed_nickname:reviewedNick,reviewed_user_id:reviewedUserId,commission_post_id:commissionPostId,
         commission_sentiment:sentiment
       }).eq("id",ep.dbId);
       if(upd.error){toast("수정 실패: "+upd.error.message);return;}
@@ -2261,6 +2265,7 @@ async function submitPost(){
     ep.stage=edState.img?(stage||"완성"):null;
     ep.images=edState.images.length?edState.images.slice():undefined;
     ep.reviewedNickname=reviewedNick;
+    ep.reviewedUserId=reviewedUserId;
     ep.commissionPostId=commissionPostId;
     ep.commissionSentiment=sentiment;
     ep.html=html;ep.content=text.split("\n").filter(Boolean);
@@ -2281,6 +2286,7 @@ async function submitPost(){
       content_html:html||null,
       stage:edState.img?(stage||"완성"):null,
       reviewed_nickname:reviewedNick,
+      reviewed_user_id:reviewedUserId,
       commission_post_id:commissionPostId,
       commission_sentiment:sentiment
     }).select().single();
@@ -2301,7 +2307,7 @@ async function submitPost(){
     thumb:edState.img?"t1":"none",stage:edState.img?(stage||"완성"):null,
     images:edState.images.length?edState.images.slice():undefined,
     dbId:saved&&saved.data?saved.data.id:undefined,authorId:saved&&saved.data?saved.data.author_id:undefined,
-    reviewedNickname:reviewedNick,commissionPostId:commissionPostId,commissionSentiment:sentiment,
+    reviewedNickname:reviewedNick,reviewedUserId:reviewedUserId,commissionPostId:commissionPostId,commissionSentiment:sentiment,
     html:html,content:text.split("\n").filter(Boolean),comments:[]};
   justAddedId=np.id;setTimeout(function(){justAddedId=null},1800);POSTS.unshift(np);
   closeWrite();state.board=edState.board;state.query="";state.sort="new";state.shown=8;
@@ -2475,9 +2481,12 @@ function pinnedPostCardHTML(pinnedPostId){
     '<div class="pinned-meta"><span class="cat '+c.cls+'">'+c.label+'</span><span>추천 '+p.likes+' · 댓글 '+p.comments.length+'</span></div></div>'+
   '</div>';
 }
-function reviewsAboutHTML(nickname){
+function reviewsAboutHTML(profileUserId,nickname){
   if(!nickname)return"";
-  var reviews=POSTS.filter(function(p){return p.board==="review"&&p.reviewedNickname===nickname});
+  var reviews=POSTS.filter(function(p){
+    if(p.board!=="review")return false;
+    return p.reviewedUserId?p.reviewedUserId===profileUserId:p.reviewedNickname===nickname;
+  });
   if(!reviews.length)return"";
   var groups=[],byKey={};
   reviews.forEach(function(r){
@@ -2533,7 +2542,7 @@ async function openUserProfile(userId){
      '<div class="pf-name">'+esc(profile.nickname)+levelBadgeHtml(profile.level)+'</div>'+
      '</div>'+(canChat?'<button class="pf-edit" onclick="openChat(\''+userId+'\')">💬 채팅하기</button>':'')+'</div>';
   h+=pinnedPostCardHTML(profile.pinned_post_id);
-  h+=reviewsAboutHTML(profile.nickname);
+  h+=reviewsAboutHTML(userId,profile.nickname);
   h+='<div class="pf-stats">'+
      '<div class="pf-st"><b>'+(profile.score||0)+'</b><span>활동 점수</span></div>'+
      '<div class="pf-st"><b>'+theirPosts.length+'</b><span>쓴 글</span></div>'+
@@ -2898,7 +2907,7 @@ function openProfile(){
        '</div>';
   }
   h+=pinnedPostCardHTML(AUTH.profile?AUTH.profile.pinned_post_id:null);
-  h+=reviewsAboutHTML(ME.nick);
+  h+=reviewsAboutHTML(AUTH.user.id,ME.nick);
   h+='<div class="pf-progress"><div class="pp-row"><span>'+lvName+'</span><span>'+
      (prog.maxed?'최고 등급 달성! 🎉':('다음 등급('+prog.nextName+')까지 '+prog.remain+'점'))+'</span></div>'+
      '<div class="pp-bar"><div class="pp-fill" style="width:'+prog.pct+'%"></div></div></div>';
