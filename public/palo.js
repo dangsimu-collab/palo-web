@@ -1312,9 +1312,17 @@ function cmBulkStatus(status){
   document.getElementById('cmMyList').innerHTML=cmMyListHTML();
   toast(status==='open'?'커미션을 모두 열었어요':'커미션을 모두 마감했어요',status==='open'?'🟢':'⛔');
 }
+function cmSyncTabbarHeight(){
+  var tb=document.querySelector('.tabbar');
+  var h=(tb&&getComputedStyle(tb).display!=="none")?tb.getBoundingClientRect().height:0;
+  document.documentElement.style.setProperty('--cm-tabbar-h',h+'px');
+}
 new MutationObserver(function(){
   document.body.classList.toggle('cm-page',!!document.querySelector('#main>.cm-root'));
+  cmSyncTabbarHeight();
 }).observe(document.body,{childList:true,subtree:true});
+window.addEventListener('resize',cmSyncTabbarHeight);
+cmSyncTabbarHeight();
 function tagFilterBarHTML(){
   var tags=TAGS_BY_BOARD[state.board];
   if(!tags||state.query)return"";

@@ -874,15 +874,15 @@
   .cm-sub-card .cm-nm{font-size:15px;font-weight:700}
   .cm-sub-card .cm-cnt{font-size:12.5px;color:var(--muted);margin-top:2px}
   .cm-sub-card .cm-btn{background:var(--ink);color:#fff;font-size:14px;font-weight:700;padding:9px 18px;border-radius:10px}
-  .cm-apply-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;
+  .cm-apply-bar{position:fixed;bottom:var(--cm-tabbar-h,0px);left:50%;transform:translateX(-50%);width:100%;max-width:480px;
     background:var(--surface);border-top:1px solid var(--line-2);display:flex;gap:10px;align-items:center;
-    padding:12px 16px 26px;z-index:30}
+    padding:12px 16px calc(14px + env(safe-area-inset-bottom,12px));z-index:30}
   .cm-apply-bar .cm-bm{width:48px;height:48px;flex-shrink:0;border:1.5px solid var(--line);border-radius:12px;
     display:flex;align-items:center;justify-content:center}
   .cm-apply-bar .cm-bm svg{width:20px;height:20px;color:var(--ink-2)}
   .cm-apply-bar .cm-ask{flex:1;background:var(--brand-soft);color:var(--brand-2);font-size:16px;font-weight:700;padding:14px;border-radius:12px;text-align:center;cursor:pointer}
   .cm-apply-bar .cm-apply{flex:1.4;background:var(--brand);color:#fff;font-size:16px;font-weight:800;padding:14px;border-radius:12px;text-align:center;cursor:pointer}
-  .cm-pad{height:100px}
+  .cm-pad{height:calc(100px + var(--cm-tabbar-h,0px))}
 
   .cm-pf-top{position:sticky;top:0;z-index:20;background:var(--bg);display:flex;align-items:center;gap:14px;padding:14px 18px}
   .cm-pf-top svg{width:24px;height:24px;cursor:pointer}
@@ -932,7 +932,7 @@
   /* 후기 전체 페이지 */
   .cm-rv-all{padding:18px}
   /* 후기 작성 페이지 */
-  .cm-wr{padding:20px 18px 40px}
+  .cm-wr{padding:20px 18px calc(40px + var(--cm-tabbar-h,0px))}
   .cm-wr-label{font-size:15px;font-weight:800;margin:22px 0 10px}
   .cm-wr-label:first-child{margin-top:6px}
   .cm-wr-sub{font-size:12.5px;color:var(--muted);font-weight:500;margin-left:6px}
@@ -954,12 +954,12 @@
   .cm-wr-text::placeholder{color:var(--muted-2)}
   .cm-wr-hint{font-size:12.5px;color:var(--muted);margin-top:8px}
   /* 제출 버튼 */
-  .cm-wr-submit{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--surface);border-top:1px solid var(--line-2);padding:12px 18px 26px;z-index:30}
+  .cm-wr-submit{position:fixed;bottom:var(--cm-tabbar-h,0px);left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--surface);border-top:1px solid var(--line-2);padding:12px 18px calc(14px + env(safe-area-inset-bottom,12px));z-index:30}
   .cm-wr-submit button{width:100%;background:var(--brand);color:#fff;border:none;font-size:16px;font-weight:800;padding:15px;border-radius:12px;cursor:pointer}
   .cm-wr-submit button:disabled{background:var(--muted-2);cursor:not-allowed}
 
   /* ===== 커미션 등록 페이지 ===== */
-  .cm-reg{padding:20px 18px 100px}
+  .cm-reg{padding:20px 18px calc(100px + var(--cm-tabbar-h,0px))}
   .cm-reg-label{font-size:15px;font-weight:800;margin:24px 0 10px;display:flex;align-items:center;gap:6px}
   .cm-reg-label:first-child{margin-top:6px}
   .cm-reg-req{color:var(--brand);font-size:13px}
@@ -988,7 +988,7 @@
   .cm-reg-tg{flex:1;border:1.5px solid var(--line);border-radius:12px;padding:14px;text-align:center;font-size:14.5px;font-weight:700;color:var(--muted);cursor:pointer}
   .cm-reg-tg.sel{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-2)}
   /* 미리보기 버튼 + 등록 버튼 */
-  .cm-reg-bottom{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--surface);border-top:1px solid var(--line-2);display:flex;gap:10px;padding:12px 18px 26px;z-index:30}
+  .cm-reg-bottom{position:fixed;bottom:var(--cm-tabbar-h,0px);left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--surface);border-top:1px solid var(--line-2);display:flex;gap:10px;padding:12px 18px calc(14px + env(safe-area-inset-bottom,12px));z-index:30}
   .cm-reg-bottom .cm-prev{flex:1;background:var(--brand-soft);color:var(--brand-2);border:none;font-size:15px;font-weight:700;padding:15px;border-radius:12px;cursor:pointer}
   .cm-reg-bottom .cm-reg-btn{flex:1.4;background:var(--brand);color:#fff;border:none;font-size:15px;font-weight:800;padding:15px;border-radius:12px;cursor:pointer}
   .cm-reg-bottom .cm-reg-btn:disabled{background:var(--muted-2);cursor:not-allowed}
