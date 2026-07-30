@@ -1917,7 +1917,7 @@ function renderLeaderboard(rows,period){
     h+='<div class="chat-room-list">';
     rows.forEach(function(r,i){
       h+='<div class="chat-room-row" style="cursor:pointer" onclick="openUserProfile(\''+r.user_id+'\')">'+
-        '<div class="pf-ava" style="width:40px;height:40px;font-size:15px;flex-shrink:0">'+(i+1)+'</div>'+
+        '<div class="pf-ava" style="width:40px;height:40px;font-size:15px;flex-shrink:0;position:relative">'+avatarHTML(r.nickname,r.avatar_url)+'<span class="rank-badge">'+(i+1)+'</span></div>'+
         '<div class="chat-room-info"><div class="chat-room-name">'+esc(r.nickname)+levelBadgeHtml(r.level,"lv-badge")+'</div></div>'+
         '<div class="chat-room-meta" style="color:var(--brand);font-weight:800">'+r.total_points+'점</div>'+
       '</div>';
