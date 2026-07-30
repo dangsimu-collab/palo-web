@@ -913,6 +913,19 @@ var cmReg={images:[],tags:[],status:'open',editingId:null};
 var cmDetailCtx={from:'list',idx:0};
 var cmPreviewObj=null;
 function cmQ(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
+function cmRowToData(row,artistNickname){
+  var imgs=(row.commission_images||[]).slice().sort(function(a,b){return a.sort-b.sort;}).map(function(x){return x.url;});
+  var revs=POSTS.filter(function(p){return p.board==='review'&&p.commissionId===row.id;});
+  var goodCount=revs.filter(function(r){return r.commissionSentiment==='good';}).length;
+  return{
+    id:row.id,authorId:row.author_id,
+    artist:artistNickname||'탈퇴한 사용자',
+    title:row.title,price:row.price,status:row.status,tags:row.tags||[],
+    period:row.period,slots:row.slots,desc:row.description,usage:row.usage_rights,policy:row.trade_policy,
+    images:imgs,likes:0,createdAt:row.created_at,
+    reviewCount:revs.length,satisfaction:revs.length?(goodCount/revs.length):0
+  };
+}
 async function cmLoadCommissions(){
   var res=await window.supabase.from('commissions').select('*,commission_images(url,sort)').order('created_at',{ascending:false});
   if(res.error){console.error(res.error);cmData=[];cmDataLoaded=true;return;}
@@ -921,18 +934,8 @@ async function cmLoadCommissions(){
   var profById={};
   (profRes.data||[]).forEach(function(p){profById[p.id]={nickname:p.nickname,avatarUrl:p.avatar_url};});
   cmData=res.data.map(function(row){
-    var imgs=(row.commission_images||[]).slice().sort(function(a,b){return a.sort-b.sort;}).map(function(x){return x.url;});
     var prof=profById[row.author_id];
-    var revs=POSTS.filter(function(p){return p.board==='review'&&p.commissionId===row.id;});
-    var goodCount=revs.filter(function(r){return r.commissionSentiment==='good';}).length;
-    return{
-      id:row.id,authorId:row.author_id,
-      artist:prof?prof.nickname:'탈퇴한 사용자',
-      title:row.title,price:row.price,status:row.status,tags:row.tags||[],
-      period:row.period,slots:row.slots,desc:row.description,usage:row.usage_rights,policy:row.trade_policy,
-      images:imgs,likes:0,createdAt:row.created_at,
-      reviewCount:revs.length,satisfaction:revs.length?(goodCount/revs.length):0
-    };
+    return cmRowToData(row,prof?prof.nickname:null);
   });
   cmTopTags=cmComputeTopTags();
   cmDataLoaded=true;
@@ -1078,6 +1081,36 @@ function cmSetTag(t){
   if(gridEl)gridEl.innerHTML=cmGridHTML();
 }
 function cmComingSoon(){toast("아직 준비 중인 기능이에요","🛠")}
+var cmPendingChatRef=null; // {commissionId,title,conversationId} — 다음에 보낼 메시지에 커미션 참조를 붙일지
+async function cmOpenChatAbout(authorId,commissionId,commissionTitle){
+  await openChat(authorId);
+  if(!currentConversationId||!AUTH.user)return; // openChat 자체 가드(로그인/셀프채팅)에 걸린 경우
+  cmPendingChatRef={commissionId:commissionId,title:commissionTitle,conversationId:currentConversationId};
+  var inputRow=document.querySelector('.chat-inputrow');
+  if(inputRow){
+    inputRow.insertAdjacentHTML('beforebegin','<div class="cm-chat-ref-hint" id="cmChatRefHint">🎨 다음 메시지에 <b>'+esc(commissionTitle)+'</b> 참조가 함께 전송돼요 <span onclick="cmCancelChatRef()">취소</span></div>');
+  }
+}
+function cmCancelChatRef(){
+  cmPendingChatRef=null;
+  var hint=document.getElementById('cmChatRefHint');
+  if(hint)hint.remove();
+}
+async function cmOpenCommissionById(commissionId){
+  if(!cmDataLoaded)await cmLoadCommissions();
+  var idx=cmData.findIndex(function(d){return d.id===commissionId;});
+  if(idx<0){
+    var res=await window.supabase.from('commissions').select('*,commission_images(url,sort)').eq('id',commissionId).single();
+    if(res.error||!res.data){toast('커미션을 찾을 수 없어요(삭제되었을 수 있어요)');return;}
+    var profRes=await window.supabase.from('profiles').select('nickname').eq('id',res.data.author_id).single();
+    cmData.push(cmRowToData(res.data,profRes.data?profRes.data.nickname:null));
+    idx=cmData.length-1;
+  }
+  closeDrawer();closeSheet();syncTabs("commission");
+  cmDetailCtx={from:'list',idx:idx};
+  document.getElementById("main").innerHTML=cmDetailHTML(cmData[idx],idx);
+  window.scrollTo({top:0,behavior:'smooth'});
+}
 function cmDetailHTML(d,idx){
   var artist=d.artist||'나';
   var title=d.title||'제목 없음';
@@ -1142,7 +1175,7 @@ function cmDetailHTML(d,idx){
     '</div>'+
     '<div class="cm-pad"></div>'+
     '<div class="cm-apply-bar"><div class="cm-bm'+(bookmarked?' on':'')+'"'+(d.id!=null?(' onclick="cmToggleBookmark('+d.id+',this)"'):'')+'><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4z"/></svg></div>'+
-      '<div class="cm-ask" onclick="cmComingSoon()">문의하기</div><div class="cm-apply" onclick="cmComingSoon()">신청하기</div></div>'+
+      '<div class="cm-ask" onclick="'+((d.authorId&&d.id!=null)?('cmOpenChatAbout(\''+cmQ(d.authorId)+'\','+d.id+',\''+cmQ(title)+'\')'):'cmComingSoon()')+'">문의하기</div><div class="cm-apply" onclick="cmComingSoon()">신청하기</div></div>'+
   '</div>';
 }
 function cmOpenDetail(idx){
@@ -2317,6 +2350,7 @@ function leaveChat(){
   unsubscribeFromChat();
   currentConversationId=null;
   currentChatPartnerId=null;
+  cmPendingChatRef=null;
 }
 /* ---------- 알림 (DB 저장, notifications 테이블) ---------- */
 var globalNotifChannel=null;
@@ -2420,8 +2454,11 @@ function chatMessagesHtml(messages){
   if(!messages.length)return '<div class="pf-empty">아직 대화가 없어요. 첫 메시지를 보내보세요!</div>';
   return messages.map(function(m){
     var mine=m.sender_id===AUTH.user.id;
+    var bubble=m.commission_id
+      ?('<div class="chat-bubble chat-commission-ref" onclick="cmOpenCommissionById('+m.commission_id+')">'+esc(m.content)+' <span class="chat-ref-arrow">→</span></div>')
+      :('<div class="chat-bubble">'+esc(m.content)+'</div>');
     return '<div class="chat-msg'+(mine?' mine':'')+'" data-msg-id="'+m.id+'">'+
-      '<div class="chat-bubble">'+esc(m.content)+'</div>'+
+      bubble+
       (mine?'<span class="chat-read-status">'+(m.is_read?'읽음':'')+'</span>':'')+
     '</div>';
   }).join("");
@@ -2501,9 +2538,13 @@ async function sendChatMessage(){
   var v=inp.value.trim();
   if(!v||!currentConversationId||!AUTH.user)return;
   inp.disabled=true;
-  var res=await window.supabase.from("messages").insert({conversation_id:currentConversationId,sender_id:AUTH.user.id,content:v});
+  var payload={conversation_id:currentConversationId,sender_id:AUTH.user.id,content:v};
+  var usingRef=cmPendingChatRef&&cmPendingChatRef.conversationId===currentConversationId;
+  if(usingRef)payload.commission_id=cmPendingChatRef.commissionId;
+  var res=await window.supabase.from("messages").insert(payload);
   inp.disabled=false;
   if(res.error){toast("전송 실패: "+res.error.message);return;}
+  if(usingRef)cmCancelChatRef();
   window.supabase.from("conversations").update({last_message_at:new Date().toISOString()}).eq("id",currentConversationId).then(function(){});
   inp.value="";
   var msgRes=await window.supabase.from("messages").select("*").eq("conversation_id",currentConversationId).order("created_at",{ascending:true});
