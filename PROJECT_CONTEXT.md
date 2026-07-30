@@ -213,6 +213,9 @@ grant execute on function public.increment_post_views(bigint) to anon, authentic
 - select: `commission_images_bucket_select_all` — `bucket_id='commission-images'`이면 누구나
 - insert/delete: `commission_images_bucket_insert_own` / `..._delete_own` — `bucket_id='commission-images'` and `(storage.foldername(name))[1] = auth.uid()::text`(업로드 경로의 첫 폴더가 본인 uid일 때만)
 
+**`commission_bookmarks` (2026-07-30 추가):** PK가 `(user_id, commission_id)` 복합키(중복 방지).
+- select/insert/delete: `commission_bookmarks_select_own` / `..._insert_own` / `..._delete_own` — 전부 `auth.uid() = user_id`, **남의 보관함은 조회조차 불가**(다른 소유권 테이블들과 달리 select도 본인만으로 좁힘 — 북마크는 `likes`와 달리 "누가 좋아했는지"가 아니라 순전히 개인 저장 목록이라 공개할 이유가 없다고 판단)
+
 **커미션 페이지 후기 알림 트리거 (2026-07-30 추가):**
 ```sql
 create or replace function public.notify_new_commission_review() returns trigger as $$
@@ -572,7 +575,7 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **태그 필터 (완료)**: "지금 많이 찾는 태그" 칩을 시각 토글만 하던 걸 실제 필터로 만듦. `cmComputeTopTags()`가 `cmData`(실제 등록된 커미션들)의 태그 등장 빈도를 세서 내림차순 상위 10개를 `cmTopTags`로 저장(`cmLoadCommissions()` 끝에서 계산), "전체" 칩 추가. `cmState.activeTag`는 인덱스가 아니라 태그 문자열 자체(또는 `null`=전체)로 관리하도록 바꿔서 목록 순서가 바뀌어도 안전. 검색어와 태그 필터는 AND로 동시 적용됨.
   - **⚠️ 사용자가 명시적으로 다음으로 미룬 것**: 지금은 "등록된 커미션에 실제로 많이 쓰인 태그" 순으로 상위 노출되는데, 사용자는 나중에 이걸 **"유저들이 실제로 많이 검색한 태그"** 기준으로 바꾸고 싶어함(검색 빈도 집계가 필요 — 지금은 검색어를 로깅/집계하는 인프라 자체가 없음, 별도 테이블+집계 로직이 필요한 더 큰 작업이라 뒤로 미룸). 다음에 이 기능을 다시 요청받으면: 검색어 로그를 남길 테이블(예: `commission_search_log` 혹은 기존 `cmSearch()` 호출 시 텀블링 윈도우로 집계) 설계부터 시작할 것.
 - **정렬 탭(홈/추천/신규/인기) (완료)**: 스펙에 명시된 4개만 연결(재방문 BEST/신상 BEST 2개는 스펙 밖이라 장식용으로 남김). `cmData`에 `createdAt`(등록 시각)·`reviewCount`(그 커미션에 달린 실제 후기 수, `POSTS`를 `commissionId`로 필터링해서 계산)·`satisfaction`(호 후기 비율) 필드를 새로 계산해서 추가 — 이 참에 카드의 "💬 리뷰 수"도 항상 0이던 것에서 실제 값으로 바뀜(하트/좋아요 수는 아직 북마크가 없어서 계속 0). 정렬 기준: 홈=기본 순서(등록순), 신규=`createdAt` 내림차순, 인기=`reviewCount` 내림차순, 추천=`satisfaction` 내림차순(동률이면 `reviewCount`로 2차 정렬, 후기 0개인 커미션은 항상 맨 뒤).
-- **북마크**: 진행 중.
+- **북마크 (완료)**: `commission_bookmarks`(user_id, commission_id 복합 PK, RLS로 본인 것만 select/insert/delete) 신설. 목록 카드·상세 페이지 둘 다의 북마크 아이콘(`.cm-bookmark`/`.cm-apply-bar .cm-bm`)에 `cmToggleBookmark(commissionId, el)` 연결 — 로그인 안 했으면 로그인 유도, 저장/해제 시 아이콘이 브랜드색으로 채워짐(`.on` 클래스). `cmBookmarkIds`(Set, 세션당 1회 로드)로 상태 캐시. "내 커미션" 화면(`cmOpenMy(tab)`)에 탭을 추가해서 "내가 등록한 커미션"/"🔖 보관함"을 전환 — 보관함은 `commission_bookmarks`를 `commissions(*,commission_images)`와 조인해서 불러온 뒤(작가 닉네임은 여기서도 프롬프트3와 같은 수동 join 패턴), 목록과 동일한 카드(`cmCardHTML`)로 렌더링하고 클릭하면 상세로 이동(카드에 없던 커미션은 `cmData`에 병합해서 `cmOpenDetail(idx)`가 정상 동작하도록 함).
 - **문의하기·신청하기·구독·공유**: 아직 시작 안 함.
 
 ### 커미션 후기 시스템 (2026-07-30 추가)

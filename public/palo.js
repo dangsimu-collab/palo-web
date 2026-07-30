@@ -907,6 +907,7 @@ var CM_IMAGE_BUCKET='commission-images';
 var CM_TYPES=['두상','흉상','반신','전신','SD','이모티콘','배경','기타'];
 var CM_BAD_REASONS=['퀄리티 불만족','마감 기한 미준수','소통이 어려웠어요','스타일이 요청과 달랐어요','기타'];
 var cmTopTags=[]; // cmLoadCommissions()가 실제 사용 빈도순으로 채움
+var cmBookmarkIds=null; // 로그인 후 Set으로 채워짐(북마크한 커미션 id들)
 var cmState={activeTag:null,wrType:null,wrCtype:null,query:'',sort:'home'};
 var cmReg={images:[],tags:[],status:'open',editingId:null};
 var cmDetailCtx={from:'list',idx:0};
@@ -943,12 +944,39 @@ function cmComputeTopTags(){
   tags.sort(function(a,b){return counts[b]-counts[a];});
   return tags.slice(0,10);
 }
+async function cmLoadMyBookmarks(){
+  if(!AUTH.user){cmBookmarkIds=new Set();return;}
+  var res=await window.supabase.from('commission_bookmarks').select('commission_id').eq('user_id',AUTH.user.id);
+  cmBookmarkIds=new Set((res.data||[]).map(function(r){return r.commission_id;}));
+}
+async function cmToggleBookmark(commissionId,el){
+  if(!AUTH.user){toast('로그인 후 북마크할 수 있어요','🔒');loginWithGoogle();return;}
+  if(cmBookmarkIds===null)await cmLoadMyBookmarks();
+  var isBookmarked=cmBookmarkIds.has(commissionId);
+  if(isBookmarked){
+    var del=await window.supabase.from('commission_bookmarks').delete().eq('user_id',AUTH.user.id).eq('commission_id',commissionId);
+    if(del.error){toast('처리 실패: '+del.error.message);return;}
+    cmBookmarkIds.delete(commissionId);
+    toast('북마크를 해제했어요');
+  }else{
+    var ins=await window.supabase.from('commission_bookmarks').insert({user_id:AUTH.user.id,commission_id:commissionId});
+    if(ins.error){toast('처리 실패: '+ins.error.message);return;}
+    cmBookmarkIds.add(commissionId);
+    toast('북마크에 저장했어요','🔖');
+  }
+  if(el){
+    var wrap=el.classList.contains('cm-bookmark')||el.classList.contains('cm-bm')?el:el.closest('.cm-bookmark,.cm-bm');
+    if(wrap)wrap.classList.toggle('on',cmBookmarkIds.has(commissionId));
+  }
+}
 async function openCommissionList(){
   closeDrawer();closeSheet();syncTabs("commission");
   document.getElementById("main").innerHTML=cmListHTML();
   window.scrollTo({top:0,behavior:"smooth"});
-  if(!cmDataLoaded){
-    await cmLoadCommissions();
+  var needsRefresh=false;
+  if(!cmDataLoaded){await cmLoadCommissions();needsRefresh=true;}
+  if(cmBookmarkIds===null){await cmLoadMyBookmarks();needsRefresh=true;}
+  if(needsRefresh){
     var chipsEl=document.querySelector('.cm-chips');
     if(chipsEl)chipsEl.innerHTML=cmChipsHTML();
     var gridEl=document.getElementById('cmGrid');
@@ -959,9 +987,10 @@ function cmCardHTML(d,idx){
   var thumb=(d.images&&d.images[0])?("background-image:url('"+cmQ(d.images[0])+"');background-size:cover;background-position:center"):('background:'+cmGrads[idx%cmGrads.length]);
   var status=d.status==='open'?'<div class="cm-status open">오픈중</div>':'';
   var tagsLine=(d.tags&&d.tags.length)?d.tags.map(function(t){return '#'+t;}).join(' '):'';
+  var bookmarked=cmBookmarkIds&&cmBookmarkIds.has(d.id);
   return '<div class="cm-card" onclick="cmOpenDetail('+idx+')">'+
     '<div class="cm-thumb" style="'+thumb+'">'+status+
-      '<div class="cm-bookmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4z"/></svg></div></div>'+
+      '<div class="cm-bookmark'+(bookmarked?' on':'')+'" onclick="event.stopPropagation();cmToggleBookmark('+d.id+',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4z"/></svg></div></div>'+
     '<div class="cm-c-artist">'+esc(d.artist)+'</div>'+
     '<div class="cm-c-title">'+esc(d.title)+'</div>'+
     '<div class="cm-c-price">'+esc(d.price)+'</div>'+
@@ -1072,6 +1101,7 @@ function cmDetailHTML(d,idx){
   var goodCnt=realReviews.filter(function(r){return r.commissionSentiment==='good'}).length;
   var badCnt=realReviews.filter(function(r){return r.commissionSentiment==='bad'}).length;
   var canReview=AUTH.user&&d.authorId&&AUTH.user.id!==d.authorId;
+  var bookmarked=(d.id!=null)&&cmBookmarkIds&&cmBookmarkIds.has(d.id);
   var satisfactionHTML=realReviews.length>0
     ?('<div class="cm-verify"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>만족율 '+Math.round(goodCnt/realReviews.length*100)+'%</div>')
     :'';
@@ -1111,7 +1141,7 @@ function cmDetailHTML(d,idx){
       '<div class="cm-sub-card"><div class="cm-l"><div class="cm-ci">P</div><div><div class="cm-nm">'+esc(channel)+'</div><div class="cm-cnt">구독자 115명</div></div></div><div class="cm-btn" onclick="cmComingSoon()">구독</div></div>'+
     '</div>'+
     '<div class="cm-pad"></div>'+
-    '<div class="cm-apply-bar"><div class="cm-bm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4z"/></svg></div>'+
+    '<div class="cm-apply-bar"><div class="cm-bm'+(bookmarked?' on':'')+'"'+(d.id!=null?(' onclick="cmToggleBookmark('+d.id+',this)"'):'')+'><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4z"/></svg></div>'+
       '<div class="cm-ask" onclick="cmComingSoon()">문의하기</div><div class="cm-apply" onclick="cmComingSoon()">신청하기</div></div>'+
   '</div>';
 }
@@ -1477,29 +1507,62 @@ function cmMyListHTML(){
       '<button class="cm-my-edit" onclick="cmOpenRegister('+c.id+')">수정</button></div>';
   }).join('');
 }
-async function cmOpenMy(){
+var cmMyBookmarks=[];
+async function cmOpenMy(tab){
   if(!AUTH.user){
     toast('로그인 후 내 커미션을 볼 수 있어요','🔒');
     loginWithGoogle();
     return;
   }
+  var activeTab=(tab==='bookmarks')?'bookmarks':'mine';
   document.getElementById("main").innerHTML='<div class="cm-root">'+
     '<div class="cm-sub-top"><svg onclick="openCommissionList()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>내 커미션</b>'+
-      '<button class="cm-write-btn" onclick="cmOpenRegister()">+ 새 커미션</button></div>'+
-    '<div class="cm-my-bulk"><button class="cm-open-all" onclick="cmBulkStatus(\'open\')">🟢 전체 열기</button>'+
-      '<button class="cm-close-all" onclick="cmBulkStatus(\'close\')">⛔ 전체 마감</button></div>'+
-    '<div class="cm-my-list" id="cmMyList"><div class="cm-my-empty">불러오는 중...</div></div>'+
+      (activeTab==='mine'?'<button class="cm-write-btn" onclick="cmOpenRegister()">+ 새 커미션</button>':'')+
+    '</div>'+
+    '<div class="cm-tabs" style="padding:14px 18px 0">'+
+      '<div class="cm-tab'+(activeTab==='mine'?' on':'')+'" onclick="cmOpenMy(\'mine\')">내가 등록한 커미션</div>'+
+      '<div class="cm-tab'+(activeTab==='bookmarks'?' on':'')+'" onclick="cmOpenMy(\'bookmarks\')">🔖 보관함</div>'+
+    '</div>'+
+    (activeTab==='mine'?('<div class="cm-my-bulk"><button class="cm-open-all" onclick="cmBulkStatus(\'open\')">🟢 전체 열기</button>'+
+      '<button class="cm-close-all" onclick="cmBulkStatus(\'close\')">⛔ 전체 마감</button></div>'):'')+
+    '<div class="'+(activeTab==='mine'?'cm-my-list':'cm-grid')+'" id="cmMyList"><div class="cm-my-empty">불러오는 중...</div></div>'+
   '</div>';
   window.scrollTo({top:0,behavior:"smooth"});
-  var res=await window.supabase.from('commissions').select('*,commission_images(url,sort)').eq('author_id',AUTH.user.id).order('created_at',{ascending:false});
-  if(res.error){toast('불러오기 실패: '+res.error.message);return;}
-  cmMyList=res.data.map(function(row){
-    var imgs=(row.commission_images||[]).slice().sort(function(a,b){return a.sort-b.sort;}).map(function(x){return x.url;});
-    return{id:row.id,title:row.title,price:row.price,tags:row.tags||[],status:row.status,period:row.period,
-      slots:row.slots,desc:row.description,usage:row.usage_rights,policy:row.trade_policy,images:imgs};
-  });
-  var listEl=document.getElementById('cmMyList');
-  if(listEl)listEl.innerHTML=cmMyListHTML();
+  if(activeTab==='mine'){
+    var res=await window.supabase.from('commissions').select('*,commission_images(url,sort)').eq('author_id',AUTH.user.id).order('created_at',{ascending:false});
+    if(res.error){toast('불러오기 실패: '+res.error.message);return;}
+    cmMyList=res.data.map(function(row){
+      var imgs=(row.commission_images||[]).slice().sort(function(a,b){return a.sort-b.sort;}).map(function(x){return x.url;});
+      return{id:row.id,title:row.title,price:row.price,tags:row.tags||[],status:row.status,period:row.period,
+        slots:row.slots,desc:row.description,usage:row.usage_rights,policy:row.trade_policy,images:imgs};
+    });
+    var listEl=document.getElementById('cmMyList');
+    if(listEl)listEl.innerHTML=cmMyListHTML();
+  }else{
+    if(cmBookmarkIds===null)await cmLoadMyBookmarks();
+    var bres=await window.supabase.from('commission_bookmarks').select('commission_id,commissions(*,commission_images(url,sort))').eq('user_id',AUTH.user.id).order('created_at',{ascending:false});
+    if(bres.error){toast('불러오기 실패: '+bres.error.message);return;}
+    var rows=(bres.data||[]).map(function(b){return b.commissions;}).filter(Boolean);
+    var authorIds=Array.from(new Set(rows.map(function(r){return r.author_id;})));
+    var profRes=authorIds.length?await window.supabase.from('profiles').select('id,nickname').in('id',authorIds):{data:[]};
+    var profById={};(profRes.data||[]).forEach(function(p){profById[p.id]=p.nickname;});
+    cmMyBookmarks=rows.map(function(row){
+      var imgs=(row.commission_images||[]).slice().sort(function(a,b){return a.sort-b.sort;}).map(function(x){return x.url;});
+      return{id:row.id,authorId:row.author_id,artist:profById[row.author_id]||'탈퇴한 사용자',
+        title:row.title,price:row.price,status:row.status,tags:row.tags||[],images:imgs,likes:0};
+    });
+    cmMyBookmarks.forEach(function(bm){
+      if(!cmData.some(function(d){return d.id===bm.id;}))cmData.push(bm);
+    });
+    var bmEl=document.getElementById('cmMyList');
+    if(bmEl){
+      if(cmMyBookmarks.length===0)bmEl.innerHTML='<div class="cm-my-empty">아직 저장한 커미션이 없어요.<br>마음에 드는 커미션을 북마크해보세요!</div>';
+      else bmEl.innerHTML=cmMyBookmarks.map(function(bm){
+        var idx=cmData.findIndex(function(d){return d.id===bm.id;});
+        return cmCardHTML(bm,idx);
+      }).join('');
+    }
+  }
 }
 async function cmBulkStatus(status){
   if(!AUTH.user)return;

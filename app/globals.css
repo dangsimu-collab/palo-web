@@ -818,6 +818,7 @@
   .cm-bookmark{position:absolute;bottom:9px;right:9px;width:32px;height:32px;background:rgba(255,255,255,.85);
     border-radius:50%;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
   .cm-bookmark svg{width:17px;height:17px;color:var(--ink-2)}
+  .cm-bookmark.on svg{fill:var(--brand);color:var(--brand)}
   .cm-status{position:absolute;top:10px;right:10px;font-size:11px;font-weight:700;padding:4px 8px;border-radius:8px}
   .cm-status.open{background:rgba(63,143,95,.92);color:#fff}
   .cm-c-artist{font-size:13px;color:var(--muted);margin:10px 2px 4px;font-weight:500}
@@ -879,8 +880,10 @@
     background:var(--surface);border-top:1px solid var(--line-2);display:flex;gap:10px;align-items:center;
     padding:12px 16px calc(14px + env(safe-area-inset-bottom,12px));z-index:30}
   .cm-apply-bar .cm-bm{width:48px;height:48px;flex-shrink:0;border:1.5px solid var(--line);border-radius:12px;
-    display:flex;align-items:center;justify-content:center}
+    display:flex;align-items:center;justify-content:center;cursor:pointer}
   .cm-apply-bar .cm-bm svg{width:20px;height:20px;color:var(--ink-2)}
+  .cm-apply-bar .cm-bm.on{border-color:var(--brand);background:var(--brand-soft)}
+  .cm-apply-bar .cm-bm.on svg{fill:var(--brand);color:var(--brand)}
   .cm-apply-bar .cm-ask{flex:1;background:var(--brand-soft);color:var(--brand-2);font-size:16px;font-weight:700;padding:14px;border-radius:12px;text-align:center;cursor:pointer}
   .cm-apply-bar .cm-apply{flex:1.4;background:var(--brand);color:#fff;font-size:16px;font-weight:800;padding:14px;border-radius:12px;text-align:center;cursor:pointer}
   .cm-pad{height:calc(100px + var(--cm-tabbar-h,0px))}
