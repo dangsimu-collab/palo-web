@@ -102,6 +102,103 @@ function avatarHTML(name,avatarUrl){
   if(avatarUrl)return '<img src="'+esc(avatarUrl)+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block">';
   return esc(dispName(name)[0]);
 }
+/* ===== 프로필 헤어(크레페 시안) ===== */
+function pfSnsUrl(type,v){
+  v=v.trim();
+  if(/^https?:\/\//i.test(v))return v;
+  v=v.replace(/^@/,'');
+  return type==='twitter'?('https://x.com/'+v):('https://instagram.com/'+v);
+}
+function pfReviewStats(userId,nickname){
+  var reviews=POSTS.filter(function(p){
+    if(p.board!=='review')return false;
+    return p.reviewedUserId?p.reviewedUserId===userId:p.reviewedNickname===nickname;
+  });
+  var good=reviews.filter(function(r){return r.commissionSentiment==='good'}).length;
+  return{count:reviews.length,pct:reviews.length?Math.round(good/reviews.length*100):null};
+}
+async function pfBookmarkCount(userId){
+  if(!window.supabase)return 0;
+  var comRes=await window.supabase.from('commissions').select('id').eq('author_id',userId);
+  if(comRes.error||!comRes.data||!comRes.data.length)return 0;
+  var ids=comRes.data.map(function(c){return c.id});
+  var cntRes=await window.supabase.from('commission_bookmarks').select('*',{count:'exact',head:true}).in('commission_id',ids);
+  return cntRes.count||0;
+}
+function pfHeroHTML(p,isSelf,reviewStats,bookmarkCount){
+  var coverStyle=p.cover_url?('background-image:url(\''+cmQ(p.cover_url)+'\');background-size:cover;background-position:center'):'';
+  var editCoverBtn=isSelf?'<button type="button" class="pfh-cover-edit" onclick="document.getElementById(\'coverFile\').click()" title="커버 이미지 변경" aria-label="커버 이미지 변경">🖼</button>':'';
+  var editAvaBtn=isSelf?'<button type="button" class="pfh-ava-edit" onclick="document.getElementById(\'avatarFile\').click()" title="프로필 이미지 변경" aria-label="프로필 이미지 변경">📷</button>':'';
+  var grade=p.level?levelBadgeHtml(p.level,'pfh-grade-badge'):'';
+  var bio=p.bio?esc(p.bio).replace(/\n/g,'<br>'):(isSelf?'소개글을 적어보세요.':'');
+  var links='';
+  if(p.sns_twitter)links+='<a class="pfh-link" href="'+esc(pfSnsUrl('twitter',p.sns_twitter))+'" target="_blank" rel="noopener" title="트위터(X)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"/></svg></a>';
+  if(p.sns_instagram)links+='<a class="pfh-link" href="'+esc(pfSnsUrl('instagram',p.sns_instagram))+'" target="_blank" rel="noopener" title="인스타그램"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg></a>';
+  if(p.sns_email)links+='<a class="pfh-link" href="mailto:'+esc(p.sns_email)+'" title="이메일"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M4 4l8 7 8-7"/></svg></a>';
+  var editLinksBtn=isSelf?'<button type="button" class="pfh-edit-btn" onclick="openPfEditModal()">✏️ 소개글 · 링크 편집</button>':'';
+  var pctHTML=reviewStats.pct==null?'<div class="n">-</div>':'<div class="n good">'+reviewStats.pct+'%</div>';
+  var bmHTML=bookmarkCount==null?'…':bookmarkCount;
+  return '<div class="pfh">'+
+    '<div class="pfh-cover" style="'+coverStyle+'">'+editCoverBtn+'</div>'+
+    '<div class="pfh-ava-wrap"><div class="pfh-ava">'+avatarHTML(p.nickname,p.avatar_url)+'</div>'+editAvaBtn+'</div>'+
+    '<div class="pfh-name">'+esc(p.nickname)+'</div>'+
+    (grade?'<div class="pfh-grade">'+grade+'</div>':'')+
+    (bio?'<div class="pfh-bio">'+bio+'</div>':'')+
+    (links?'<div class="pfh-links">'+links+'</div>':'')+
+    editLinksBtn+
+    '<div class="pfh-stats">'+
+      '<div class="pfh-stat"><div class="n">'+reviewStats.count+'</div><div class="l">후기</div></div>'+
+      '<div class="pfh-stat">'+pctHTML+'<div class="l">호 후기</div></div>'+
+      '<div class="pfh-stat"><div class="n" id="pfhBmCount">'+bmHTML+'</div><div class="l">찜하기</div></div>'+
+    '</div>'+
+  '</div>';
+}
+function openPfEditModal(){
+  document.getElementById('pfBioInput').value=(AUTH.profile&&AUTH.profile.bio)||'';
+  document.getElementById('pfTwitterInput').value=(AUTH.profile&&AUTH.profile.sns_twitter)||'';
+  document.getElementById('pfInstaInput').value=(AUTH.profile&&AUTH.profile.sns_instagram)||'';
+  document.getElementById('pfEmailInput').value=(AUTH.profile&&AUTH.profile.sns_email)||'';
+  document.getElementById('pfEditModal').classList.add('open');
+}
+function closePfEdit(){document.getElementById('pfEditModal').classList.remove('open');}
+async function savePfEdit(){
+  if(!AUTH.user||!window.supabase)return;
+  var bio=document.getElementById('pfBioInput').value.trim().slice(0,150);
+  var tw=document.getElementById('pfTwitterInput').value.trim();
+  var ig=document.getElementById('pfInstaInput').value.trim();
+  var em=document.getElementById('pfEmailInput').value.trim();
+  var res=await window.supabase.from('profiles').update({bio:bio||null,sns_twitter:tw||null,sns_instagram:ig||null,sns_email:em||null}).eq('id',AUTH.user.id);
+  if(res.error){toast('저장 실패: '+res.error.message);return;}
+  if(AUTH.profile){AUTH.profile.bio=bio||null;AUTH.profile.sns_twitter=tw||null;AUTH.profile.sns_instagram=ig||null;AUTH.profile.sns_email=em||null;}
+  closePfEdit();toast('프로필을 저장했어요','✓');
+  openProfile();
+}
+async function onCoverFile(e){
+  var f=e.target.files[0];if(!f)return;
+  e.target.value='';
+  if(!window.supabase||!AUTH.user){toast('로그인이 필요해요');return;}
+  if(ALLOWED_IMAGE_TYPES.indexOf(f.type)===-1){toast('이미지 파일만 올릴 수 있어요');return;}
+  if(f.size>MAX_IMAGE_BYTES){toast('40MB 이하 이미지만 올릴 수 있어요');return;}
+  var uploadBlob=f,ext=(f.name.match(/\.([^.]+)$/)||[,'png'])[1];
+  if(f.type!=='image/gif'){
+    toast('커버 이미지 압축 중...');
+    try{
+      var compressed=await compressImage(f);
+      uploadBlob=compressed.blob;ext=compressed.ext;
+    }catch(err){console.error('커버 이미지 압축 실패, 원본으로 업로드:',err);}
+  }
+  toast('업로드 중...');
+  var path='cover-'+Date.now()+'-'+f.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_.-]/g,'_')+'.'+ext;
+  var up=await window.supabase.storage.from('post-images').upload(path,uploadBlob,f.type==='image/gif'?undefined:{contentType:uploadBlob.type});
+  if(up.error){toast('업로드 실패: '+up.error.message);return;}
+  var pub=window.supabase.storage.from('post-images').getPublicUrl(path);
+  var url=pub.data.publicUrl;
+  var res=await window.supabase.from('profiles').update({cover_url:url}).eq('id',AUTH.user.id);
+  if(res.error){toast('저장 실패: '+res.error.message);return;}
+  if(AUTH.profile)AUTH.profile.cover_url=url;
+  toast('커버 이미지를 변경했어요');
+  openProfile();
+}
 var NOTIFS=[
   {type:"cm",icon:"💬",txt:"뎃생왕님이 회원님의 글에 훈수를 남겼어요",time:"5분 전",post:15,read:false},
   {type:"like",icon:"❤️",txt:"달빛초님 외 3명이 회원님의 글을 좋아해요",time:"30분 전",post:14,read:false},
@@ -2530,10 +2627,13 @@ async function openUserProfile(userId){
   var theirPosts=POSTS.filter(function(p){return p.authorId===userId});
   var likeSum=theirPosts.reduce(function(a,p){return a+p.likes},0);
   var canChat=AUTH.user&&AUTH.user.id!==userId;
+  var theirReviewStats=pfReviewStats(userId,profile.nickname);
+  var theirBookmarkCount=await pfBookmarkCount(userId);
   var h='<div class="profile">';
-  h+='<div class="pf-card"><div class="pf-ava">'+avatarHTML(profile.nickname,profile.avatar_url)+'</div><div class="pf-info">'+
-     '<div class="pf-name">'+esc(profile.nickname)+levelBadgeHtml(profile.level)+'</div>'+
-     '</div>'+(canChat?'<button class="pf-edit" onclick="openChat(\''+userId+'\')">💬 채팅하기</button>':'')+'</div>';
+  h+=pfHeroHTML({nickname:profile.nickname,level:profile.level,avatar_url:profile.avatar_url,
+    cover_url:profile.cover_url,bio:profile.bio,sns_twitter:profile.sns_twitter,sns_instagram:profile.sns_instagram,sns_email:profile.sns_email},
+    false,theirReviewStats,theirBookmarkCount);
+  if(canChat)h+='<button class="pf-edit" style="margin-top:14px;width:100%" onclick="openChat(\''+userId+'\')">💬 채팅하기</button>';
   h+=pinnedPostCardHTML(profile.pinned_post_id);
   h+=reviewsAboutHTML(userId,profile.nickname);
   h+='<div class="pf-stats">'+
@@ -2877,18 +2977,18 @@ function openProfile(){
   var myLevel=AUTH.profile?(AUTH.profile.level||1):1;
   var lvName=levelName(myLevel);
   var prog=levelProgress(myScore,myLevel);
+  var myReviewStats=pfReviewStats(AUTH.user.id,ME.nick);
   var h='<div class="profile" id="myProfileView">';
-  h+='<div class="pf-card"><div class="pf-ava" style="cursor:pointer" title="프로필 이미지 변경" onclick="document.getElementById(\'avatarFile\').click()">'+avatarHTML(ME.nick,AUTH.profile&&AUTH.profile.avatar_url)+
-     '<button type="button" class="pf-ava-edit" onclick="event.stopPropagation();document.getElementById(\'avatarFile\').click()" title="프로필 이미지 변경" aria-label="프로필 이미지 변경">📷</button>'+
-     '</div><div class="pf-info">'+
-     '<div class="pf-name">'+esc(ME.nick)+levelBadgeHtml(myLevel)+'</div>'+
-     '<div class="pf-sub">Palo와 함께 그리는 중 · 팔로잉 '+FOLLOW.size+'명</div></div>'+
-     '<div class="pf-actions">'+
+  h+=pfHeroHTML({nickname:ME.nick,level:myLevel,avatar_url:AUTH.profile&&AUTH.profile.avatar_url,
+    cover_url:AUTH.profile&&AUTH.profile.cover_url,bio:AUTH.profile&&AUTH.profile.bio,
+    sns_twitter:AUTH.profile&&AUTH.profile.sns_twitter,sns_instagram:AUTH.profile&&AUTH.profile.sns_instagram,sns_email:AUTH.profile&&AUTH.profile.sns_email},
+    true,myReviewStats,null);
+  h+='<div class="pf-actions">'+
        '<button class="pf-edit" onclick="openNickModal()">닉네임 변경</button>'+
        '<button class="pf-edit" onclick="openChatList()">💬 채팅 목록</button>'+
        '<button class="pf-edit" onclick="openScoreLog()">포인트 내역</button>'+
        '<button class="pf-edit" onclick="logout()">로그아웃</button>'+
-     '</div></div>';
+     '</div>';
   if(AUTH.profile&&AUTH.profile.is_admin){
     h+='<div class="pf-sec">🛡 관리자 메뉴</div>'+
        '<div class="pf-actions pf-admin-actions">'+
@@ -2933,6 +3033,10 @@ function openProfile(){
   h+='</div>';
   document.getElementById("main").innerHTML=h;
   syncTabs("me");window.scrollTo({top:0,behavior:"smooth"});
+  pfBookmarkCount(AUTH.user.id).then(function(n){
+    var el=document.getElementById("pfhBmCount");
+    if(el)el.textContent=n;
+  });
 }
 function unfollowFromProfile(n){FOLLOW.delete(n);toast(dispName(n)+"님 팔로우를 취소했어요");openProfile();}
 async function openAdminReports(){

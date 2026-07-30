@@ -282,7 +282,19 @@ export const BODY_HTML = `
     <button class="r-ok" onclick="saveNick()">저장</button>
   </div>
 </div>
+<div class="rules-scrim" id="pfEditModal" onclick="if(event.target===this)closePfEdit()">
+  <div class="rules">
+    <h3>✏️ 소개글 · 링크 편집</h3>
+    <textarea id="pfBioInput" class="nick-in" style="height:90px;resize:vertical" maxlength="150" placeholder="자기소개를 적어보세요 (최대 150자)"></textarea>
+    <input id="pfTwitterInput" class="nick-in" placeholder="트위터(X) 아이디 또는 링크">
+    <input id="pfInstaInput" class="nick-in" placeholder="인스타그램 아이디 또는 링크">
+    <input id="pfEmailInput" class="nick-in" placeholder="이메일 주소">
+    <p class="nick-hint">비워두면 프로필에 안 보여요.</p>
+    <button class="r-ok" onclick="savePfEdit()">저장</button>
+  </div>
+</div>
 <input type="file" id="avatarFile" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="onAvatarFile(event)">
+<input type="file" id="coverFile" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="onCoverFile(event)">
 <div class="toast" id="toast"></div>
 <button class="toTop" id="toTop" aria-label="맨 위로"><span class="sr-only">맨 위로</span><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
 
