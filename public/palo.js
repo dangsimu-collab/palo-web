@@ -440,7 +440,7 @@ function adRow(){
     '<span class="ad-label">AD</span>'+
     '<div class="ad-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="width:22px;height:22px"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 18 5-5 4 3 3-2 4 4"/></svg></div>'+
     '<div class="ad-body"><div class="ad-t">광고 문의 환영</div>'+
-    '<div class="ad-d">이 자리에 광고가 노출됩니다 · 그림 관련 브랜드 우대</div></div>'+
+    '<div class="ad-d">이 자리에 유저 광고와 유료 광고가 노출됩니다</div></div>'+
   '</div>';
 }
 function renderList(){
