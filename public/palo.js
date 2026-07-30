@@ -228,6 +228,7 @@ function timeAgo(iso){
 }
 var LATEST_NOTICE=null;
 var ACTIVE_ADS=[];
+var AD_LOCKED_COMMISSION_IDS={}; // 광고 심사중/집행중인 커미션 id들 — 수정 잠금용(POSTS의 adLocked와 동일한 목적)
 var AD_USER_SHARE_MAX=0.20; // 유저 광고가 전체 광고 자리 노출에서 차지할 수 있는 최대 비중
 var AD_PER_AD_SHARE_MAX=0.04; // 광고 하나가 차지할 수 있는 최대 비중(초기엔 광고가 적어 소수가 20%를 독점하는 걸 막기 위함)
 function computeAdWeights(ads){
@@ -236,6 +237,9 @@ function computeAdWeights(ads){
   return ads.map(function(a){
     return Math.min(AD_PER_AD_SHARE_MAX,AD_USER_SHARE_MAX*(a.points_spent/total));
   });
+}
+function adTargetOnclick(ad){
+  return ad.linked_commission_id?('cmOpenCommissionById('+ad.linked_commission_id+')'):('openPost('+(100000+ad.linked_post_id)+')');
 }
 function showNotice(){
   if(!LATEST_NOTICE)return;
@@ -252,14 +256,18 @@ async function loadRealPosts(){
   var lvRes=await window.supabase.from("level_thresholds").select("*").order("level");
   if(!lvRes.error)LEVEL_THRESHOLDS=lvRes.data||[];
 
-  var adRes=await window.supabase.from("user_ads").select("id,image_url,linked_post_id,points_spent").eq("status","active").gt("expires_at",new Date().toISOString());
+  var adRes=await window.supabase.from("user_ads").select("id,image_url,linked_post_id,linked_commission_id,points_spent").eq("status","active").gt("expires_at",new Date().toISOString());
   if(!adRes.error)ACTIVE_ADS=adRes.data||[];
 
-  var adLockRes=await window.supabase.from("user_ads").select("linked_post_id,status,expires_at").in("status",["pending","active"]);
+  var adLockRes=await window.supabase.from("user_ads").select("linked_post_id,linked_commission_id,status,expires_at").in("status",["pending","active"]);
   var adLockedIds={};
+  AD_LOCKED_COMMISSION_IDS={};
   var nowIso=new Date().toISOString();
   (adLockRes.data||[]).forEach(function(a){
-    if(a.status==="pending"||(a.status==="active"&&a.expires_at&&a.expires_at>nowIso))adLockedIds[a.linked_post_id]=true;
+    if(a.status==="pending"||(a.status==="active"&&a.expires_at&&a.expires_at>nowIso)){
+      if(a.linked_post_id)adLockedIds[a.linked_post_id]=true;
+      if(a.linked_commission_id)AD_LOCKED_COMMISSION_IDS[a.linked_commission_id]=true;
+    }
   });
 
   var res=await window.supabase.from("posts").select("*").order("created_at",{ascending:false});
@@ -526,7 +534,7 @@ function adRow(){
       cum+=weights[i];
       if(r<cum){
         var ad=ACTIVE_ADS[i];
-        return '<div class="ad ad-banner" role="complementary" aria-label="광고" style="cursor:pointer;position:relative" onclick="openPost('+(100000+ad.linked_post_id)+')">'+
+        return '<div class="ad ad-banner" role="complementary" aria-label="광고" style="cursor:pointer;position:relative" onclick="'+adTargetOnclick(ad)+'">'+
           '<span class="ad-label">유저 광고</span>'+
           '<button class="ad-report-btn" onclick="reportAd('+ad.id+',event)" title="이 광고 신고">🚩</button>'+
           '<img src="'+esc(ad.image_url)+'" alt="유저 광고">'+
@@ -743,11 +751,17 @@ async function unpickFromList(id){
   openManagerPickList();
 }
 /* ---------- 유저 광고 ---------- */
-var adState={postId:null,bannerUrl:null};
+var adState={postId:null,commissionId:null,bannerUrl:null};
 function openCreateAd(postId){
   var p=POSTS.find(function(x){return x.id===postId});if(!p||!p.dbId)return;
   if(!AUTH.user||p.authorId!==AUTH.user.id){toast("본인 글만 광고할 수 있어요");return;}
-  adState={postId:postId,bannerUrl:null};
+  adState={postId:postId,commissionId:null,bannerUrl:null};
+  document.getElementById("adNoticeModal").classList.add("open");
+}
+function openCreateAdForCommission(commissionId){
+  var c=cmMyList.find(function(x){return x.id===commissionId});
+  if(!c||!AUTH.user){toast("본인 커미션만 광고할 수 있어요");return;}
+  adState={postId:null,commissionId:commissionId,bannerUrl:null};
   document.getElementById("adNoticeModal").classList.add("open");
 }
 function closeAdNoticeModal(){document.getElementById("adNoticeModal").classList.remove("open");}
@@ -756,6 +770,7 @@ function agreeAdNotice(){
   document.getElementById("adBannerPreview").innerHTML="";
   document.getElementById("adRateInput").value="";
   document.getElementById("adDaysInput").value="";
+  document.getElementById("adModalTitle").textContent=adState.commissionId?"📢 이 커미션 광고하기":"📢 이 글 광고하기";
   document.getElementById("adPreviewText").textContent="보유 광고 포인트: "+(AUTH.profile?(AUTH.profile.ad_points||0):0)+"점 · 총 사용 포인트는 최소 500점부터 집행 가능";
   document.getElementById("adModal").classList.add("open");
 }
@@ -827,20 +842,32 @@ function updateAdPreview(){
 }
 async function submitAd(){
   if(!window.supabase){toast("사용할 수 없어요");return;}
-  if(!adState.postId){toast("글 정보를 찾을 수 없어요");return;}
+  if(!adState.postId&&!adState.commissionId){toast("대상 정보를 찾을 수 없어요");return;}
   if(!adState.bannerUrl){toast("배너 이미지를 선택해주세요");return;}
   var rate=parseInt(document.getElementById("adRateInput").value,10);
   var days=parseInt(document.getElementById("adDaysInput").value,10);
   if(!rate||rate<1){toast("1일당 사용할 포인트를 입력해주세요");return;}
   if(!days||days<1){toast("노출할 날짜를 입력해주세요");return;}
   if(rate*days<500){toast("최소 500포인트부터 집행할 수 있어요");return;}
-  var p=POSTS.find(function(x){return x.id===adState.postId});if(!p||!p.dbId)return;
-  var res=await window.supabase.rpc("create_user_ad",{p_post_id:p.dbId,p_image_url:adState.bannerUrl,p_points_per_day:rate,p_duration_days:days});
+  var rpcArgs={p_image_url:adState.bannerUrl,p_points_per_day:rate,p_duration_days:days,p_post_id:null,p_commission_id:null};
+  var p=null;
+  if(adState.postId){
+    p=POSTS.find(function(x){return x.id===adState.postId});if(!p||!p.dbId)return;
+    rpcArgs.p_post_id=p.dbId;
+  }else{
+    rpcArgs.p_commission_id=adState.commissionId;
+  }
+  var res=await window.supabase.rpc("create_user_ad",rpcArgs);
   if(res.error){toast("광고 등록 실패: "+res.error.message);return;}
-  p.adLocked=true;
   closeAdModal();
   await refreshMyProfile();
-  if(typeof renderPostDetail==="function")renderPostDetail(p.id);
+  if(p){
+    p.adLocked=true;
+    if(typeof renderPostDetail==="function")renderPostDetail(p.id);
+  }else{
+    AD_LOCKED_COMMISSION_IDS[adState.commissionId]=true;
+    cmOpenMy('mine');
+  }
   toast("광고 신청이 접수됐어요. 관리자 승인 후 노출돼요 📋");
 }
 var reportingPostId=null;
@@ -1018,7 +1045,8 @@ function cmRowToData(row,artistNickname){
     title:row.title,price:row.price,status:row.status,tags:row.tags||[],
     period:row.period,slots:row.slots,desc:row.description,descHtml:row.description_html||null,usage:row.usage_rights,policy:row.trade_policy,
     images:imgs,likes:0,createdAt:row.created_at,form:row.application_form||[],
-    reviewCount:revs.length,satisfaction:revs.length?(goodCount/revs.length):0
+    reviewCount:revs.length,satisfaction:revs.length?(goodCount/revs.length):0,
+    adLocked:!!AD_LOCKED_COMMISSION_IDS[row.id]
   };
 }
 async function cmLoadCommissions(){
@@ -1670,6 +1698,7 @@ function cmOpenRegister(editId){
   cmReg={images:[],tags:[],status:'open',editingId:editId||null,title:'',price:'',period:'',slots:'',desc:'',descHtml:'',usage:'',policy:'',form:[]};
   if(editId){
     var c=cmMyList.find(function(x){return x.id===editId});
+    if(c&&c.adLocked){toast('광고를 집행 중인 커미션은 수정할 수 없어요');return;}
     if(c){
       cmReg.images=c.images.slice();cmReg.tags=c.tags.slice();cmReg.status=c.status;
       cmReg.title=c.title;cmReg.price=c.price;cmReg.period=c.period;cmReg.slots=c.slots;
@@ -1989,10 +2018,14 @@ function cmMyListHTML(){
   return cmMyList.map(function(c){
     var st=c.status==='open'?'<span class="cm-my-badge open">🟢 접수중</span>':'<span class="cm-my-badge close">⛔ 마감</span>';
     var thumbStyle=c.images[0]?("background-image:url('"+esc(c.images[0])+"');background-size:cover;background-position:center"):'background:var(--brand-soft)';
+    var editBtn=c.adLocked
+      ?'<span class="cm-my-edit" style="opacity:.55;cursor:default" title="광고를 집행 중인 커미션은 수정할 수 없어요">🔒 수정 불가</span>'
+      :'<button class="cm-my-edit" onclick="cmOpenRegister('+c.id+')">수정</button>';
     return '<div class="cm-my-item"><div class="cm-my-thumb" style="'+thumbStyle+'"></div>'+
       '<div class="cm-my-info"><div class="cm-my-title">'+esc(c.title)+'</div>'+
         '<div class="cm-my-price">'+Number(c.price).toLocaleString()+'P~</div>'+st+'</div>'+
-      '<button class="cm-my-edit" onclick="cmOpenRegister('+c.id+')">수정</button></div>';
+      '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">'+editBtn+
+        '<button class="cm-my-edit" onclick="openCreateAdForCommission('+c.id+')">📢 광고</button></div></div>';
   }).join('');
 }
 var cmMyBookmarks=[];
@@ -2026,7 +2059,7 @@ async function cmOpenMy(tab){
       var imgs=(row.commission_images||[]).slice().sort(function(a,b){return a.sort-b.sort;}).map(function(x){return x.url;});
       return{id:row.id,title:row.title,price:row.price,tags:row.tags||[],status:row.status,period:row.period,
         slots:row.slots,desc:row.description,descHtml:row.description_html||null,usage:row.usage_rights,policy:row.trade_policy,images:imgs,
-        form:row.application_form||[]};
+        form:row.application_form||[],adLocked:!!AD_LOCKED_COMMISSION_IDS[row.id]};
     });
     var listEl=document.getElementById('cmMyList');
     if(listEl)listEl.innerHTML=cmMyListHTML();
@@ -2734,6 +2767,7 @@ function notifClick(i){
   if(n.dbId)window.supabase.from("notifications").update({is_read:true}).eq("id",n.dbId).then(function(){});
   if(n.chatUser)openChat(n.chatUser);
   else if(n.post)openPost(n.post);
+  else if(n.commission)cmOpenCommissionById(n.commission);
   else if(n.cmTarget==="reviews")cmOpenReviews();
   else if(n.type==="commission")cmOpenMy('applications');
   else openRules();
@@ -2851,7 +2885,7 @@ function leaveChat(){
 /* ---------- 알림 (DB 저장, notifications 테이블) ---------- */
 var globalNotifChannel=null;
 function dbRowToNotif(row){
-  return {dbId:row.id,type:row.type,icon:row.icon||"🔔",txt:row.content,time:timeAgo(row.created_at),chatUser:row.link_chat_user,post:row.link_post_id?100000+row.link_post_id:null,read:row.is_read};
+  return {dbId:row.id,type:row.type,icon:row.icon||"🔔",txt:row.content,time:timeAgo(row.created_at),chatUser:row.link_chat_user,post:row.link_post_id?100000+row.link_post_id:null,commission:row.link_commission_id||null,read:row.is_read};
 }
 async function loadNotificationsFromDB(){
   var res=await window.supabase.from("notifications").select("*").eq("user_id",AUTH.user.id).order("created_at",{ascending:false}).limit(50);
@@ -3232,7 +3266,7 @@ async function openAdminReports(){
   var postRes=postIds.length?await window.supabase.from("posts").select("id,title,board").in("id",postIds):{data:[]};
   var postById={};(postRes.data||[]).forEach(function(pr){postById[pr.id]=pr;});
   var adIds=Array.from(new Set(reports.filter(function(r){return r.ad_id}).map(function(r){return r.ad_id})));
-  var adRes=adIds.length?await window.supabase.from("user_ads").select("id,user_id,image_url,status,linked_post_id").in("id",adIds):{data:[]};
+  var adRes=adIds.length?await window.supabase.from("user_ads").select("id,user_id,image_url,status,linked_post_id,linked_commission_id").in("id",adIds):{data:[]};
   var adById={};(adRes.data||[]).forEach(function(a){adById[a.id]=a;});
   var reportedUserIds=Array.from(new Set(reports.filter(function(r){return r.reported_user_id}).map(function(r){return r.reported_user_id})));
   var adUserIds=(adRes.data||[]).map(function(a){return a.user_id});
@@ -3256,9 +3290,9 @@ async function openAdminReports(){
       }else if(r.ad_id){
         var ad=adById[r.ad_id];
         var adName=ad?(nickById[ad.user_id]||"알 수 없음"):null;
-        h+='<div class="post rip"><div class="pmain"'+(ad?' style="cursor:pointer" onclick="openPost('+(100000+ad.linked_post_id)+')"':'')+'>'+
+        h+='<div class="post rip"><div class="pmain"'+(ad?' style="cursor:pointer" onclick="'+adTargetOnclick(ad)+'"':'')+'>'+
           (ad?'<img src="'+esc(ad.image_url)+'" alt="" style="width:100%;max-width:220px;height:56px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:block">':'')+
-          '<div class="ptitle">📢 광고 신고 — '+(ad?esc(adName):"(이미 삭제된 광고)")+'</div>'+
+          '<div class="ptitle">📢 광고 신고 — '+(ad?((ad.linked_commission_id?'🎨 ':'📝 ')+esc(adName)):"(이미 삭제된 광고)")+'</div>'+
           '<div class="pmeta"><span class="mt">'+timeAgo(r.created_at)+'</span>'+(r.reason?'<span class="sep"></span><span class="mv">사유: '+esc(r.reason)+'</span>':'')+'</div></div>'+
           '<div style="display:flex;gap:8px;flex-shrink:0">'+
             (ad&&ad.status==="active"?'<button class="d-act" onclick="adminDeleteReportedAd('+r.id+','+r.ad_id+',true)">삭제+환수</button>'+
@@ -3306,7 +3340,7 @@ async function adminDeleteReportedAd(reportId,adId,refund){
   if(reportId)openAdminReports();else openAdminAdList();
 }
 async function openAdminAdList(){
-  var res=await window.supabase.from("user_ads").select("id,user_id,image_url,status,points_spent,duration_days,created_at,expires_at,linked_post_id").order("created_at",{ascending:false});
+  var res=await window.supabase.from("user_ads").select("id,user_id,image_url,status,points_spent,duration_days,created_at,expires_at,linked_post_id,linked_commission_id").order("created_at",{ascending:false});
   if(res.error){toast("불러오기 실패: "+res.error.message);return;}
   var ads=res.data;
   var userIds=Array.from(new Set(ads.map(function(a){return a.user_id})));
@@ -3327,9 +3361,9 @@ async function openAdminAdList(){
         actions='<button class="d-act" onclick="adminDeleteReportedAd(null,'+a.id+',true)">삭제+환수</button>'+
           '<button class="d-act" onclick="adminDeleteReportedAd(null,'+a.id+',false)">삭제만</button>';
       }
-      h+='<div class="post rip"><div class="pmain" style="cursor:pointer" onclick="openPost('+(100000+a.linked_post_id)+')">'+
+      h+='<div class="post rip"><div class="pmain" style="cursor:pointer" onclick="'+adTargetOnclick(a)+'">'+
         '<img src="'+esc(a.image_url)+'" alt="" style="width:100%;max-width:220px;height:56px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:block">'+
-        '<div class="ptitle">'+esc(nickById[a.user_id]||"알 수 없음")+' · '+(statusLabel[a.status]||a.status)+'</div>'+
+        '<div class="ptitle">'+(a.linked_commission_id?'🎨 ':'📝 ')+esc(nickById[a.user_id]||"알 수 없음")+' · '+(statusLabel[a.status]||a.status)+'</div>'+
         '<div class="pmeta"><span class="mt">'+timeAgo(a.created_at)+'</span><span class="sep"></span><span class="mv">'+a.points_spent+'P · '+a.duration_days+'일</span></div></div>'+
         '<div style="display:flex;gap:8px;flex-shrink:0">'+actions+'</div></div>';
     });
@@ -3340,7 +3374,7 @@ async function openAdminAdList(){
   window.scrollTo({top:0,behavior:"smooth"});
 }
 async function openAdminAdReview(){
-  var res=await window.supabase.from("user_ads").select("id,user_id,image_url,linked_post_id,points_spent,duration_days,created_at").eq("status","pending").order("created_at",{ascending:true});
+  var res=await window.supabase.from("user_ads").select("id,user_id,image_url,linked_post_id,linked_commission_id,points_spent,duration_days,created_at").eq("status","pending").order("created_at",{ascending:true});
   if(res.error){toast("불러오기 실패: "+res.error.message);return;}
   var ads=res.data;
   var userIds=Array.from(new Set(ads.map(function(a){return a.user_id})));
@@ -3352,9 +3386,9 @@ async function openAdminAdReview(){
   }else{
     h+='<div class="list">';
     ads.forEach(function(a){
-      h+='<div class="post rip"><div class="pmain" style="cursor:pointer" onclick="openPost('+(100000+a.linked_post_id)+')">'+
+      h+='<div class="post rip"><div class="pmain" style="cursor:pointer" onclick="'+adTargetOnclick(a)+'">'+
         '<img src="'+esc(a.image_url)+'" alt="" style="width:100%;max-width:220px;height:56px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:block">'+
-        '<div class="ptitle">'+esc(nickById[a.user_id]||"알 수 없음")+'</div>'+
+        '<div class="ptitle">'+(a.linked_commission_id?'🎨 ':'📝 ')+esc(nickById[a.user_id]||"알 수 없음")+'</div>'+
         '<div class="pmeta"><span class="mt">'+timeAgo(a.created_at)+'</span><span class="sep"></span><span class="mv">'+a.points_spent+'P · '+a.duration_days+'일 신청</span></div></div>'+
         '<div style="display:flex;gap:8px;flex-shrink:0">'+
           '<button class="d-act" onclick="approveUserAd('+a.id+',\'queue\')">승인</button>'+
