@@ -11,8 +11,6 @@ var BOARDS=[
     {id:"challenge",name:"챌린지",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 3v18\"/><path d=\"M5 4h13l-2 4 2 4H5\"/></svg>"},
     {id:"tip",name:"팁 · 강좌",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 4 2 9l10 5 10-5-10-5z\"/><path d=\"M6 11v5c0 1 3 2 6 2s6-1 6-2v-5\"/></svg>"}]},
   {group:"거래",trade:true,items:[
-    {id:"trade",name:"커미션 구인구직",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8 12l3 3 5-5\"/><path d=\"M3 10l5-5 4 3 4-3 5 5-6 8H9z\"/></svg>"},
-    {id:"review",name:"커미션 후기",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 3l2.6 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.3 2.9 1-6.1-4.4-4.3 6.1-.9L12 3z\"/></svg>"},
     {id:"used",name:"중고 장비",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 12l8-8h6a2 2 0 0 1 2 2v6l-8 8z\"/><circle cx=\"15\" cy=\"9\" r=\"1.4\" fill=\"currentColor\" stroke=\"none\"/></svg>"}]},
   {group:"기타",items:[
     {id:"adult",name:"에치치",icon:"<span class=\"ic\" style=\"font-size:18px;line-height:1\">🔞</span>"}]}
@@ -283,7 +281,12 @@ async function logout(){
 }
 
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
-function boardName(id){for(var g of BOARDS)for(var b of g.items)if(b.id===id)return b.name;return"전체 글"}
+function boardName(id){
+  for(var g of BOARDS)for(var b of g.items)if(b.id===id)return b.name;
+  if(id==="trade")return"커미션 구인구직";
+  if(id==="review")return"커미션 후기";
+  return"전체 글";
+}
 function catFor(p){return CATMAP[p.board]||{label:"글",cls:"free-c"}}
 function postThumbHTML(p){
   var imgCount=p.images?p.images.length:((p.thumb!=="none")?(Math.floor(p.likes/18)%6+1):0); // demo image-count badge
@@ -370,7 +373,7 @@ function sortHot(arr){
 }
 function filteredPosts(){
   var arr=POSTS.slice();
-  if(state.board==="all")arr=arr.filter(function(p){return p.board!=="adult"});
+  if(state.board==="all")arr=arr.filter(function(p){return p.board!=="adult"&&(state.query||(p.board!=="trade"&&p.board!=="review"))});
   else arr=arr.filter(function(p){return p.board===state.board});
   if(state.tag)arr=arr.filter(function(p){return p.category===state.tag});
   if(state.query){var q=state.query.toLowerCase();arr=arr.filter(function(p){var body=(p.content||[]).join(" ").toLowerCase();return p.title.toLowerCase().indexOf(q)>-1||p.author.toLowerCase().indexOf(q)>-1||body.indexOf(q)>-1||(p.reviewedNickname&&p.reviewedNickname.toLowerCase().indexOf(q)>-1)})}
@@ -381,7 +384,7 @@ function renderTrend(){
   var g={t1:"#e07aa6,#9784d6",t2:"#e0a074,#e07aa6",t3:"#7cc3e0,#9784d6",t4:"#a3c07a,#7cc3e0",t5:"#ecd291,#e0a074"};
   var keys=["t1","t2","t3","t4","t5"];
   var h='<div class="trend-lead"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 7-7"/><path d="M17 8h4v4"/></svg>이번 주 인기</div>';
-  var top=sortHot(POSTS).slice(0,5);
+  var top=sortHot(POSTS.filter(function(p){return p.board!=="trade"&&p.board!=="review"})).slice(0,5);
   top.forEach(function(p,i){
     h+='<div class="trend-item" onclick="openPost('+p.id+')"><span class="trend-rank">'+(i+1)+'</span>'+
        '<span class="trend-thumb" style="background:linear-gradient(135deg,'+g[keys[i%keys.length]]+')"><svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><circle cx=\"8\" cy=\"10\" r=\"1.3\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"12\" cy=\"8\" r=\"1.3\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"16\" cy=\"10\" r=\"1.3\" fill=\"currentColor\" stroke=\"none\"/></svg></span>'+
@@ -390,7 +393,7 @@ function renderTrend(){
   var el=document.getElementById("trendStrip");if(el)el.innerHTML=h;
 }
 function emberHTML(){
-  var top=POSTS.filter(function(p){return p.board!=="adult"}).sort(function(a,b){return(b.likes+b.comments.length*3)-(a.likes+a.comments.length*3)}).slice(0,6);
+  var top=POSTS.filter(function(p){return p.board!=="adult"&&p.board!=="trade"&&p.board!=="review"}).sort(function(a,b){return(b.likes+b.comments.length*3)-(a.likes+a.comments.length*3)}).slice(0,6);
   var h='<div class="ember"><div class="ember-head"><span class="fire"><svg class="ic" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3s5 4 5 9a5 5 0 0 1-10 0c0-2 1-3 1-3s0 2 2 2 1-4 2-8z"/></svg></span>이글이글 · 지금 반응 뜨거운 글</div><div class="ember-scroll">';
   top.forEach(function(p){
     h+='<div class="ember-card" onclick="openPost('+p.id+')"><div class="ec-cat">'+catFor(p).label+'</div>'+
@@ -445,11 +448,19 @@ function renderList(){
   if(location.pathname!=="/"){history.pushState({},"","/");document.title="Palo · 그림 그리는 사람들의 커뮤니티";}
   var main=document.getElementById("main");var arr=filteredPosts();
   var sub=state.query?('"'+esc(state.query)+'" 검색 결과 '+arr.length+'건'):(state.sort==="new"?"방금 올라온 이야기부터":"반응 많은 순으로");
+  var isCommission=(state.board==="trade"||state.board==="review")&&!state.query;
   var h='<div class="board-head">'+
-    '<div class="bh-title"><h1 class="serif">'+esc(state.query?"검색":boardName(state.board))+'</h1><span class="sub">'+sub+'</span></div>'+
+    (isCommission?
+      ('<div class="bh-title commission-tabs">'+
+        '<button class="commission-tab'+(state.board==="trade"?" on":"")+'" onclick="switchCommissionTab(\'trade\')">구인구직</button>'+
+        '<button class="commission-tab'+(state.board==="review"?" on":"")+'" onclick="switchCommissionTab(\'review\')">후기</button>'+
+      '</div>'):
+      ('<div class="bh-title"><h1 class="serif">'+esc(state.query?"검색":boardName(state.board))+'</h1><span class="sub">'+sub+'</span></div>')
+    )+
     '<div class="bh-controls">'+
       '<div class="sortbar"><button class="'+(state.sort==="new"?"on":"")+'" onclick="setSort(\'new\')">최신</button><button class="'+(state.sort==="hot"?"on":"")+'" onclick="setSort(\'hot\')">인기</button></div>'+
       (state.board!=="review"?('<div class="sortbar viewbar"><button class="'+(state.viewMode==="list"?"on":"")+'" onclick="setViewMode(\'list\')">☰ 목록형</button><button class="'+(state.viewMode==="album"?"on":"")+'" onclick="setViewMode(\'album\')">▦ 앨범형</button></div>'):'')+
+      (isCommission?'<button class="d-act" onclick="openCommissionWrite()">＋ 글쓰기</button>':'')+
     '</div>'+
     '</div>';
   h+=tagFilterBarHTML();
@@ -886,6 +897,29 @@ function selectBoard(id){
   main.innerHTML=skeletonHTML();
   window.scrollTo({top:0,behavior:"smooth"});
   setTimeout(renderList,200);
+}
+function openCommissionHub(tab){
+  state.board=(tab==="review")?"review":"trade";
+  state.query="";state.tag=null;page=1;
+  document.getElementById("searchInput").value="";var m=document.getElementById("searchInputM");if(m)m.value="";
+  renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
+  renderChips();closeDrawer();closeSheet();syncTabs("commission");
+  var main=document.getElementById("main");
+  main.innerHTML=skeletonHTML();
+  window.scrollTo({top:0,behavior:"smooth"});
+  setTimeout(renderList,200);
+}
+function switchCommissionTab(tab){
+  state.board=(tab==="review")?"review":"trade";
+  state.query="";state.tag=null;page=1;
+  syncTabs("commission");
+  renderList();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function openCommissionWrite(){
+  var board=(state.board==="trade"||state.board==="review")?state.board:"trade";
+  openWrite();
+  pickBoard(board);
 }
 function tagFilterBarHTML(){
   var tags=TAGS_BY_BOARD[state.board];

@@ -40,6 +40,8 @@
   .icon-btn .dot{position:absolute;top:10px;right:11px;width:8px;height:8px;background:var(--brand);border-radius:50%;border:2px solid var(--bg)}
   .write-btn{display:inline-flex;align-items:center;gap:7px;background:linear-gradient(120deg,var(--brand),var(--grape));color:#fff;padding:12px 20px;border-radius:15px;font-weight:800;font-size:13.5px;cursor:pointer;border:none;transition:.16s;white-space:nowrap;margin-left:8px;box-shadow:0 4px 14px rgba(255,93,162,.35)}
   .write-btn:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 8px 22px rgba(255,93,162,.45)}
+  .write-btn.commission-btn{background:var(--surface);color:var(--ink-2);border:1.5px solid var(--line-2);box-shadow:none}
+  .write-btn.commission-btn:hover{border-color:var(--brand);color:var(--brand);transform:none;box-shadow:none}
 
   .catbar{background:rgba(253,247,249,.82);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-bottom:1px solid var(--line);position:sticky;top:66px;z-index:55}
   .catbar-inner{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:12px 0}
@@ -104,6 +106,10 @@
   .board-head h1{font-size:25px;font-weight:900;letter-spacing:-.03em}
   .board-head .sub{font-size:13px;color:var(--muted);margin-left:2px}
   .bh-title{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .commission-tabs{display:flex;align-items:center;gap:6px}
+  .commission-tab{background:var(--surface);border:1.5px solid var(--line-2);border-radius:11px;padding:9px 16px;font-size:15px;font-weight:800;color:var(--muted);cursor:pointer;font-family:inherit;transition:.13s}
+  .commission-tab:hover{border-color:var(--brand);color:var(--brand)}
+  .commission-tab.on{background:linear-gradient(120deg,var(--brand),var(--grape));border-color:transparent;color:#fff}
   .bh-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex-shrink:0}
   .sortbar{display:flex;gap:3px;background:var(--surface);border:1.5px solid var(--line-2);border-radius:13px;padding:3px}
   .sortbar button{background:none;border:none;font-size:12.5px;font-weight:800;color:var(--muted);padding:7px 14px;border-radius:10px;cursor:pointer;transition:.12s}
