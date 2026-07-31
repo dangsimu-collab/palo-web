@@ -3006,6 +3006,7 @@ function leaveChat(){
   currentConversationId=null;
   currentChatPartnerId=null;
   cmPendingChatRef=null;
+  document.body.classList.remove("chat-open");
 }
 /* ---------- 알림 (DB 저장, notifications 테이블) ---------- */
 var globalNotifChannel=null;
@@ -3185,6 +3186,7 @@ function renderChatView(partnerName,messages){
     '</div>'+
   '</div>';
   document.getElementById("main").innerHTML=h;
+  document.body.classList.add("chat-open"); // 채팅 화면에선 상단 게시판 탭(catbar) 숨김
   var box=document.getElementById("chatMessages");
   if(box)box.scrollTop=box.scrollHeight;
   window.scrollTo({top:0,behavior:"smooth"});

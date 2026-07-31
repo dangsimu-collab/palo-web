@@ -44,6 +44,7 @@
   .write-btn.commission-btn:hover{border-color:var(--brand);color:var(--brand);transform:none;box-shadow:none}
 
   .catbar{background:rgba(253,247,249,.82);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-bottom:1px solid var(--line);position:sticky;top:66px;z-index:55}
+  body.chat-open .catbar{display:none} /* 1:1 채팅 화면에선 게시판 탭 숨김 */
   .catbar-inner{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:12px 0}
   .catbar-inner::-webkit-scrollbar{display:none}
 
