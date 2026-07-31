@@ -2942,7 +2942,7 @@ function notifEnableHTML(){
   var st=notifPermState();
   if(st==="granted")return '<div class="pf-notif-guide on"><b>🔔 알림이 켜져 있어요</b><span class="pf-notif-sub">아래에서 받고 싶은 알림 종류를 골라주세요.</span></div>';
   if(st==="denied")return '<div class="pf-notif-guide"><b>알림이 차단돼 있어요</b><span class="pf-notif-sub">주소창 옆 자물쇠 → 알림 → 허용으로 바꿔주세요.</span></div>';
-  return '<button class="r-ok" style="width:100%;margin-bottom:12px" onclick="enablePushNotifications()">🔔 알림 켜기</button>';
+  return '<button class="pf-notif-btn" onclick="enablePushNotifications()">🔔 알림 켜기</button>';
 }
 
 // ===== 내 정보 (프로필) =====
