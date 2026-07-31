@@ -705,20 +705,6 @@
   .chat-send{background:linear-gradient(120deg,var(--brand),var(--grape));color:#fff;border:none;padding:12px 22px;border-radius:12px;font-weight:800;font-size:13px;cursor:pointer;transition:.14s;flex-shrink:0}
   .chat-send:hover{transform:translateY(-1px);box-shadow:var(--sh)}
   .chat-read-status{display:block;text-align:right;font-size:10.5px;color:var(--brand);font-weight:800;margin-top:2px;padding-right:2px}
-  /* 1:1 채팅 뷰 — 모바일에선 키보드 높이에 맞춰지는 전체화면 flex(입력창 안 가림·하단바 튐 없음), 데스크톱은 일반 배치 */
-  .chat-view{display:flex;flex-direction:column;max-width:520px;margin:0 auto}
-  .chat-top{display:flex;align-items:center;gap:8px;padding:12px 6px;flex-shrink:0}
-  .chat-back{background:none;border:none;cursor:pointer;padding:4px;color:var(--ink)}
-  .chat-back svg{width:24px;height:24px;display:block}
-  .chat-top-name{flex:1;font-size:16px;font-weight:800;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .chat-top-report{background:none;border:none;cursor:pointer;color:var(--muted);padding:4px}
-  .chat-top-report svg{width:20px;height:20px;display:block}
-  @media(max-width:860px){
-    .chat-view{position:fixed;top:0;left:0;right:0;z-index:70;background:var(--bg);height:100dvh}
-    .chat-view .chat-top{padding:10px 12px;border-bottom:1px solid var(--line);background:var(--surface)}
-    .chat-view .chat-list{flex:1;max-height:none;margin:0;border:none;border-radius:0;background:transparent;padding:14px 10px}
-    .chat-view .chat-inputrow{flex-shrink:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom,8px));border-top:1px solid var(--line);background:var(--surface)}
-  }
   .chat-room-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
   .chat-room-row{display:flex;align-items:center;gap:12px;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r-lg);padding:12px 14px;cursor:pointer;transition:.14s}
   .chat-room-row:hover{border-color:var(--brand);box-shadow:var(--sh-xs)}
