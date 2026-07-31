@@ -3212,6 +3212,7 @@ function openProfile(){
          '<button class="pf-edit" onclick="openAdminChatList()">전체 채팅 목록</button>'+
          '<button class="pf-edit" onclick="openAdminAdReview()">광고 심사</button>'+
          '<button class="pf-edit" onclick="openAdminAdList()">전체 광고 목록</button>'+
+         '<button class="pf-edit" onclick="openAdminCampaigns()">🎯 유료 광고 관리</button>'+
          '<button class="pf-edit" onclick="openManagerPickList()">📌 매니저 픽 관리</button>'+
        '</div>';
   }
@@ -3426,6 +3427,112 @@ async function submitAdReject(){
   closeAdRejectModal();
   toast("광고를 반려했어요");
   if(backTo==="list")openAdminAdList();else openAdminAdReview();
+}
+
+/* ---------- 유료 광고 캠페인 (관리자, CPM) ---------- */
+var campaignDraft={imageUrl:null};
+function campDate(iso){if(!iso)return"";var d=new Date(iso);return d.getFullYear()+"."+String(d.getMonth()+1).padStart(2,"0")+"."+String(d.getDate()).padStart(2,"0");}
+async function openAdminCampaigns(){
+  if(!AUTH.profile||!AUTH.profile.is_admin){toast("관리자만 사용할 수 있어요");return;}
+  var res=await window.supabase.from("ad_campaigns").select("*").order("created_at",{ascending:false});
+  if(res.error){toast("불러오기 실패: "+res.error.message);return;}
+  var camps=res.data||[];
+  var statusLabel={active:"진행중",paused:"멈춤",completed:"완료",archived:"보관"};
+  var h='<div class="profile"><div class="pf-sec">🎯 유료 광고 캠페인 등록</div>';
+  h+='<div style="padding:0 2px 8px">'+
+     '<div style="font-size:13px;font-weight:700;color:var(--muted);margin:4px 2px 6px">배너 이미지 <span style="color:var(--brand)">*</span></div>'+
+     '<div id="campBannerPreview" style="margin-bottom:8px">'+(campaignDraft.imageUrl?'<img src="'+esc(campaignDraft.imageUrl)+'" style="width:100%;border-radius:10px;display:block">':'')+'</div>'+
+     '<input type="file" id="campBannerFile" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="onCampaignBannerFile(event)">'+
+     '<button class="pf-edit" onclick="document.getElementById(\'campBannerFile\').click()" style="width:100%;justify-content:center;margin-bottom:10px">배너 이미지 선택</button>'+
+     '<input id="campAdvertiser" class="nick-in" placeholder="광고주 이름(메모용)" style="margin-bottom:8px">'+
+     '<input id="campTarget" class="nick-in" placeholder="클릭 시 이동할 주소 (https://...)" style="margin-bottom:8px">'+
+     '<input id="campGoal" type="number" min="1" step="1" class="nick-in" placeholder="판매한 총 노출수 (예: 50000)" style="margin-bottom:8px">'+
+     '<input id="campCpm" type="number" min="0" step="0.01" class="nick-in" placeholder="CPM 단가 (1000노출당, 선택)" style="margin-bottom:8px">'+
+     '<div style="font-size:13px;font-weight:700;color:var(--muted);margin:4px 2px 6px">집행 기간</div>'+
+     '<div style="display:flex;gap:8px;margin-bottom:12px"><input id="campStart" type="date" class="nick-in" style="flex:1"><input id="campEnd" type="date" class="nick-in" style="flex:1"></div>'+
+     '<button class="r-ok" onclick="submitCampaign()" style="width:100%">캠페인 등록</button>'+
+     '</div>';
+  h+='<div class="pf-sec">등록된 캠페인 ('+camps.length+')</div>';
+  if(!camps.length){
+    h+='<div class="pf-empty">아직 등록된 캠페인이 없어요.</div>';
+  }else{
+    h+='<div class="list">';
+    camps.forEach(function(c){
+      var pct=c.impression_goal?Math.min(100,Math.round(c.impressions_served/c.impression_goal*100)):0;
+      var actions="";
+      if(c.status==="active")actions+='<button class="d-act" onclick="setCampaignStatus('+c.id+',\'paused\')">멈춤</button>';
+      else if(c.status==="paused")actions+='<button class="d-act" onclick="setCampaignStatus('+c.id+',\'active\')">재개</button>';
+      if(c.status!=="archived")actions+='<button class="d-act" onclick="setCampaignStatus('+c.id+',\'archived\')">보관</button>';
+      actions+='<button class="d-act" onclick="deleteCampaign('+c.id+')">삭제</button>';
+      h+='<div class="post rip"><div class="pmain">'+
+        '<img src="'+esc(c.image_url)+'" alt="" style="width:100%;max-width:220px;height:56px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:block">'+
+        '<div class="ptitle">'+esc(c.advertiser||"(광고주 미기재)")+' · '+(statusLabel[c.status]||c.status)+'</div>'+
+        '<div class="pmeta"><span class="mv">'+Number(c.impressions_served).toLocaleString()+' / '+Number(c.impression_goal).toLocaleString()+' 노출 ('+pct+'%)</span></div>'+
+        '<div class="pp-bar" style="margin:6px 0"><div class="pp-fill" style="width:'+pct+'%"></div></div>'+
+        '<div class="pmeta"><span class="mt">'+campDate(c.flight_start)+' ~ '+campDate(c.flight_end)+'</span>'+(c.cpm_price!=null?'<span class="sep"></span><span class="mv">CPM '+Number(c.cpm_price).toLocaleString()+'</span>':'')+'</div></div>'+
+        '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">'+actions+'</div></div>';
+    });
+    h+='</div>';
+  }
+  h+='<button class="pf-edit" onclick="openProfile()" style="margin-top:16px">내 정보로 돌아가기</button></div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+async function onCampaignBannerFile(e){
+  var f=e.target.files[0];if(!f)return;
+  e.target.value="";
+  if(!window.supabase){toast("업로드를 사용할 수 없어요");return;}
+  if(ALLOWED_IMAGE_TYPES.indexOf(f.type)===-1){toast("이미지 파일만 올릴 수 있어요");return;}
+  if(f.size>MAX_IMAGE_BYTES){toast("40MB 이하 이미지만 올릴 수 있어요");return;}
+  var uploadBlob=f,ext=(f.name.match(/\.([^.]+)$/)||[,"png"])[1];
+  if(f.type!=="image/gif"){
+    toast("배너 이미지 압축 중...");
+    try{var c=await compressImage(f);uploadBlob=c.blob;ext=c.ext;}catch(err){console.error("배너 압축 실패, 원본 사용:",err);}
+  }
+  toast("배너 업로드 중...");
+  var path="campaign-"+Date.now()+"-"+f.name.replace(/\.[^.]+$/,"").replace(/[^a-zA-Z0-9_.-]/g,"_")+"."+ext;
+  var up=await window.supabase.storage.from("post-images").upload(path,uploadBlob,f.type==="image/gif"?undefined:{contentType:uploadBlob.type});
+  if(up.error){toast("업로드 실패: "+up.error.message);return;}
+  campaignDraft.imageUrl=window.supabase.storage.from("post-images").getPublicUrl(path).data.publicUrl;
+  var prev=document.getElementById("campBannerPreview");
+  if(prev)prev.innerHTML='<img src="'+esc(campaignDraft.imageUrl)+'" style="width:100%;border-radius:10px;display:block">';
+  toast("배너 이미지를 등록했어요");
+}
+async function submitCampaign(){
+  if(!campaignDraft.imageUrl){toast("배너 이미지를 선택해주세요");return;}
+  var advertiser=document.getElementById("campAdvertiser").value.trim();
+  var target=document.getElementById("campTarget").value.trim();
+  var goal=parseInt(document.getElementById("campGoal").value,10);
+  var cpmRaw=document.getElementById("campCpm").value.trim();
+  var cpm=cpmRaw===""?null:parseFloat(cpmRaw);
+  var start=document.getElementById("campStart").value;
+  var end=document.getElementById("campEnd").value;
+  if(!/^https?:\/\//i.test(target)){toast("이동 주소는 http:// 또는 https://로 시작해야 해요");return;}
+  if(!goal||goal<1){toast("판매한 총 노출수를 입력해주세요");return;}
+  if(!start||!end){toast("집행 기간(시작일·종료일)을 입력해주세요");return;}
+  var startIso=new Date(start+"T00:00:00").toISOString();
+  var endIso=new Date(end+"T23:59:59").toISOString();
+  if(new Date(endIso)<=new Date(startIso)){toast("종료일이 시작일보다 뒤여야 해요");return;}
+  var row={advertiser:advertiser||null,image_url:campaignDraft.imageUrl,target_url:target,
+    impression_goal:goal,cpm_price:(cpm==null||isNaN(cpm))?null:cpm,
+    flight_start:startIso,flight_end:endIso,status:"active"};
+  var res=await window.supabase.from("ad_campaigns").insert(row);
+  if(res.error){toast("등록 실패: "+res.error.message);return;}
+  campaignDraft={imageUrl:null};
+  toast("캠페인을 등록했어요 🎯");
+  openAdminCampaigns();
+}
+async function setCampaignStatus(id,status){
+  var res=await window.supabase.from("ad_campaigns").update({status:status}).eq("id",id);
+  if(res.error){toast("변경 실패: "+res.error.message);return;}
+  openAdminCampaigns();
+}
+async function deleteCampaign(id){
+  if(!(await confirmDialog("이 캠페인을 삭제할까요? 집계된 노출 기록도 함께 삭제됩니다.")))return;
+  var res=await window.supabase.from("ad_campaigns").delete().eq("id",id);
+  if(res.error){toast("삭제 실패: "+res.error.message);return;}
+  toast("캠페인을 삭제했어요");
+  openAdminCampaigns();
 }
 async function adminViewConversation(conversationId,reportId,backTo){
   var convRes=await window.supabase.from("conversations").select("*").eq("id",conversationId).single();
