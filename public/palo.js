@@ -3135,8 +3135,8 @@ async function openChatList(){
   var partnerIds=convs.map(function(c){return c.user1_id===AUTH.user.id?c.user2_id:c.user1_id;});
   var convIds=convs.map(function(c){return c.id;});
 
-  var profRes=partnerIds.length?await window.supabase.from("profiles").select("id,nickname").in("id",partnerIds):{data:[]};
-  var nickById={};(profRes.data||[]).forEach(function(p){nickById[p.id]=p.nickname;});
+  var profRes=partnerIds.length?await window.supabase.from("profiles").select("id,nickname,avatar_url").in("id",partnerIds):{data:[]};
+  var nickById={},avaById={};(profRes.data||[]).forEach(function(p){nickById[p.id]=p.nickname;avaById[p.id]=p.avatar_url;});
 
   var msgRes=convIds.length?await window.supabase.from("messages").select("*").in("conversation_id",convIds).order("created_at",{ascending:true}):{data:[]};
   var lastMsgByConv={},unreadByConv={};
@@ -3145,27 +3145,39 @@ async function openChatList(){
     if(m.sender_id!==AUTH.user.id&&!m.is_read)unreadByConv[m.conversation_id]=(unreadByConv[m.conversation_id]||0)+1;
   });
 
-  renderChatList(convs,partnerIds,nickById,lastMsgByConv,unreadByConv);
+  renderChatList(convs,partnerIds,nickById,avaById,lastMsgByConv,unreadByConv);
 }
-function renderChatList(convs,partnerIds,nickById,lastMsgByConv,unreadByConv){
-  var h='<div class="profile">'+
-    '<button class="d-back" onclick="renderList()">← 목록으로</button>'+
-    '<div class="pf-sec">💬 채팅</div>';
+function chatListDate(iso){
+  if(!iso)return"";
+  var d=new Date(iso),now=new Date();
+  if(d.toDateString()===now.toDateString()){
+    var hh=d.getHours(),ampm=hh<12?"오전":"오후",h12=hh%12||12;
+    return ampm+" "+h12+":"+String(d.getMinutes()).padStart(2,"0");
+  }
+  if(d.getFullYear()===now.getFullYear())return (d.getMonth()+1)+"월 "+d.getDate()+"일";
+  return d.getFullYear()+". "+(d.getMonth()+1)+". "+d.getDate();
+}
+function renderChatList(convs,partnerIds,nickById,avaById,lastMsgByConv,unreadByConv){
+  var h='<div class="chatlist">'+
+    '<div class="chatlist-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>'+
+      '<input id="chatSearchInput" placeholder="채팅방, 대화내용 검색" oninput="filterChatList(this.value)"></div>';
   if(!convs.length){
     h+='<div class="pf-empty">아직 채팅한 사람이 없어요.<br>회원 프로필에서 "채팅하기"로 시작해보세요.</div>';
   }else{
-    h+='<div class="chat-room-list">';
+    h+='<div class="chatlist-rows" id="chatlistRows">';
     convs.forEach(function(c,i){
-      var partnerId=partnerIds[i];
-      var name=nickById[partnerId]||"알 수 없음";
+      var pid=partnerIds[i];
+      var name=nickById[pid]||"알 수 없음";
       var last=lastMsgByConv[c.id];
+      var preview=last?(last.commission_id?"🎨 커미션 문의":last.content):"";
       var unread=unreadByConv[c.id]||0;
-      h+='<div class="chat-room-row" onclick="openChat(\''+partnerId+'\')">'+
-        '<div class="pf-ava" style="width:44px;height:44px;font-size:16px;flex-shrink:0">'+esc(name[0])+'</div>'+
-        '<div class="chat-room-info"><div class="chat-room-name">'+esc(name)+'</div>'+
-        '<div class="chat-room-preview">'+(last?esc(last.content):"")+'</div></div>'+
-        '<div class="chat-room-meta">'+(last?timeAgo(last.created_at):'')+
-        (unread>0?'<span class="chat-unread-badge">'+unread+'</span>':'')+'</div>'+
+      var srch=(name+" "+(last?last.content:"")).toLowerCase();
+      h+='<div class="clist-row" data-search="'+esc(srch)+'" onclick="openChat(\''+cmQ(pid)+'\')">'+
+        '<div class="clist-ava">'+avatarHTML(name,avaById&&avaById[pid])+'</div>'+
+        '<div class="clist-mid"><div class="clist-name">'+esc(name)+'</div>'+
+          '<div class="clist-last">'+esc(preview)+'</div></div>'+
+        '<div class="clist-right"><div class="clist-date">'+(last?chatListDate(last.created_at):"")+'</div>'+
+          (unread>0?'<span class="clist-unread">'+unread+'</span>':'')+'</div>'+
       '</div>';
     });
     h+='</div>';
@@ -3173,6 +3185,14 @@ function renderChatList(convs,partnerIds,nickById,lastMsgByConv,unreadByConv){
   h+='</div>';
   document.getElementById("main").innerHTML=h;
   window.scrollTo({top:0,behavior:"smooth"});
+}
+function filterChatList(q){
+  q=(q||"").trim().toLowerCase();
+  var rows=document.querySelectorAll("#chatlistRows .clist-row");
+  for(var i=0;i<rows.length;i++){
+    var s=rows[i].getAttribute("data-search")||"";
+    rows[i].style.display=(!q||s.indexOf(q)>=0)?"":"none";
+  }
 }
 function renderChatView(partnerName,messages){
   var h='<div class="profile">'+
