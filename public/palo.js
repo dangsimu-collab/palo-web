@@ -371,6 +371,8 @@ async function applySession(session){
       globalChatNotifUserId=AUTH.user.id;
       initGlobalChatNotifications();
     }
+    // 이미 알림 권한을 켠 유저면 로그인 시 이 계정으로 구독을 확실히 저장(기기별 1회)
+    if(typeof subscribeToPush==="function"&&notifPermState()==="granted")subscribeToPush();
   }else{
     ME.nick="나";
     globalChatNotifUserId=null;
@@ -2901,7 +2903,31 @@ function markAllRead(){
 function toggleNotifPref(key,on,label){
   SETTINGS[key]=on;
   try{localStorage.setItem("palo_notif_prefs",JSON.stringify(SETTINGS));}catch(e){}
+  // 서버 발송이 이 설정을 참고하므로 내 구독의 prefs도 갱신
+  if(AUTH.user&&window.supabase)window.supabase.from("push_subscriptions").update({prefs:SETTINGS}).eq("user_id",AUTH.user.id).then(function(){});
   toast(on?(label+" 알림을 켰어요"):(label+" 알림을 껐어요"));
+}
+function urlBase64ToUint8Array(base64String){
+  var padding="=".repeat((4-base64String.length%4)%4);
+  var base64=(base64String+padding).replace(/-/g,"+").replace(/_/g,"/");
+  var raw=window.atob(base64);var arr=new Uint8Array(raw.length);
+  for(var i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i);
+  return arr;
+}
+async function subscribeToPush(){
+  if(!AUTH.user||!pushSupported()||!window.supabase)return false;
+  if(!window.VAPID_PUBLIC_KEY)return false; // VAPID 공개키 미설정(2단계 환경변수 설정 전)
+  try{
+    var reg=await navigator.serviceWorker.ready;
+    var sub=await reg.pushManager.getSubscription();
+    if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(window.VAPID_PUBLIC_KEY)});
+    var j=sub.toJSON();
+    if(!j||!j.endpoint||!j.keys)return false;
+    var res=await window.supabase.from("push_subscriptions").upsert({
+      user_id:AUTH.user.id,endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth,prefs:SETTINGS
+    },{onConflict:"endpoint"});
+    return !res.error;
+  }catch(e){console.error("푸시 구독 실패:",e);return false;}
 }
 function pushSupported(){return ("Notification" in window)&&("serviceWorker" in navigator)&&("PushManager" in window);}
 function isIOSDevice(){return /iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;}
@@ -2910,15 +2936,16 @@ function notifPermState(){return (typeof Notification!=="undefined")?Notificatio
 async function enablePushNotifications(){
   if(!pushSupported()){toast("이 브라우저는 알림을 지원하지 않아요");return;}
   if(isIOSDevice()&&!isStandalonePWA()){toast("먼저 홈 화면에 추가한 뒤 그 아이콘으로 열어주세요","📲");return;}
+  if(!AUTH.user){toast("로그인 후 알림을 켤 수 있어요","🔒");loginWithGoogle();return;}
   var perm;
   try{perm=await Notification.requestPermission();}catch(e){perm=notifPermState();}
   if(perm==="granted"){
+    var ok=await subscribeToPush(); // 실제 푸시 구독을 서버에 저장
     try{
       var reg=await navigator.serviceWorker.ready;
       reg.showNotification("Palo",{body:"알림이 켜졌어요! 🔔 받고 싶은 알림 종류를 골라주세요.",icon:"/icon-192.png",badge:"/icon-192.png"});
-      // 2단계: 여기서 reg.pushManager.subscribe(VAPID 공개키) → 서버에 구독 저장 예정
     }catch(e){}
-    toast("알림을 켰어요 🔔");
+    toast(ok?"알림을 켰어요 🔔":"알림 권한을 켰어요 (발송 준비 중)");
   }else if(perm==="denied"){
     toast("알림이 차단돼 있어요. 브라우저 설정에서 허용해주세요");
   }else{

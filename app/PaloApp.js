@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabaseClient';
 if (typeof window !== 'undefined') {
   window.supabase = supabase;
   window.DOMPurify = DOMPurify;
+  window.VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
 }
 
 export default function PaloApp() {
