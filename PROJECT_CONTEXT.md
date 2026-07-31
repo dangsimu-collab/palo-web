@@ -755,10 +755,20 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **실시간 수신**: `subscribeToChat(conversationId)` — Supabase Realtime `postgres_changes` 채널 구독. INSERT 이벤트로 상대가 보낸 새 메시지를 즉시 화면에 추가하고 자동으로 `mark_messages_read` 호출, UPDATE 이벤트로 "읽음" 표시 갱신.
 - **채팅 목록(받은함)**: `openChatList()` — 내가 참여한 모든 대화를 `last_message_at` 최신순으로, 상대 닉네임·마지막 메시지 미리보기·안 읽은 개수(뱃지)와 함께 표시.
 - **읽음 표시**: 내가 보낸 메시지 옆에 상대가 읽으면 "읽음" 텍스트가 뜸(`is_read` 컬럼 + realtime UPDATE 구독으로 실시간 반영).
-- 채팅 UI 전용 CSS 클래스가 `app/globals.css`에 추가됨: `.chat-list`, `.chat-msg`, `.chat-bubble`, `.chat-inputrow`, `.chat-send`, `.chat-read-status`, `.chat-room-list`, `.chat-room-row`, `.chat-unread-badge`.
+- 채팅 UI 전용 CSS 클래스가 `app/globals.css`에 추가됨: `.chat-list`, `.chat-msg`, `.chat-bubble`, `.chat-inputrow`, `.chat-send`, `.chat-read-status`, `.chat-room-list`, `.chat-room-row`, `.chat-unread-badge`. **(2026-08-01 재디자인으로 이 화면 CSS·마크업은 대부분 아래 "채팅 UI 전면 재디자인" 항목의 새 클래스(`.chatlist`/`.clist-*`·`.chatroom`/`.cr-*`)로 교체됨 — 여기 나열된 옛 클래스들은 현재 죽은 CSS.)**
 - **채팅 신고(2026-07-29 추가)**: 채팅방 헤더에 "🚩 신고" 버튼(`reportChat()`) — 기존 글 신고용 `#reportModal`을 그대로 재사용하고, `reportingConversationId`/`reportingReportedUserId` 전역 변수로 "지금 신고 중인 게 글인지 채팅인지" 구분(`submitReport()`가 분기 처리). DB/RLS는 4절 "reports" 항목과 "RLS 순환 참조 주의" 참고.
 - **관리자 채팅 열람(2026-07-29 추가)**: "내 정보" 탭에 관리자 전용 버튼 두 개 — "🛡 신고 목록"(기존)과 "🛡 전체 채팅 목록"(신규, `openAdminChatList()`). 신고 목록에서든 전체 목록에서든 대화를 열면 공통 함수 `adminViewConversation(conversationId, reportId, backTo)`가 처리: 메시지 전체를 읽기 전용으로 보여주고(`renderAdminChatView()`, `닉네임: 내용` 형태), **열람할 때마다 `chat_admin_access_logs`에 자동으로 기록**(누가·언제·어느 대화를, 신고를 통해 열람했다면 어느 신고 건인지). `openAdminChatList(searchTerm)`은 닉네임으로 대화 상대를 검색할 수 있음(profiles를 `ilike` 검색 → 그 유저가 낀 대화만 필터링). RLS: `conversations_select_admin_all`/`messages_select_admin_all`(관리자는 전체 대화 조회 가능), 로그 테이블은 4절 "chat_admin_access_logs" 참고 — **관리자 본인도 로그를 고치거나 지울 수 없음**(update/delete 정책 없음).
 - **이용약관/개인정보처리방침 문구**: 채팅 열람 기능에 대한 고지 조항 초안을 세션 대화 중에 작성해서 사용자에게 전달함(파일로 저장하지 않음) — 실제 약관/방침 페이지 자체는 아직 미구현(6절 "아직 안 한 것" 참고), 페이지를 만들 때 그 문구를 넣을 것.
+
+### 채팅 UI 전면 재디자인 + 하단 탭 개편 + 모바일 다듬기 (2026-08-01)
+카카오톡/인스타 DM 스타일로 채팅 두 화면(목록·대화방)을 시안 기반으로 재디자인함. 위 "1:1 채팅"의 백엔드(테이블·RLS·실시간·읽음 처리)는 그대로 두고 **화면(마크업·CSS)만** 교체.
+- **하단 탭 개편**: 하단 탭바의 "게시판"을 제거하고 **"채팅"으로 대체**(위치: 글쓰기 오른쪽·내 정보 왼쪽). `app/body-html.js`의 `<nav>` 수정, `data-tab="chat"` → 클릭 시 `openChatList()` + `syncTabs("chat")`로 활성 표시.
+- **채팅 리스트 재디자인(이미지2 시안)**: `.chatlist`/`.chatlist-search`(검색, `filterChatList`)/`.clist-row`(아바타·이름·마지막 메시지·날짜·안읽음 뱃지). `openChatList()`가 상대 `avatar_url`까지 조회, 날짜 라벨 헬퍼 `chatListDate`. 기존 `.chat-room-list`/`.chat-room-row`를 대체.
+- **채팅방 재디자인(이미지1 시안)**: 브랜드색 헤더(뒤로·상대 이름·🚩신고, **햄버거 제거**) + 날짜 구분선(`.cr-divider`) + 상대 메시지 아바타+이름(연속 메시지는 그룹핑) + **초록 내 말풍선** + 읽음·시간 + 커미션 문의는 특수 말풍선(클릭 시 커미션으로 이동). 마크업 `chatMessagesHtml`(날짜/발신자 그룹핑)·`renderChatView`, CSS `.chatroom`/`.cr-*`.
+- **⚠️ iOS `position:fixed` 함정 — 이번 작업의 핵심 교훈**: 채팅방을 처음엔 `#main` 안에서 전체화면으로 띄웠더니 아이폰에서 말풍선이 홈 레이아웃 위로 겹쳐 뜨며 깨짐. 원인은 **`position:fixed`가 transform/filter를 가진 상위 요소 안에서는 뷰포트가 아니라 그 조상 기준으로 잡혀 깨진다**는 것. **고침: 채팅방 오버레이(`#chatRoom`)를 `document.body` 최상위 직속으로 배치**해 상위 transform 영향을 원천 차단(`app/body-html.js`의 `</nav>` 바로 뒤 `<div id="chatRoom" class="chatroom">`). Chromium 개발 환경에선 재현이 안 돼 실기기 리포트로만 잡힌 버그 — **이 프로젝트에서 전체화면 오버레이를 만들 땐 body 직속으로.**
+- **모바일 키보드 처리**: `fitChatRoom()`이 오버레이의 **top은 고정하고 bottom만 키보드 높이(`window.innerHeight − visualViewport.height − offsetTop`)만큼 올려** 헤더가 안 움직이게 함 + CSS `transition:bottom`으로 한 프레임 점프 대신 부드럽게 상승 + 키보드가 떠 있으면 `.kb-up` 클래스로 입력줄 하단 여백 축소. **`lockBodyForChat()`/`unlockBodyForChat()`**: 채팅이 열려 있는 동안 `body`를 `position:fixed`로 잠가, iOS가 입력창 포커스 시 페이지를 스크롤해 **고정 헤더를 위로 밀어내고 키보드 위에 빈 여백을 만들던 문제**를 차단(나갈 때 원래 스크롤 위치 복원). **`autoGrowChatInput()`**: 입력창 기본 한 줄(38px), 여러 줄 칠 때만 100px까지 확장, 전송 후 복귀. 입력줄 3요소(+·입력칸·전송)는 `align-items:center` 세로 중앙 정렬, 입력칸은 배경 박스 없이 텍스트만.
+- **모바일 줌/탭바 튐 수정(선행)**: 입력창 포커스 시 iOS 자동 확대 방지(`layout.js`의 `viewport.maximumScale=1`, `userScalable=false`) + `body.kb-open`일 때 하단 탭바 숨김(키보드가 탭바를 밀어올리던 문제).
+- **더미 데이터 제거**: 원본 프로토타입 잔재였던 하드코딩 더미 글과 첫 진입 시 뜨던 가짜 알림들을 제거(실제 데이터/알림과 섞이는 혼란 제거).
 
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:
@@ -847,6 +857,8 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 
 2026-07-28에 GitHub 저장소(Public) 전체를 점검함 — 전체 커밋 히스토리(`git log --all -p`)까지 뒤져서 `.env` 파일이 커밋된 적 있는지, `service_role` 키·구글 Client Secret·하드코딩된 JWT 등이 있는지 확인. **결과: 전부 깨끗함.** `lib/supabaseClient.js`는 환경변수로만 키를 읽고, `.env.local`은 `.gitignore`의 `.env*` 규칙으로 처음부터 제외됨.
 
+2026-08-01에 **전 테이블 RLS 전수 감사**를 함(사용자 요청). 라이브 DB를 `pg_class.relrowsecurity`(RLS on/off)와 `pg_policies`(정책 목록)로 직접 조회해 대조. **결과: public 스키마 전 테이블 RLS=on(무방비 테이블 0개), "아무나 쓰기(INSERT/UPDATE/DELETE)"로 완전히 열린 정책은 `post_images_insert_all_temp` 단 1건뿐**(6절 부채 참고 — 익명 이미지 첨부용 의도적 잔여, 사용자가 "지금은 그대로 두기" 선택), 스토리지도 post-images 버킷만 쓰기 개방·commission-images는 본인 폴더(uid)만. 채팅·알림·구독·점수·신청·신고·유료광고 등 민감 테이블은 전부 본인/참여자/관리자로 잠김 확인. **데이터 유출·무단 수정·관리자 권한 노출 구멍 없음으로 확정**(코드·스키마 변경 없이 조회 전용 점검).
+
 ---
 
 ## 9. 로컬 개발 환경
@@ -877,3 +889,4 @@ npm run dev
 - DB 변경(테이블 생성, 정책 추가 등)은 항상 SQL Editor에 붙여넣을 SQL을 그대로 제공하고, 그 SQL이 "왜" 필요한지, 어떤 위험이 있는지(예: "이 정책은 임시로 전부 열어둔 것") 설명하는 걸 선호함.
 - "화면에서만 막는 것"과 "서버(RLS)에서 진짜로 막는 것"의 차이를 중요하게 여김 — 보안 관련 기능은 항상 이 둘을 구분해서 설명할 것.
 - 커밋은 기능 단위로 나눠서, 매번 배포 후 실제 사이트에서 확인 요청하는 패턴을 유지해왔음.
+- **커밋마다 이 문서(PROJECT_CONTEXT.md)도 같이 갱신할 것**(2026-08-01 사용자 요청). 채팅 재디자인 작업 중 코드만 커밋하고 문서를 8개 커밋가량 놓쳤다가 사용자 지적으로 소급 반영함 — 이후로는 기능 커밋과 문서 갱신을 항상 함께 할 것.
