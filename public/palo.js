@@ -4016,6 +4016,13 @@ syncNotifBadge();
   else window.addEventListener("load",reg);
 })();
 
+// ===== 모바일 키보드: 텍스트 입력창 포커스 시 하단 탭바 숨김(키보드에 밀려 튀는 것 방지) =====
+(function(){
+  function isTextInput(el){return el&&(el.tagName==="INPUT"||el.tagName==="TEXTAREA"||el.isContentEditable);}
+  document.addEventListener("focusin",function(e){if(isTextInput(e.target))document.body.classList.add("kb-open");});
+  document.addEventListener("focusout",function(e){if(isTextInput(e.target))document.body.classList.remove("kb-open");});
+})();
+
 
 // ===== 스와이프/드래그로 닫기 =====
 (function(){

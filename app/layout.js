@@ -14,6 +14,9 @@ export const metadata = {
 
 export const viewport = {
   themeColor: "#e07aa6",
+  // 입력창(14~15px) 포커스 시 iOS가 화면을 자동 확대하는 것 방지 — 앱처럼 고정 배율
+  maximumScale: 1,
+  userScalable: false,
 };
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
