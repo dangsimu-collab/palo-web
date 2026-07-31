@@ -21,69 +21,7 @@ var CATMAP={talk:{label:"수다",cls:"talk-c"},ask:{label:"고민",cls:"help-c"}
   review:{label:"후기",cls:"free-c"},adult:{label:"에치치",cls:"help-c"}};
 
 var postsLoaded=false; // loadRealPosts()가 실제 글을 POSTS에 합친 뒤 true — 이 전에는 데모 글로 renderList()를 강제로 돌리지 않음(로그인 리다이렉트 직후 더미 글이 잠깐 보이는 버그 방지)
-var POSTS=[
-  {id:1,board:"crit",title:"숲 속 마녀 러프 구도 3개 뽑았는데 뭐가 제일 나을까요?",author:"달빛초",time:"10분 전",likes:34,views:210,thumb:"t1",stage:"러프",
-   content:["구도를 세 개 잡아봤는데 각각 장단이 있어서 결정을 못 하겠어요.","1번은 안정적인데 심심하고, 2번은 역동적인데 시선이 분산되고, 3번은 마음엔 드는데 배경이 비어 보여요.","여러분이라면 어떤 걸 밀고 가시겠어요? 이유도 같이 들려주시면 정말 감사하겠습니다 🙏"],
-   comments:[{n:"노을공방",t:"5분 전",txt:"저는 3번이요. 배경 빈 건 오히려 여백으로 살리면 분위기 살 것 같아요. 마녀 시선 방향으로 새 한 마리만 넣어도 채워질 듯!"},{n:"먹구름",t:"2분 전",txt:"2번 구도에서 주인공을 살짝 왼쪽으로 옮기면 시선 분산 문제 잡을 수 있어요."}]},
-  {id:2,board:"ask",title:"몇 년째 실력이 제자리인 것 같을 때 다들 어떻게 뚫으셨어요?",author:"붓끝",time:"25분 전",likes:51,views:402,thumb:"none",
-   content:["그림 그린 지 4년쯤 됐는데 최근 1년은 정말 안 느는 느낌이에요.","매일 그리긴 하는데 늘 그리던 것만 그리게 되네요. 다들 이런 정체기 어떻게 넘기셨나요?"],
-   comments:[{n:"뎃생왕",t:"20분 전",txt:"편한 것만 그리면 딱 그 자리예요. 일부러 못 그리는 걸(손, 발, 배경) 한 달만 파보세요. 확 뚫립니다."},{n:"연필깎이",t:"14분 전",txt:"모작 추천이요. 좋아하는 작가 그림 한 장을 진짜 똑같이 따라 그려보면 내 약점이 보여요."}]},
-  {id:3,board:"crit",title:"밤 씬인데 광원이 붕 뜨는 느낌... 명암 조언 구합니다",author:"노을공방",time:"40분 전",likes:28,views:188,thumb:"t2",stage:"채색",
-   content:["도시 야경을 그리는데 빛이 자연스럽게 안 붙고 스티커처럼 떠 보여요.","광원 주변에만 밝기를 주고 나머지는 어둡게 했는데도 어색합니다."],
-   comments:[{n:"달빛초",t:"30분 전",txt:"광원에서 멀어질수록 채도도 같이 떨어뜨려 보세요. 밝기만 조절하면 붕 떠요."}]},
-  {id:4,board:"tip",title:"클립스튜디오 손 그림자 3초 만에 넣는 루틴 공유합니다",author:"연필깎이",time:"1시간 전",likes:96,views:720,thumb:"t3",stage:"완성",
-   content:["매번 그림자 레이어 만들기 귀찮으셨죠? 오토액션 하나면 끝납니다.","곱하기 레이어 생성 → 클리핑 → 저채도 보라 채우기를 액션으로 묶어두면 클릭 한 번이에요.","자세한 설정값은 아래 이미지 참고하세요!"],
-   comments:[{n:"붓끝",t:"50분 전",txt:"이거 진짜 꿀팁이네요. 바로 저장했습니다 🙏"}]},
-  {id:5,board:"talk",title:"다들 그림 그릴 때 뭐 틀어놓으세요? 저는 빗소리 ASMR파",author:"먹구름",time:"2시간 전",likes:44,views:531,thumb:"none",
-   content:["집중 안 될 때 빗소리 틀면 이상하게 잘 되더라고요.","다들 작업할 때 배경음 뭐 들으시는지 궁금해요!"],
-   comments:[{n:"노을공방",t:"1시간 전",txt:"저는 로파이 힙합이요. 가사 있으면 손이 멈춰서요 ㅋㅋ"},{n:"뎃생왕",t:"40분 전",txt:"팟캐스트 틀어놓고 그리는데 가끔 내용 놓쳐서 되감기 반복합니다..."}]},
-  {id:6,board:"tip",title:"[연재] 처음 배우는 인체 비례 ③ — 어깨는 왜 이렇게 어려운가",author:"뎃생왕",time:"3시간 전",likes:112,views:905,thumb:"t4",stage:"선화",
-   content:["3편입니다. 이번 주제는 많은 분들이 어려워하는 어깨예요.","어깨는 관절이 아니라 '움직이는 판'이라고 생각하면 훨씬 쉬워집니다.","쇄골-견갑골 세트가 통째로 움직인다는 걸 기억하세요."],
-   comments:[{n:"달빛초",t:"2시간 전",txt:"연재 잘 보고 있어요! 다음 편은 손목이었으면..."}]},
-  {id:7,board:"talk",title:"AI 그림, 우리 커뮤니티에선 어디까지 허용할지 의견 모아요",author:"운영자",time:"5시간 전",likes:133,views:2100,thumb:"none",
-   content:["Palo에서 AI 생성 이미지를 어떻게 다룰지 회원 의견을 모읍니다.","① 전면 금지 ② 전용 게시판에서만 허용 ③ 출처 표기 시 허용 — 어느 쪽이 좋을까요?","댓글로 의견 남겨주세요. 2주 뒤 규정에 반영하겠습니다."],
-   comments:[{n:"뎃생왕",t:"4시간 전",txt:"전용 게시판 분리에 한 표. 완전 금지는 현실적으로 관리가 어려울 것 같아요."},{n:"먹구름",t:"3시간 전",txt:"최소한 출처 표기는 필수여야 한다고 봅니다."},{n:"붓끝",t:"2시간 전",txt:"저는 창작 과정 공유가 핵심인 곳이라 전면 금지 쪽이요."}]},
-  {id:8,board:"trade",title:"귀여운 SD 캐릭터 커미션 열었어요 (잔여 2슬롯 · 15,000원~)",author:"작가_레몬",time:"6시간 전",likes:42,views:310,thumb:"t1",stage:"완성",
-   content:["오랜만에 커미션 오픈합니다! SD 캐릭터 전문이에요.","슬롯 2자리 남았고, 자세한 가격표와 샘플은 프로필에서 확인 가능합니다."],
-   comments:[{n:"달빛초",t:"5시간 전",txt:"샘플 너무 귀여워요 ㅠㅠ 신청 넣었습니다!"}]},
-  {id:9,board:"wip",title:"3일째 붙잡고 있는 배경 일러스트, 드디어 채색 들어갑니다",author:"노을공방",time:"7시간 전",likes:67,views:445,thumb:"t2",stage:"채색",
-   content:["선화만 이틀 걸렸네요. 이제 밑색 깔고 있어요.","완성되면 스케치북에 과정 통째로 올릴게요!"],
-   comments:[{n:"연필깎이",t:"6시간 전",txt:"디테일 미쳤다... 완성본 기대할게요"}]},
-  {id:10,board:"ask",title:"타블렛 입문하려는데 액정형 vs 판형 뭐가 나을까요?",author:"새싹",time:"8시간 전",likes:39,views:288,thumb:"none",
-   content:["완전 입문자입니다. 예산은 30만 원 안쪽이에요.","판형이 싸다는 건 아는데 적응이 어렵다고 해서 고민이에요."],
-   comments:[{n:"뎃생왕",t:"7시간 전",txt:"입문이면 판형으로 손 먼저 익히는 걸 추천해요. 어차피 나중에 액정 가도 판형 감각이 도움 됩니다."}]},
-  {id:11,board:"challenge",title:"[7월 4주 챌린지] 비 오는 창가 — 제 참가작이에요",author:"먹구름",time:"9시간 전",likes:58,views:376,thumb:"t4",stage:"완성",
-   content:["이번 주 주제 '비 오는 창가'로 그려봤어요.","유리에 맺힌 물방울 표현이 제일 어려웠네요. 다들 참여해요!"],
-   comments:[{n:"달빛초",t:"8시간 전",txt:"물방울 표현 어떻게 하셨어요?? 튜토리얼 각인데요"}]},
-  {id:12,board:"sketch",title:"오늘의 낙서 모음 — 지하철에서 그린 사람들",author:"붓끝",time:"10시간 전",likes:73,views:512,thumb:"t5",stage:"러프",
-   content:["출퇴근길에 몰래 그린 크로키들이에요.","움직이는 사람 그리는 게 정물보다 훨씬 도움 되는 것 같아요."],
-   comments:[{n:"새싹",t:"9시간 전",txt:"선이 살아있네요 부럽습니다"}]}
-  ,{id:13,board:"talk",title:"작업할 때 손목 아픈 분들 어떻게 관리하세요? 스트레칭 공유해요",author:"손목지킴이",time:"11시간 전",likes:81,views:640,thumb:"none",
-   content:["장시간 작업하니 손목이 너무 아파서요.","다들 어떻게 관리하시는지, 좋은 스트레칭이나 보조기구 있으면 공유해요!"],
-   comments:[{n:"연필깎이",t:"10시간 전",txt:"저는 1시간마다 알람 맞춰놓고 손목 돌려줍니다. 확실히 덜 아파요."}]},
-  {id:14,board:"tip",title:"무료로 쓸 수 있는 그림 레퍼런스 사이트 모음 (포즈·손·배경)",author:"자료수집가",time:"12시간 전",likes:154,views:1320,thumb:"t3",stage:"완성",
-   content:["제가 자주 쓰는 무료 레퍼런스 사이트들 정리했어요.","포즈, 손, 배경, 명암까지 종류별로 모아봤습니다. 도움 되시길!"],
-   comments:[{n:"새싹",t:"11시간 전",txt:"이런 거 찾고 있었는데 감사합니다 ㅠㅠ"},{n:"붓끝",t:"10시간 전",txt:"저장 완료! 정성 글 감사해요"}]},
-  {id:15,board:"crit",title:"손 그리는 게 너무 어려워요... 이 손 어디가 이상한지 봐주세요",author:"초보자",time:"13시간 전",likes:22,views:180,thumb:"t2",stage:"선화",
-   content:["손을 그렸는데 뭔가 어색한데 어디가 문제인지 모르겠어요.","솔직한 피드백 부탁드립니다!"],
-   comments:[{n:"뎃생왕",t:"12시간 전",txt:"손가락 관절 위치가 조금 높아요. 마디를 살짝 내려보세요."}]},
-  {id:16,board:"talk",title:"드디어 첫 커미션 완료했어요! 후기 남깁니다 :)",author:"신입작가",time:"14시간 전",likes:97,views:710,thumb:"t5",stage:"완성",
-   content:["긴장했는데 의뢰인분이 너무 만족해주셔서 뿌듯했어요.","커미션 처음 여시는 분들 응원합니다!"],
-   comments:[{n:"레몬",t:"13시간 전",txt:"축하드려요! 첫 완료가 제일 기억에 남죠"}]},
-  {id:17,board:"ask",title:"아이패드 vs 액정타블렛, 그림 입문용으로 뭐가 나을까요?",author:"고민중",time:"15시간 전",likes:45,views:390,thumb:"none",
-   content:["둘 다 장단점이 있는 것 같아서 고민이에요.","휴대성은 아이패드인데 화면 큰 건 액정타블렛이고...","입문자 기준으로 조언 부탁드려요."],
-   comments:[{n:"도비",t:"14시간 전",txt:"입문이면 아이패드 추천이요. 어디서든 그릴 수 있는 게 실력 향상에 큰 도움 됩니다."}]},
-  {id:18,board:"wip",title:"한 달째 그리고 있는 대형 일러스트, 드디어 마무리 단계",author:"장인정신",time:"16시간 전",likes:128,views:960,thumb:"t4",stage:"채색",
-   content:["캐릭터 5명이 나오는 단체 일러라 시간이 오래 걸렸네요.","이제 배경 디테일만 남았어요. 완성되면 꼭 보여드릴게요!"],
-   comments:[{n:"먹구름",t:"15시간 전",txt:"벌써부터 대작 느낌... 완성 기대합니다"}]},
-  {id:19,board:"tip",title:"[강좌] 채색 초보를 위한 명암 넣기 기초 3단계",author:"채색마스터",time:"18시간 전",likes:203,views:1580,thumb:"t1",stage:"완성",
-   content:["채색 입문자분들이 제일 어려워하는 명암을 3단계로 쉽게 설명해봤어요.","1) 광원 정하기 2) 그림자 영역 나누기 3) 반사광 넣기","순서대로만 하면 훨씬 입체감이 살아납니다."],
-   comments:[{n:"초보자",t:"17시간 전",txt:"명암 항상 어려웠는데 단계별로 보니 이해돼요!"},{n:"신입작가",t:"16시간 전",txt:"저장했습니다. 감사해요"}]},
-  {id:20,board:"talk",title:"다들 하루에 그림 몇 시간씩 그리세요? 루틴 궁금해요",author:"성실러",time:"20시간 전",likes:66,views:520,thumb:"none",
-   content:["꾸준히 그리고 싶은데 다들 어떻게 시간 관리하시는지 궁금해요.","하루 루틴 공유해주시면 참고할게요!"],
-   comments:[{n:"장인정신",t:"19시간 전",txt:"저는 아침에 1시간 러프, 저녁에 2시간 채색으로 나눠서 해요."}]}
-];
-var HOT=[POSTS[6],POSTS[1],POSTS[3]];
+var POSTS=[]; // 실제 글은 loadRealPosts()가 DB에서 채움
 var TREND=[
   {name:"비 오는 창가",tag:"챌린지 1위",thumb:"t1",sub:"참여 38명"},
   {name:"인체 비례 연재",tag:"강좌 급상승",thumb:"t4",sub:"조회 905"},
@@ -201,17 +139,7 @@ async function onCoverFile(e){
   toast('커버 이미지를 변경했어요');
   openProfile();
 }
-var NOTIFS=[
-  {type:"cm",icon:"💬",txt:"뎃생왕님이 회원님의 글에 훈수를 남겼어요",time:"5분 전",post:15,read:false},
-  {type:"like",icon:"❤️",txt:"달빛초님 외 3명이 회원님의 글을 좋아해요",time:"30분 전",post:14,read:false},
-  {type:"sys",icon:"🏁",txt:"7월 넷째 주 챌린지 마감이 2일 남았어요",time:"2시간 전",post:6,read:false},
-  {type:"sys",icon:"📌",txt:"공지: 크리틱 매너 안내가 업데이트됐어요",time:"어제",post:null,read:true},
-  {type:"cm",icon:"💬",txt:"연필깎이님이 회원님의 댓글에 답글을 남겼어요",time:"어제",post:4,read:true},
-  {type:"like",icon:"❤️",txt:"노을공방님이 회원님의 댓글을 좋아해요",time:"2일 전",post:2,read:true},
-  {type:"sys",icon:"🏁",txt:"7월 셋째 주 챌린지가 마감됐어요 — 참여작 41개!",time:"3일 전",post:6,read:true},
-  {type:"cm",icon:"💬",txt:"먹구름님이 회원님의 글에 훈수를 남겼어요",time:"4일 전",post:8,read:true},
-  {type:"like",icon:"❤️",txt:"붓끝님 외 5명이 회원님의 글을 좋아해요",time:"5일 전",post:10,read:true}
-];
+var NOTIFS=[]; // 실제 알림은 loadNotificationsFromDB()가 DB에서 채움
 var justAddedId=null;
 
 function anonId(){
@@ -435,7 +363,9 @@ function renderChips(){
   }).join("");
 }
 function renderHot(){
-  document.getElementById("hotList").innerHTML=HOT.map(function(p,i){
+  var el=document.getElementById("hotList");if(!el)return;
+  var top=sortHot(POSTS.filter(function(p){return p.board!=="trade"&&p.board!=="review"})).slice(0,3);
+  el.innerHTML=top.map(function(p,i){
     return '<div class="hot" onclick="openPost('+p.id+')"><span class="rank serif">'+(i+1)+'</span><div><div class="ht">'+esc(p.title)+'</div><div class="hm">💬 '+p.comments.length+' · '+catFor(p).label+'</div></div></div>';
   }).join("");
 }
