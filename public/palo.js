@@ -3561,7 +3561,7 @@ async function openAdminCampaigns(){
     h+='<div class="list">';
     camps.forEach(function(c){
       var pct=c.impression_goal?Math.min(100,Math.round(c.impressions_served/c.impression_goal*100)):0;
-      var actions="";
+      var actions='<button class="d-act" onclick="openCampaignReport('+c.id+')">📊 리포트</button>';
       if(c.status==="active")actions+='<button class="d-act" onclick="setCampaignStatus('+c.id+',\'paused\')">멈춤</button>';
       else if(c.status==="paused")actions+='<button class="d-act" onclick="setCampaignStatus('+c.id+',\'active\')">재개</button>';
       if(c.status!=="archived")actions+='<button class="d-act" onclick="setCampaignStatus('+c.id+',\'archived\')">보관</button>';
@@ -3635,6 +3635,54 @@ async function deleteCampaign(id){
   if(res.error){toast("삭제 실패: "+res.error.message);return;}
   toast("캠페인을 삭제했어요");
   openAdminCampaigns();
+}
+async function openCampaignReport(id){
+  if(!AUTH.profile||!AUTH.profile.is_admin){toast("관리자만 사용할 수 있어요");return;}
+  var cRes=await window.supabase.from("ad_campaigns").select("*").eq("id",id).single();
+  if(cRes.error){toast("불러오기 실패: "+cRes.error.message);return;}
+  var c=cRes.data;
+  var dRes=await window.supabase.from("ad_impression_daily").select("date,count").eq("campaign_id",id).order("date");
+  if(dRes.error){toast("불러오기 실패: "+dRes.error.message);return;}
+  var byDate={};(dRes.data||[]).forEach(function(r){byDate[r.date]=r.count;});
+  // 집행 시작 ~ min(오늘, 종료)까지 하루 단위로 채움(데이터 없는 날은 0)
+  var start=new Date(c.flight_start),end=new Date(c.flight_end),today=new Date();
+  var last=end<today?end:today;
+  var d=new Date(start.getFullYear(),start.getMonth(),start.getDate());
+  var lastD=new Date(last.getFullYear(),last.getMonth(),last.getDate());
+  var days=[],guard=0;
+  while(d<=lastD&&guard<400){
+    var key=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    days.push({label:(d.getMonth()+1)+"/"+d.getDate(),count:byDate[key]||0});
+    d.setDate(d.getDate()+1);guard++;
+  }
+  var maxc=days.reduce(function(m,x){return Math.max(m,x.count);},1);
+  var sum=days.reduce(function(s,x){return s+x.count;},0);
+  var pct=c.impression_goal?Math.min(100,Math.round(c.impressions_served/c.impression_goal*100)):0;
+  var avg=days.length?Math.round(sum/days.length):0;
+  var bars=days.map(function(x){
+    var hpct=Math.round(x.count/maxc*100);
+    return '<div style="flex:0 0 auto;width:26px;height:100%;display:flex;flex-direction:column;align-items:center" title="'+x.label+': '+x.count.toLocaleString()+'회">'+
+      '<div style="flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center">'+
+        '<div style="width:60%;min-height:'+(x.count?2:0)+'px;height:'+hpct+'%;background:var(--brand);border-radius:4px 4px 0 0"></div></div>'+
+      '<div style="font-size:9px;color:var(--muted);margin-top:5px;white-space:nowrap">'+x.label+'</div></div>';
+  }).join('');
+  var h='<div class="profile"><div class="pf-sec">📊 광고 리포트</div>';
+  h+='<div class="post"><div class="pmain">'+
+    '<img src="'+esc(c.image_url)+'" alt="" style="width:100%;max-width:280px;height:70px;object-fit:cover;border-radius:8px;margin-bottom:8px;display:block">'+
+    '<div class="ptitle">'+esc(c.advertiser||"(광고주 미기재)")+'</div>'+
+    '<div class="pmeta"><span class="mv">'+Number(c.impressions_served).toLocaleString()+' / '+Number(c.impression_goal).toLocaleString()+' 노출 ('+pct+'%)</span></div>'+
+    '<div class="pp-bar" style="margin:8px 0"><div class="pp-fill" style="width:'+pct+'%"></div></div>'+
+    '<div class="pmeta"><span class="mt">'+campDate(c.flight_start)+' ~ '+campDate(c.flight_end)+'</span><span class="sep"></span><span class="mv">일 평균 '+avg.toLocaleString()+'회</span></div>'+
+  '</div></div>';
+  h+='<div class="pf-sec">일별 노출</div>';
+  if(!sum){
+    h+='<div class="pf-empty">아직 집계된 노출이 없어요.</div>';
+  }else{
+    h+='<div style="display:flex;gap:5px;overflow-x:auto;align-items:flex-end;height:170px;padding:10px 2px;border-bottom:1px solid var(--line-2)">'+bars+'</div>';
+  }
+  h+='<button class="pf-edit" onclick="openAdminCampaigns()" style="margin-top:16px">← 광고 관리로 돌아가기</button></div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
 }
 async function adminViewConversation(conversationId,reportId,backTo){
   var convRes=await window.supabase.from("conversations").select("*").eq("id",conversationId).single();
