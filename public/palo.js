@@ -1694,11 +1694,13 @@ async function cmUploadWrImg(file){
   var pub=window.supabase.storage.from('post-images').getPublicUrl(path);
   cmWr.images.push(pub.data.publicUrl);
   document.getElementById('cmWrImgs').innerHTML=cmWrImgsHTML();
+  cmCheckWriteSubmit();
   toast('이미지를 넣었어요');
 }
 function cmDelWrImg(i){
   cmWr.images.splice(i,1);
   document.getElementById('cmWrImgs').innerHTML=cmWrImgsHTML();
+  cmCheckWriteSubmit();
 }
 function cmOpenWrite(commissionId){
   if(!AUTH.user){
@@ -1723,7 +1725,7 @@ function cmOpenWrite(commissionId){
       '<div class="cm-wr-types" id="cmWrTypes">'+typeOptions.map(function(t){return '<div class="cm-wr-type" onclick="cmSelectType(this,\''+cmQ(t)+'\')">'+esc(t)+'</div>';}).join('')+'</div>'+
       '<div class="cm-wr-label" id="cmWrReasonLabel" style="display:none">불호 이유 <span class="cm-wr-sub">해당하는 이유를 골라주세요</span></div>'+
       '<div class="cm-wr-types" id="cmWrReasons" style="display:none">'+CM_BAD_REASONS.map(function(r){return '<div class="cm-wr-type cm-wr-reason" onclick="cmSelectBadReason(this,\''+cmQ(r)+'\')">'+esc(r)+'</div>';}).join('')+'</div>'+
-      '<div class="cm-wr-label">받은 커미션 사진 <span class="cm-wr-sub">선택 · 최대 5장</span></div>'+
+      '<div class="cm-wr-label">받은 커미션 사진 <span class="cm-reg-req">*</span> <span class="cm-wr-sub">필수 · 최대 5장</span></div>'+
       '<input type="file" id="cmWrFileInput" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="cmOnWrFileChange(event)">'+
       '<div class="cm-reg-imgs" id="cmWrImgs">'+cmWrImgsHTML()+'</div>'+
       '<div class="cm-wr-label">후기 내용 <span class="cm-wr-sub">선택 · 한 줄도 좋아요</span></div>'+
@@ -1760,12 +1762,13 @@ function cmSelectBadReason(el,r){
   cmCheckWriteSubmit();
 }
 function cmCheckWriteSubmit(){
-  var ok=cmState.wrType&&cmState.wrCtype&&(cmState.wrType!=='bad'||cmState.wrBadReason);
+  var ok=cmState.wrType&&cmState.wrCtype&&(cmState.wrType!=='bad'||cmState.wrBadReason)&&cmWr.images.length>0;
   document.getElementById('cmWrSubmit').disabled=!ok;
 }
 async function cmSubmitReview(){
   if(!AUTH.user){toast('로그인 후 후기를 작성할 수 있어요','🔒');return;}
   if(cmReviewCommissionId==null){toast('커미션 정보를 찾을 수 없어요');return;}
+  if(!cmWr.images.length){toast('후기 사진을 최소 1장 넣어주세요','📷');return;}
   var commission=cmData.find(function(c){return c.id===cmReviewCommissionId;});
   var txt=document.getElementById('cmWrText').value.trim();
   var sentiment=cmState.wrType;
