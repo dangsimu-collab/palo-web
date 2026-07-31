@@ -228,16 +228,9 @@ function timeAgo(iso){
 }
 var LATEST_NOTICE=null;
 var ACTIVE_ADS=[];
+var ACTIVE_CAMPAIGNS=[]; // 유료 CPM 캠페인(get_servable_ads RPC로 로드) — 지면의 80%를 차지
 var AD_LOCKED_COMMISSION_IDS={}; // 광고 심사중/집행중인 커미션 id들 — 수정 잠금용(POSTS의 adLocked와 동일한 목적)
-var AD_USER_SHARE_MAX=0.20; // 유저 광고가 전체 광고 자리 노출에서 차지할 수 있는 최대 비중
-var AD_PER_AD_SHARE_MAX=0.04; // 광고 하나가 차지할 수 있는 최대 비중(초기엔 광고가 적어 소수가 20%를 독점하는 걸 막기 위함)
-function computeAdWeights(ads){
-  var total=ads.reduce(function(s,a){return s+(a.points_spent||0);},0);
-  if(!total)return ads.map(function(){return 0;});
-  return ads.map(function(a){
-    return Math.min(AD_PER_AD_SHARE_MAX,AD_USER_SHARE_MAX*(a.points_spent/total));
-  });
-}
+var AD_PAID_SHARE=0.80; // 지면 슬롯 중 유료 광고에 배정하는 비중(나머지 20%는 유저 광고). 유료 재고가 없으면 유저/하우스로 폴백
 function adTargetOnclick(ad){
   return ad.linked_commission_id?('cmOpenCommissionById('+ad.linked_commission_id+')'):('openPost('+(100000+ad.linked_post_id)+')');
 }
@@ -258,6 +251,9 @@ async function loadRealPosts(){
 
   var adRes=await window.supabase.from("user_ads").select("id,image_url,linked_post_id,linked_commission_id,points_spent").eq("status","active").gt("expires_at",new Date().toISOString());
   if(!adRes.error)ACTIVE_ADS=adRes.data||[];
+
+  var campRes=await window.supabase.rpc("get_servable_ads");
+  if(!campRes.error)ACTIVE_CAMPAIGNS=campRes.data||[];
 
   var adLockRes=await window.supabase.from("user_ads").select("linked_post_id,linked_commission_id,status,expires_at").in("status",["pending","active"]);
   var adLockedIds={};
@@ -527,9 +523,21 @@ function pagerHTML(tp){
 }
 function gotoPage(n){page=n;renderList();window.scrollTo({top:0,behavior:"smooth"});}
 function adRow(){
+  // 지면 배분: 80% 유료 CPM 광고, 20% 유저 포인트 광고. 해당 타입 재고가 없으면 다른 쪽/하우스로 폴백.
+  var wantPaid=Math.random()<AD_PAID_SHARE;
+  if(wantPaid){
+    var camp=pickServableCampaign();
+    if(camp)return campaignBannerHTML(camp);
+    // 유료 재고 없음 → 유저 광고로 폴백
+    return userAdRowHTML();
+  }
+  return userAdRowHTML();
+}
+function userAdRowHTML(){
   if(ACTIVE_ADS.length){
-    var weights=computeAdWeights(ACTIVE_ADS);
-    var r=Math.random(),cum=0;
+    var weights=ACTIVE_ADS.map(function(a){return a.points_spent||1;});
+    var total=weights.reduce(function(s,w){return s+w;},0);
+    var r=Math.random()*total,cum=0;
     for(var i=0;i<ACTIVE_ADS.length;i++){
       cum+=weights[i];
       if(r<cum){
@@ -548,6 +556,99 @@ function adRow(){
     '<div class="ad-body"><div class="ad-t">광고 문의 환영</div>'+
     '<div class="ad-d">이 자리에 유저 광고와 유료 광고가 노출됩니다</div></div>'+
   '</div>';
+}
+/* ---- 유료 광고 서빙(페이싱) + 뷰어블 노출 측정 ---- */
+function pickServableCampaign(){
+  var avail=ACTIVE_CAMPAIGNS.filter(function(c){return c.impressions_served<c.impression_goal;});
+  if(!avail.length)return null;
+  var now=Date.now();
+  // 페이싱 가중치: "지금까지 나갔어야 할 양(목표×경과비율) − 실제 나간 양" = 뒤처진 정도. 뒤처진 캠페인일수록 우선.
+  var weights=avail.map(function(c){
+    var s=new Date(c.flight_start).getTime(),e=new Date(c.flight_end).getTime();
+    var frac=e>s?Math.min(1,Math.max(0,(now-s)/(e-s))):1;
+    var behind=c.impression_goal*frac-c.impressions_served;
+    return Math.max(behind,1); // 최소 1로 바닥을 깔아 일정에 맞는 캠페인도 순번이 돌아가게
+  });
+  var total=weights.reduce(function(s,w){return s+w;},0);
+  var r=Math.random()*total,cum=0;
+  for(var i=0;i<avail.length;i++){cum+=weights[i];if(r<cum)return avail[i];}
+  return avail[avail.length-1];
+}
+function campaignBannerHTML(c){
+  return '<div class="ad ad-banner" role="complementary" aria-label="광고" data-campaign-id="'+c.id+'" style="cursor:pointer;position:relative" onclick="openCampaignTarget('+c.id+')">'+
+    '<span class="ad-label">광고</span>'+
+    '<img src="'+esc(c.image_url)+'" alt="광고">'+
+  '</div>';
+}
+function openCampaignTarget(id){
+  var c=ACTIVE_CAMPAIGNS.find(function(x){return x.id===id;});
+  if(!c||!c.target_url)return;
+  window.open(c.target_url,"_blank","noopener,noreferrer");
+}
+var adObserver=null;
+var adImpressionPending={}; // campaignId -> 아직 서버에 안 보낸 노출 수
+var adFlushTimer=null;
+function ensureAdObserver(){
+  if(adObserver||typeof IntersectionObserver==="undefined")return;
+  adObserver=new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      var el=en.target;
+      if(en.isIntersecting&&en.intersectionRatio>=0.5){
+        if(el._viewTimer)return;
+        // 50% 이상이 1초 연속 보이면 뷰어블 노출 1회로 확정
+        el._viewTimer=setTimeout(function(){
+          el._viewTimer=null;
+          if(el._counted)return;
+          if(document.visibilityState!=="visible")return; // 백그라운드 탭은 제외
+          el._counted=true;
+          if(adObserver)adObserver.unobserve(el);
+          queueAdImpression(parseInt(el.getAttribute("data-campaign-id"),10));
+        },1000);
+      }else if(el._viewTimer){
+        clearTimeout(el._viewTimer);el._viewTimer=null; // 1초 안에 벗어나면 리셋
+      }
+    });
+  },{threshold:[0,0.5,1]});
+}
+function observeAdBanners(){
+  ensureAdObserver();
+  if(!adObserver)return;
+  var els=document.querySelectorAll("#main [data-campaign-id]");
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    if(el._observed||el._counted)continue;
+    el._observed=true;
+    adObserver.observe(el);
+  }
+}
+function queueAdImpression(id){
+  if(!id)return;
+  adImpressionPending[id]=(adImpressionPending[id]||0)+1;
+  // 세션 내 페이싱/목표초과 방지를 위해 로컬 카운트도 같이 올림
+  var c=ACTIVE_CAMPAIGNS.find(function(x){return x.id===id;});
+  if(c){
+    c.impressions_served++;
+    if(c.impressions_served>=c.impression_goal)ACTIVE_CAMPAIGNS=ACTIVE_CAMPAIGNS.filter(function(x){return x.id!==id;});
+  }
+  if(!adFlushTimer)adFlushTimer=setTimeout(flushAdImpressions,4000);
+}
+async function flushAdImpressions(){
+  adFlushTimer=null;
+  var pending=adImpressionPending;adImpressionPending={};
+  var ids=Object.keys(pending);
+  if(!ids.length||!window.supabase)return;
+  for(var i=0;i<ids.length;i++){
+    var id=parseInt(ids[i],10),cnt=pending[ids[i]];
+    while(cnt>0){
+      var chunk=Math.min(cnt,20); // RPC가 한 번에 1~20만 받음
+      await window.supabase.rpc("record_ad_impressions",{p_campaign_id:id,p_count:chunk});
+      cnt-=chunk;
+    }
+  }
+}
+if(typeof document!=="undefined"){
+  // 페이지를 떠나거나 탭이 숨겨질 때 남은 노출을 최대한 전송(완벽 보장은 아님)
+  document.addEventListener("visibilitychange",function(){if(document.visibilityState==="hidden")flushAdImpressions();});
 }
 function renderList(){
   leaveChat();
@@ -615,6 +716,7 @@ function renderList(){
   h+='</div>';
   if(totalPages>1)h+=pagerHTML(totalPages);
   main.innerHTML=h;
+  observeAdBanners();
 }
 function openPost(id){
   leaveChat();
