@@ -3124,6 +3124,7 @@ async function openChatList(){
   if(!AUTH.user){toast("로그인이 필요해요");loginWithGoogle();return;}
   leaveChat();
   closeNotif();
+  syncTabs("chat");
   document.getElementById("main").innerHTML='<div class="profile"><p style="padding:40px 0;text-align:center;color:var(--muted)">불러오는 중...</p></div>';
 
   var convRes=await window.supabase.from("conversations").select("*")
