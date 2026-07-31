@@ -3001,8 +3001,30 @@ var currentChatPartnerName="";
 var currentChatPartnerAvatar=null;
 var chatChannel=null;
 var chatRoomVpListener=null;
+var chatScrollLockY=null;
 function unsubscribeFromChat(){
   if(chatChannel){window.supabase.removeChannel(chatChannel);chatChannel=null;}
+}
+// 채팅방이 열려 있는 동안 배경(피드) 스크롤을 잠가, iOS가 입력창 포커스 시 페이지를 스크롤(→고정 헤더가 위로 사라지고 하단에 빈 여백 생김)하는 것을 막는다.
+function lockBodyForChat(){
+  if(chatScrollLockY!=null)return;
+  chatScrollLockY=window.scrollY||window.pageYOffset||0;
+  var b=document.body.style;
+  b.position="fixed";b.top=(-chatScrollLockY)+"px";b.left="0";b.right="0";b.width="100%";
+}
+function unlockBodyForChat(){
+  if(chatScrollLockY==null)return;
+  var b=document.body.style;
+  b.position="";b.top="";b.left="";b.right="";b.width="";
+  window.scrollTo(0,chatScrollLockY);
+  chatScrollLockY=null;
+}
+// 입력창 높이를 내용에 맞춰 한 줄 → 여러 줄로 자연스럽게 확장(최대 100px)
+function autoGrowChatInput(ta){
+  if(!ta)return;
+  ta.style.height="auto";
+  ta.style.height=Math.min(ta.scrollHeight,100)+"px";
+  var box=document.getElementById("chatMessages");if(box)box.scrollTop=box.scrollHeight;
 }
 // 채팅방 오버레이: top은 고정(헤더 안 움직임)하고 bottom만 키보드 높이만큼 올려 아래에서만 줄어들게 함.
 // CSS transition(bottom)으로 한 프레임 점프가 아니라 부드럽게 올라오는 효과.
@@ -3020,6 +3042,7 @@ function leaveChat(){
   currentChatPartnerId=null;
   cmPendingChatRef=null;
   document.body.classList.remove("chat-open");
+  unlockBodyForChat();
   var el=document.getElementById("chatRoom");
   if(el){el.classList.remove("open","kb-up");el.innerHTML="";el.style.height="";el.style.transform="";el.style.bottom="";}
   if(chatRoomVpListener&&window.visualViewport){window.visualViewport.removeEventListener("resize",chatRoomVpListener);window.visualViewport.removeEventListener("scroll",chatRoomVpListener);chatRoomVpListener=null;}
@@ -3243,11 +3266,13 @@ function renderChatView(partnerName,messages){
     '<div id="chatMessages" class="cr-msgs">'+chatMessagesHtml(messages)+'</div>'+
     '<div class="cr-inputrow">'+
       '<button class="cr-icon" onclick="toast(\'첨부 기능은 준비 중이에요\')" aria-label="추가"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>'+
-      '<textarea id="chatInput" placeholder="메시지를 입력하세요." onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendChatMessage();}"></textarea>'+
+      '<textarea id="chatInput" rows="1" placeholder="메시지를 입력하세요." oninput="autoGrowChatInput(this)" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendChatMessage();}"></textarea>'+
       '<button class="cr-send" onclick="sendChatMessage()" aria-label="전송"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></button>'+
     '</div>';
   el.classList.add("open");
+  lockBodyForChat();
   fitChatRoom();
+  autoGrowChatInput(document.getElementById("chatInput"));
   if(window.visualViewport&&!chatRoomVpListener){
     chatRoomVpListener=fitChatRoom;
     window.visualViewport.addEventListener("resize",chatRoomVpListener);
@@ -3270,6 +3295,7 @@ async function sendChatMessage(){
   if(usingRef)cmCancelChatRef();
   window.supabase.from("conversations").update({last_message_at:new Date().toISOString()}).eq("id",currentConversationId).then(function(){});
   inp.value="";
+  autoGrowChatInput(inp); // 전송 후 입력창을 한 줄 높이로 복귀
   var msgRes=await window.supabase.from("messages").select("*").eq("conversation_id",currentConversationId).order("created_at",{ascending:true});
   var box=document.getElementById("chatMessages");
   if(box){box.innerHTML=chatMessagesHtml(msgRes.data||[]);box.scrollTop=box.scrollHeight;}

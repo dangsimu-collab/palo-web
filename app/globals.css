@@ -758,14 +758,14 @@
   .cr-other-main{display:flex;flex-direction:column;gap:3px;min-width:0}
   .cr-name{font-size:12.5px;font-weight:700;color:var(--ink-2);margin-left:2px}
   .cr-other-line{display:flex;align-items:flex-end;gap:6px}
-  .cr-inputrow{flex-shrink:0;display:flex;align-items:center;gap:4px;padding:6px 8px max(28px,env(safe-area-inset-bottom,0px));background:var(--surface);border-top:1px solid var(--line)}
-  .chatroom.kb-up .cr-inputrow{padding-bottom:8px}
-  .cr-icon{background:none;border:none;color:var(--muted);cursor:pointer;padding:8px;display:flex;flex-shrink:0}
-  .cr-icon svg{width:24px;height:24px}
-  .cr-inputrow textarea{flex:1;min-width:0;min-height:24px;max-height:100px;border:none;background:none;padding:8px 6px;font-family:inherit;font-size:16px;resize:none;color:var(--ink);line-height:1.4}
+  .cr-inputrow{flex-shrink:0;display:flex;align-items:center;gap:4px;padding:6px 8px max(12px,env(safe-area-inset-bottom,0px));background:var(--surface);border-top:1px solid var(--line)}
+  .chatroom.kb-up .cr-inputrow{padding-bottom:6px}
+  .cr-icon{background:none;border:none;color:var(--muted);cursor:pointer;padding:7px;display:flex;align-items:center;flex-shrink:0}
+  .cr-icon svg{width:24px;height:24px;display:block}
+  .cr-inputrow textarea{flex:1;min-width:0;height:38px;max-height:100px;box-sizing:border-box;border:none;background:none;padding:9px 6px;font-family:inherit;font-size:16px;line-height:20px;resize:none;color:var(--ink);overflow-y:auto}
   .cr-inputrow textarea:focus{outline:none}
-  .cr-send{background:none;border:none;color:var(--brand);cursor:pointer;padding:8px;display:flex;flex-shrink:0}
-  .cr-send svg{width:24px;height:24px}
+  .cr-send{background:none;border:none;color:var(--brand);cursor:pointer;padding:7px;display:flex;align-items:center;flex-shrink:0}
+  .cr-send svg{width:24px;height:24px;display:block}
   @media(max-width:640px){.pf-stats{grid-template-columns:repeat(2,1fr)}}
 
   /* ===== 이용규칙 모달 ===== */
