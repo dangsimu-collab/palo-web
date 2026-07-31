@@ -2882,7 +2882,8 @@ function closeNotif(){document.getElementById("notifPanel").classList.remove("op
 function notifClick(i){
   var n=NOTIFS[i];n.read=true;syncNotifBadge();closeNotif();
   if(n.dbId)window.supabase.from("notifications").update({is_read:true}).eq("id",n.dbId).then(function(){});
-  if(n.chatUser)openChat(n.chatUser);
+  if(n.type==="review_alert")openReviewAnalysis(n.reviewUser);
+  else if(n.chatUser)openChat(n.chatUser);
   else if(n.post)openPost(n.post);
   else if(n.commission)cmOpenCommissionById(n.commission);
   else if(n.cmTarget==="reviews")cmOpenReviews();
@@ -3002,7 +3003,7 @@ function leaveChat(){
 /* ---------- 알림 (DB 저장, notifications 테이블) ---------- */
 var globalNotifChannel=null;
 function dbRowToNotif(row){
-  return {dbId:row.id,type:row.type,icon:row.icon||"🔔",txt:row.content,time:timeAgo(row.created_at),chatUser:row.link_chat_user,post:row.link_post_id?100000+row.link_post_id:null,commission:row.link_commission_id||null,read:row.is_read};
+  return {dbId:row.id,type:row.type,icon:row.icon||"🔔",txt:row.content,time:timeAgo(row.created_at),chatUser:row.link_chat_user,post:row.link_post_id?100000+row.link_post_id:null,commission:row.link_commission_id||null,reviewUser:row.link_reviewed_user_id||null,read:row.is_read};
 }
 async function loadNotificationsFromDB(){
   var res=await window.supabase.from("notifications").select("*").eq("user_id",AUTH.user.id).order("created_at",{ascending:false}).limit(50);
@@ -3332,6 +3333,7 @@ function openProfile(){
          '<button class="pf-edit" onclick="openAdminAdReview()">광고 심사</button>'+
          '<button class="pf-edit" onclick="openAdminAdList()">전체 광고 목록</button>'+
          '<button class="pf-edit" onclick="openAdminCampaigns()">🎯 유료 광고 관리</button>'+
+         '<button class="pf-edit" onclick="openReviewAnalysis()">🔍 후기 분석'+(function(){var n=reviewSuspicionCountSync();return n?' <span style="background:#e0607a;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:800">'+n+'</span>':'';})()+'</button>'+
          '<button class="pf-edit" onclick="openManagerPickList()">📌 매니저 픽 관리</button>'+
        '</div>';
   }
@@ -3700,6 +3702,132 @@ async function openCampaignReport(id){
   h+='<button class="pf-edit" onclick="openAdminCampaigns()" style="margin-top:16px">← 광고 관리로 돌아가기</button></div>';
   document.getElementById("main").innerHTML=h;
   window.scrollTo({top:0,behavior:"smooth"});
+}
+
+/* ---------- 후기 조작 탐지·분석 (관리자) — DB 트리거와 같은 임계값을 클라이언트에서 재계산 ---------- */
+var REVIEW_SURGE=5, REVIEW_REPEAT=2, REVIEW_NEWACCT=3;
+function reviewPosts(){return POSTS.filter(function(p){return p.board==='review'&&p.reviewedUserId;});}
+function reviewPairSet(){ // "X가 Y를 후기함" 쌍 집합 — 상호 후기 판정용
+  var s={};reviewPosts().forEach(function(p){if(p.authorId&&p.reviewedUserId)s[p.authorId+'|'+p.reviewedUserId]=true;});return s;
+}
+function reviewAnalysisScan(createdMap){ // createdMap 있으면 신규계정 신호 포함
+  var byArtist={};
+  reviewPosts().forEach(function(p){
+    (byArtist[p.reviewedUserId]=byArtist[p.reviewedUserId]||{id:p.reviewedUserId,nick:p.reviewedNickname||'(알 수 없음)',revs:[]}).revs.push(p);
+  });
+  var pairs=reviewPairSet(),now=Date.now(),D=86400000,out=[];
+  Object.keys(byArtist).forEach(function(aid){
+    var g=byArtist[aid],revs=g.revs,times=revs.map(function(r){return new Date(r.createdAt).getTime();});
+    var surge=0;
+    for(var i=0;i<times.length;i++){var cnt=0;for(var j=0;j<times.length;j++){if(times[j]>=times[i]&&times[j]<times[i]+D)cnt++;}if(cnt>surge)surge=cnt;}
+    var byAuthor={};revs.forEach(function(r){if(r.authorId)byAuthor[r.authorId]=(byAuthor[r.authorId]||0)+1;});
+    var repeatMax=0,repeatReviewers=0;
+    Object.keys(byAuthor).forEach(function(k){if(byAuthor[k]>repeatMax)repeatMax=byAuthor[k];if(byAuthor[k]>=REVIEW_REPEAT)repeatReviewers++;});
+    var recip=Object.keys(byAuthor).some(function(rv){return pairs[aid+'|'+rv];});
+    var newAcct=0;
+    if(createdMap){var seen={};revs.forEach(function(r){if(!r.authorId||seen[r.authorId])return;var ca=createdMap[r.authorId];if(ca&&(now-new Date(ca).getTime()<7*D)&&(now-new Date(r.createdAt).getTime()<7*D)){seen[r.authorId]=true;newAcct++;}});}
+    var sig=[];
+    if(surge>=REVIEW_SURGE)sig.push('급증 24h '+surge+'건');
+    if(repeatReviewers>0)sig.push('중복 리뷰어 '+repeatReviewers+'명(최다 '+repeatMax+'건)');
+    if(recip)sig.push('상호 후기(품앗이)');
+    if(newAcct>=REVIEW_NEWACCT)sig.push('신규 계정 '+newAcct+'명');
+    if(!sig.length)return;
+    var score=(surge>=REVIEW_SURGE?2:0)+(repeatReviewers>0?3:0)+(recip?3:0)+(newAcct>=REVIEW_NEWACCT?2:0);
+    out.push({id:aid,nick:g.nick,revs:revs,signals:sig,score:score,total:revs.length,byAuthor:byAuthor});
+  });
+  out.sort(function(a,b){return b.score-a.score||b.total-a.total;});
+  return out;
+}
+function reviewSuspicionCountSync(){try{return reviewAnalysisScan(null).length;}catch(e){return 0;}}
+async function reviewFetchCreatedMap(){
+  var ids={};reviewPosts().forEach(function(p){if(p.authorId)ids[p.authorId]=true;});
+  var list=Object.keys(ids);
+  if(!list.length||!window.supabase)return {};
+  var res=await window.supabase.from('profiles').select('id,created_at').in('id',list);
+  var m={};(res.data||[]).forEach(function(r){m[r.id]=r.created_at;});
+  return m;
+}
+async function openReviewAnalysis(focusArtistId){
+  if(!AUTH.profile||!AUTH.profile.is_admin){toast("관리자만 사용할 수 있어요");return;}
+  var createdMap=await reviewFetchCreatedMap();
+  var flagged=reviewAnalysisScan(createdMap);
+  if(focusArtistId){
+    var target=flagged.find(function(x){return x.id===focusArtistId;});
+    if(!target){
+      var rv=reviewPosts().filter(function(p){return p.reviewedUserId===focusArtistId;});
+      var ba={};rv.forEach(function(r){if(r.authorId)ba[r.authorId]=(ba[r.authorId]||0)+1;});
+      target={id:focusArtistId,nick:(rv[0]&&rv[0].reviewedNickname)||'(알 수 없음)',revs:rv,signals:[],score:0,total:rv.length,byAuthor:ba};
+    }
+    document.getElementById("main").innerHTML=reviewAnalysisArtistHTML(target,createdMap);
+    window.scrollTo({top:0,behavior:"smooth"});return;
+  }
+  var h='<div class="profile"><div class="pf-sec">🔍 후기 조작 분석</div>';
+  h+='<div style="text-align:left;padding:12px 14px;background:var(--surface-2);border-radius:10px;margin-bottom:12px;font-size:12.5px;line-height:1.7;color:var(--ink-2)">'+
+     '의심 <b>신호</b>가 걸린 작가만 표시됩니다. 정상적인 인기 급증도 걸릴 수 있어 최종 판단은 관리자 몫이에요.<br>'+
+     '기준: 급증 24h '+REVIEW_SURGE+'건↑ · 중복 리뷰어 '+REVIEW_REPEAT+'건↑ · 신규계정 '+REVIEW_NEWACCT+'명↑ · 상호 후기</div>';
+  if(!flagged.length){
+    h+='<div class="pf-empty">의심되는 후기 패턴이 없어요 👍</div>';
+  }else{
+    h+='<div class="list">';
+    flagged.forEach(function(f){
+      h+='<div class="post rip" onclick="openReviewAnalysis(\''+cmQ(f.id)+'\')"><div class="pmain">'+
+        '<div class="ptitle">⚠️ '+esc(f.nick)+' <span style="font-size:12px;color:var(--muted);font-weight:500">· 후기 '+f.total+'건 · 위험도 '+f.score+'</span></div>'+
+        '<div class="pmeta" style="flex-wrap:wrap;gap:5px">'+f.signals.map(function(s){return '<span style="background:#fbe6ec;color:#c0392b;padding:2px 7px;border-radius:6px;font-size:11.5px">'+esc(s)+'</span>';}).join('')+'</div>'+
+      '</div></div>';
+    });
+    h+='</div>';
+  }
+  h+='<button class="pf-edit" onclick="openProfile()" style="margin-top:16px">내 정보로 돌아가기</button></div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function reviewAnalysisArtistHTML(f,createdMap){
+  var now=Date.now(),D=86400000;
+  var revs=f.revs.slice().sort(function(a,b){return new Date(b.createdAt)-new Date(a.createdAt);});
+  var good=revs.filter(function(r){return r.commissionSentiment==='good';}).length;
+  var bad=revs.filter(function(r){return r.commissionSentiment==='bad';}).length;
+  var byDay={};revs.forEach(function(r){var d=new Date(r.createdAt);var k=(d.getMonth()+1)+'/'+d.getDate();byDay[k]=(byDay[k]||0)+1;});
+  var days=[];for(var i=13;i>=0;i--){var d=new Date(now-i*D);var k=(d.getMonth()+1)+'/'+d.getDate();days.push({label:k,count:byDay[k]||0});}
+  var maxc=days.reduce(function(m,x){return Math.max(m,x.count);},1);
+  var bars=days.map(function(x){var hp=Math.round(x.count/maxc*100);return '<div style="flex:0 0 auto;width:22px;height:100%;display:flex;flex-direction:column;align-items:center" title="'+x.label+': '+x.count+'건"><div style="flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center"><div style="width:60%;min-height:'+(x.count?2:0)+'px;height:'+hp+'%;background:'+(x.count>=REVIEW_SURGE?'#c0392b':'var(--brand)')+';border-radius:3px 3px 0 0"></div></div><div style="font-size:8px;color:var(--muted);margin-top:4px;white-space:nowrap">'+x.label+'</div></div>';}).join('');
+  var pairs=reviewPairSet();
+  var authors=Object.keys(f.byAuthor).map(function(aid){
+    var rev=revs.find(function(r){return r.authorId===aid;});
+    var ca=createdMap&&createdMap[aid];
+    return {id:aid,nick:(rev&&rev.author)||'(익명)',count:f.byAuthor[aid],newAcct:ca&&(now-new Date(ca).getTime()<7*D),recip:!!pairs[f.id+'|'+aid]};
+  }).sort(function(a,b){return b.count-a.count;});
+  var h='<div class="profile"><div class="pf-sec">🔍 '+esc(f.nick)+' 후기 분석</div>';
+  if(f.signals.length){
+    h+='<div class="pmeta" style="flex-wrap:wrap;gap:5px;margin-bottom:12px">'+f.signals.map(function(s){return '<span style="background:#fbe6ec;color:#c0392b;padding:3px 9px;border-radius:7px;font-size:12px;font-weight:700">⚠️ '+esc(s)+'</span>';}).join('')+'</div>';
+  }
+  h+='<div class="pf-stats"><div class="pf-st"><b>'+revs.length+'</b><span>총 후기</span></div>'+
+     '<div class="pf-st"><b>'+good+'</b><span>😊 만족</span></div>'+
+     '<div class="pf-st"><b>'+bad+'</b><span>😞 불호</span></div></div>';
+  h+='<div class="pf-sec">최근 14일 후기 추이</div>';
+  h+='<div style="display:flex;gap:4px;overflow-x:auto;align-items:flex-end;height:130px;padding:8px 2px;border-bottom:1px solid var(--line-2)">'+bars+'</div>';
+  h+='<div class="pf-sec">리뷰어별 ('+authors.length+'명)</div><div class="list">';
+  authors.forEach(function(a){
+    var tags=[];
+    if(a.count>=REVIEW_REPEAT)tags.push('중복 '+a.count+'건');
+    if(a.recip)tags.push('품앗이');
+    if(a.newAcct)tags.push('신규계정');
+    h+='<div class="post"><div class="pmain">'+
+      '<div class="ptitle" style="cursor:pointer" onclick="openUserProfile(\''+cmQ(a.id)+'\')">'+esc(a.nick)+'</div>'+
+      '<div class="pmeta"><span class="mv">후기 '+a.count+'건</span>'+(tags.length?'<span class="sep"></span><span class="mv" style="color:#c0392b;font-weight:700">'+esc(tags.join(' · '))+'</span>':'')+'</div>'+
+    '</div></div>';
+  });
+  h+='</div>';
+  h+='<div class="pf-sec">후기 목록</div><div class="list">';
+  revs.forEach(function(r){
+    var body=(r.content&&r.content.length)?r.content.join(' ').slice(0,60):'';
+    h+='<div class="post rip" onclick="openPost('+r.id+')"><div class="pmain">'+
+      '<div class="ptitle">'+(r.commissionSentiment==='good'?'😊':'😞')+' '+esc(r.author)+' <span style="font-size:12px;color:var(--muted);font-weight:500">'+esc(r.time)+'</span></div>'+
+      (body?'<div class="pmeta"><span class="mv">'+esc(body)+'</span></div>':'')+
+    '</div></div>';
+  });
+  h+='</div>';
+  h+='<button class="pf-edit" onclick="openReviewAnalysis()" style="margin-top:16px">← 분석 목록으로</button></div>';
+  return h;
 }
 async function adminViewConversation(conversationId,reportId,backTo){
   var convRes=await window.supabase.from("conversations").select("*").eq("id",conversationId).single();
