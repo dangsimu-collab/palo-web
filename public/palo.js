@@ -3004,14 +3004,14 @@ var chatRoomVpListener=null;
 function unsubscribeFromChat(){
   if(chatChannel){window.supabase.removeChannel(chatChannel);chatChannel=null;}
 }
-// 채팅방 오버레이를 "보이는 영역(visual viewport)"에 정확히 맞춤 — 키보드가 떠도 튕기지 않고 입력창이 그 위에 유지됨
+// 채팅방 오버레이: top은 고정(헤더 안 움직임)하고 bottom만 키보드 높이만큼 올려 아래에서만 줄어들게 함.
+// CSS transition(bottom)으로 한 프레임 점프가 아니라 부드럽게 올라오는 효과.
 function fitChatRoom(){
   var el=document.getElementById("chatRoom");if(!el||!el.classList.contains("open"))return;
   var vv=window.visualViewport;
-  var h=(vv&&vv.height)||window.innerHeight;
-  el.style.height=h+"px";
-  // iOS는 키보드가 뜨면 페이지를 위로 스크롤(offsetTop↑)하므로, 그만큼 아래로 내려 보이는 영역에 정렬
-  el.style.transform=vv?("translateY("+vv.offsetTop+"px)"):"";
+  var kb=vv?Math.max(0,Math.round((window.innerHeight||0)-vv.height-(vv.offsetTop||0))):0;
+  el.style.bottom=kb+"px";
+  el.classList.toggle("kb-up",kb>2); // 키보드가 떠 있으면 입력줄 하단 여백 축소
   var box=document.getElementById("chatMessages");if(box)box.scrollTop=box.scrollHeight;
 }
 function leaveChat(){
@@ -3021,7 +3021,7 @@ function leaveChat(){
   cmPendingChatRef=null;
   document.body.classList.remove("chat-open");
   var el=document.getElementById("chatRoom");
-  if(el){el.classList.remove("open");el.innerHTML="";el.style.height="";el.style.transform="";}
+  if(el){el.classList.remove("open","kb-up");el.innerHTML="";el.style.height="";el.style.transform="";el.style.bottom="";}
   if(chatRoomVpListener&&window.visualViewport){window.visualViewport.removeEventListener("resize",chatRoomVpListener);window.visualViewport.removeEventListener("scroll",chatRoomVpListener);chatRoomVpListener=null;}
 }
 /* ---------- 알림 (DB 저장, notifications 테이블) ---------- */
