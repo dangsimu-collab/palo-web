@@ -3104,6 +3104,7 @@ function subscribeToNotifications(){
         if(row.link_conversation_id===currentConversationId)return;
       }else if(row.type==="cm"&&!SETTINGS.cm)return;
       else if(row.type==="like"&&!SETTINGS.like)return;
+      else if(row.type==="cm_inquiry"&&!SETTINGS.cminquiry)return;
       NOTIFS.unshift(dbRowToNotif(row));
       syncNotifBadge();
       toast(row.content,row.icon||"🔔");
