@@ -3006,6 +3006,7 @@ function leaveChat(){
   currentConversationId=null;
   currentChatPartnerId=null;
   cmPendingChatRef=null;
+  if(chatViewportListener&&window.visualViewport){window.visualViewport.removeEventListener("resize",chatViewportListener);chatViewportListener=null;}
 }
 /* ---------- 알림 (DB 저장, notifications 테이블) ---------- */
 var globalNotifChannel=null;
@@ -3172,11 +3173,21 @@ function renderChatList(convs,partnerIds,nickById,lastMsgByConv,unreadByConv){
   document.getElementById("main").innerHTML=h;
   window.scrollTo({top:0,behavior:"smooth"});
 }
+var chatViewportListener=null;
+// 모바일 채팅: 보이는 영역(키보드 제외)에 맞춰 채팅뷰 높이를 조절 → 입력창이 키보드에 안 가림, 하단바 튐 없음
+function fitChatView(){
+  var v=document.getElementById("chatView");if(!v)return;
+  if(!window.matchMedia("(max-width:860px)").matches){v.style.height="";return;} // 데스크톱은 일반 레이아웃
+  var h=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;
+  v.style.height=h+"px";
+  var box=document.getElementById("chatMessages");if(box)box.scrollTop=box.scrollHeight;
+}
 function renderChatView(partnerName,messages){
-  var h='<div class="profile">'+
-    '<button class="d-back" onclick="renderList()">← 목록으로</button>'+
-    '<div class="pf-card"><div class="pf-ava">'+esc(partnerName[0])+'</div><div class="pf-info"><div class="pf-name">'+esc(partnerName)+'</div></div>'+
-      '<button class="d-act" onclick="reportChat()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>신고</button>'+
+  var h='<div class="chat-view" id="chatView">'+
+    '<div class="chat-top">'+
+      '<button class="chat-back" onclick="renderList()" aria-label="목록으로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>'+
+      '<div class="chat-top-name">'+esc(partnerName)+'</div>'+
+      '<button class="chat-top-report" onclick="reportChat()" aria-label="신고"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg></button>'+
     '</div>'+
     '<div id="chatMessages" class="chat-list">'+chatMessagesHtml(messages)+'</div>'+
     '<div class="chat-inputrow">'+
@@ -3185,9 +3196,10 @@ function renderChatView(partnerName,messages){
     '</div>'+
   '</div>';
   document.getElementById("main").innerHTML=h;
+  fitChatView();
+  if(window.visualViewport&&!chatViewportListener){chatViewportListener=fitChatView;window.visualViewport.addEventListener("resize",chatViewportListener);}
   var box=document.getElementById("chatMessages");
   if(box)box.scrollTop=box.scrollHeight;
-  window.scrollTo({top:0,behavior:"smooth"});
 }
 async function sendChatMessage(){
   var inp=document.getElementById("chatInput");
