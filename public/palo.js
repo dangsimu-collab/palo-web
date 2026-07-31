@@ -3004,11 +3004,14 @@ var chatRoomVpListener=null;
 function unsubscribeFromChat(){
   if(chatChannel){window.supabase.removeChannel(chatChannel);chatChannel=null;}
 }
-// 채팅방 오버레이 높이를 보이는 영역(키보드 제외)에 맞춤 — body 최상위 오버레이라 아이폰에서도 fixed가 정상 동작
+// 채팅방 오버레이를 "보이는 영역(visual viewport)"에 정확히 맞춤 — 키보드가 떠도 튕기지 않고 입력창이 그 위에 유지됨
 function fitChatRoom(){
   var el=document.getElementById("chatRoom");if(!el||!el.classList.contains("open"))return;
-  var h=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;
+  var vv=window.visualViewport;
+  var h=(vv&&vv.height)||window.innerHeight;
   el.style.height=h+"px";
+  // iOS는 키보드가 뜨면 페이지를 위로 스크롤(offsetTop↑)하므로, 그만큼 아래로 내려 보이는 영역에 정렬
+  el.style.transform=vv?("translateY("+vv.offsetTop+"px)"):"";
   var box=document.getElementById("chatMessages");if(box)box.scrollTop=box.scrollHeight;
 }
 function leaveChat(){
@@ -3018,8 +3021,8 @@ function leaveChat(){
   cmPendingChatRef=null;
   document.body.classList.remove("chat-open");
   var el=document.getElementById("chatRoom");
-  if(el){el.classList.remove("open");el.innerHTML="";el.style.height="";}
-  if(chatRoomVpListener&&window.visualViewport){window.visualViewport.removeEventListener("resize",chatRoomVpListener);chatRoomVpListener=null;}
+  if(el){el.classList.remove("open");el.innerHTML="";el.style.height="";el.style.transform="";}
+  if(chatRoomVpListener&&window.visualViewport){window.visualViewport.removeEventListener("resize",chatRoomVpListener);window.visualViewport.removeEventListener("scroll",chatRoomVpListener);chatRoomVpListener=null;}
 }
 /* ---------- 알림 (DB 저장, notifications 테이블) ---------- */
 var globalNotifChannel=null;
@@ -3245,7 +3248,11 @@ function renderChatView(partnerName,messages){
     '</div>';
   el.classList.add("open");
   fitChatRoom();
-  if(window.visualViewport&&!chatRoomVpListener){chatRoomVpListener=fitChatRoom;window.visualViewport.addEventListener("resize",chatRoomVpListener);}
+  if(window.visualViewport&&!chatRoomVpListener){
+    chatRoomVpListener=fitChatRoom;
+    window.visualViewport.addEventListener("resize",chatRoomVpListener);
+    window.visualViewport.addEventListener("scroll",chatRoomVpListener);
+  }
   var box=document.getElementById("chatMessages");
   if(box)box.scrollTop=box.scrollHeight;
 }

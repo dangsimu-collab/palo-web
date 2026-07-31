@@ -758,12 +758,12 @@
   .cr-other-main{display:flex;flex-direction:column;gap:3px;min-width:0}
   .cr-name{font-size:12.5px;font-weight:700;color:var(--ink-2);margin-left:2px}
   .cr-other-line{display:flex;align-items:flex-end;gap:6px}
-  .cr-inputrow{flex-shrink:0;display:flex;align-items:flex-end;gap:8px;padding:8px 12px calc(8px + env(safe-area-inset-bottom,8px));background:var(--surface);border-top:1px solid var(--line)}
-  .cr-icon{background:none;border:none;color:var(--muted);cursor:pointer;padding:6px;display:flex;flex-shrink:0}
+  .cr-inputrow{flex-shrink:0;display:flex;align-items:flex-end;gap:6px;padding:8px 10px max(22px,env(safe-area-inset-bottom,0px));background:var(--surface);border-top:1px solid var(--line)}
+  .cr-icon{background:none;border:none;color:var(--muted);cursor:pointer;padding:9px;display:flex;flex-shrink:0}
   .cr-icon svg{width:24px;height:24px}
-  .cr-inputrow textarea{flex:1;min-width:0;min-height:40px;max-height:120px;border:none;background:var(--surface-2);border-radius:20px;padding:10px 16px;font-family:inherit;font-size:16px;resize:none;color:var(--ink);line-height:1.4}
+  .cr-inputrow textarea{flex:1;min-width:0;min-height:42px;max-height:120px;border:none;background:var(--surface-2);border-radius:20px;padding:11px 16px;font-family:inherit;font-size:16px;resize:none;color:var(--ink);line-height:1.4}
   .cr-inputrow textarea:focus{outline:none}
-  .cr-send{background:none;border:none;color:var(--brand);cursor:pointer;padding:6px;display:flex;flex-shrink:0}
+  .cr-send{background:none;border:none;color:var(--brand);cursor:pointer;padding:9px;display:flex;flex-shrink:0}
   .cr-send svg{width:24px;height:24px}
   @media(max-width:640px){.pf-stats{grid-template-columns:repeat(2,1fr)}}
 
