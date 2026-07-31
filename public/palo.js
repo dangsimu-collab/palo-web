@@ -1307,7 +1307,6 @@ function cmCardHTML(d,idx){
       '<div class="cm-bookmark'+(bookmarked?' on':'')+'" onclick="event.stopPropagation();cmToggleBookmark('+d.id+',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4z"/></svg></div></div>'+
     '<div class="cm-c-artist">'+esc(d.artist)+'</div>'+
     '<div class="cm-c-title">'+esc(d.title)+'</div>'+
-    '<div class="cm-c-price">'+esc(d.price)+'</div>'+
     (tagsLine?'<div class="cm-c-tags">'+esc(tagsLine)+'</div>':'')+
     '<div class="cm-c-meta"><span>♥ '+(d.likes||0)+'</span><span>💬 '+(d.reviewCount||0)+'</span></div></div>';
 }
@@ -1543,7 +1542,7 @@ async function cmOpenCommissionById(commissionId){
 function cmDetailHTML(d,idx){
   var artist=d.artist||'나';
   var title=d.title||'제목 없음';
-  var price=d.price||'0P~';
+  var price=d.price||'0';
   var period=d.period||'작가 설정 (예: 3~7일)';
   var desc=d.desc||'그림체 아래 샘플(팬아트, 커미션 샘플) 확인해주세요.\n\n두상: 어깨선\n흉상: 명치선 - 허리 위\n반신: 골반 - 허벅지 중간\n\n추가금 문의 편하게 주세요.';
   var descHTML=d.descHtml?sanitizePostHtml(d.descHtml):null;
@@ -1580,7 +1579,7 @@ function cmDetailHTML(d,idx){
     '<div class="cm-d-body">'+
       satisfactionHTML+
       '<div class="cm-d-title">'+esc(title)+'</div>'+
-      '<div class="cm-d-price">'+esc(price)+'</div>'+
+      (d.hidePrice?'':'<div class="cm-d-price">'+esc(price)+'원</div>')+
       '<div class="cm-artist-row" onclick="'+(d.authorId?('openUserProfile(\''+cmQ(d.authorId)+'\')'):('cmOpenArtistProfile(\''+cmQ(artist)+'\')'))+'">'+
         '<div class="cm-l"><div class="cm-ava"></div><div><span class="cm-nm">'+esc(artist)+'</span> <span class="cm-rv">'+realReviews.length+'개 후기</span></div></div>'+
         '<div class="cm-r"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 2l4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3"/></svg>0</span>'+
@@ -1849,7 +1848,7 @@ function cmRenderRegisterScreen(){
       '<div class="cm-reg-label">커미션 제목 <span class="cm-reg-req">*</span></div>'+
       '<input class="cm-reg-input" id="cmRegTitle" placeholder="예: LD 반신 채색 커미션" oninput="cmCheckReg()" value="'+esc(cmReg.title)+'">'+
       '<div class="cm-reg-label">가격 <span class="cm-reg-req">*</span></div>'+
-      '<div class="cm-reg-price"><input class="cm-reg-input" id="cmRegPrice" type="number" placeholder="19000" oninput="cmCheckReg()" value="'+esc(cmReg.price)+'"><span class="cm-unit">P ~</span></div>'+
+      '<div class="cm-reg-price"><input class="cm-reg-input" id="cmRegPrice" type="number" placeholder="19000" oninput="cmCheckReg()" value="'+esc(cmReg.price)+'"><span class="cm-unit">원 ~</span></div>'+
       '<div class="cm-reg-label">커미션 태그 <span class="cm-reg-req">*</span> <span class="cm-reg-sub">최대 5개 · 검색어 노출에 사용돼요</span></div>'+
       '<input class="cm-reg-input" id="cmRegTagInput" placeholder="예: 반신, 두상, 빠른마감 (입력 후 Enter)" onkeydown="cmOnTagKey(event)">'+
       '<div class="cm-reg-taglist" id="cmRegTagList">'+tagsHTML+'</div>'+
@@ -2078,13 +2077,13 @@ function cmCheckReg(){
 function cmPreviewReg(){
   cmSyncReg();
   var title=cmReg.title.trim()||'제목 없음';
-  var price=(cmReg.price?Number(cmReg.price).toLocaleString():'0')+'P~';
+  var price=(cmReg.price?Number(cmReg.price).toLocaleString():'0')+'원~';
   var period=cmReg.period.trim()||'작가 설정';
   var slots=cmReg.slots.trim();
   var desc=cmReg.desc.trim()||'(설명 없음)';
   var usage=cmReg.usage.trim();
   var policy=cmReg.policy.trim();
-  cmPreviewObj={artist:'나',channel:'내 커미션',title:title,price:price,period:period,slots:slots,
+  cmPreviewObj={artist:'나',channel:'내 커미션',title:title,price:price,hidePrice:true,period:period,slots:slots,
     desc:desc,descHtml:cmReg.descHtml,usage:usage,policy:policy,tags:cmReg.tags.slice(),images:cmReg.images.slice(),likes:0};
   cmDetailCtx={from:'register',idx:0};
   document.getElementById('main').innerHTML=cmDetailHTML(cmPreviewObj,0);
@@ -2138,7 +2137,7 @@ function cmMyListHTML(){
       :'<button class="cm-my-edit" onclick="cmOpenRegister('+c.id+')">수정</button>';
     return '<div class="cm-my-item"><div class="cm-my-thumb" style="'+thumbStyle+'"></div>'+
       '<div class="cm-my-info"><div class="cm-my-title">'+esc(c.title)+'</div>'+
-        '<div class="cm-my-price">'+Number(c.price).toLocaleString()+'P~</div>'+st+'</div>'+
+        '<div class="cm-my-price">'+Number(c.price).toLocaleString()+'원~</div>'+st+'</div>'+
       '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">'+editBtn+
         '<button class="cm-my-edit" onclick="openCreateAdForCommission('+c.id+')">📢 광고</button></div></div>';
   }).join('');

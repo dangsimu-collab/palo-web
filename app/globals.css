@@ -904,8 +904,8 @@
   .cm-d-body{padding:20px 18px}
   .cm-verify{display:flex;align-items:center;gap:6px;color:#3f8f5f;font-size:13.5px;font-weight:700;margin-bottom:10px}
   .cm-verify svg{width:17px;height:17px}
-  .cm-d-title{font-size:23px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
-  .cm-d-price{font-size:22px;font-weight:800;color:var(--brand-2);margin-bottom:16px}
+  .cm-d-title{font-size:23px;font-weight:800;letter-spacing:-.02em;margin-bottom:3px}
+  .cm-d-price{font-size:15px;font-weight:700;color:var(--brand-2);margin-bottom:16px}
   .cm-artist-row{display:flex;align-items:center;justify-content:space-between;padding:14px 0;
     border-top:1px solid var(--line-2);border-bottom:1px solid var(--line-2);cursor:pointer}
   .cm-artist-row .cm-l{display:flex;align-items:center;gap:10px}
