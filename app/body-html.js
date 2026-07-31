@@ -102,6 +102,9 @@ export const BODY_HTML = `
   </div>
 </nav>
 
+<!-- 1:1 채팅방 (전체화면 오버레이, body 최상위라 fixed가 iOS에서도 정상 동작) -->
+<div id="chatRoom" class="chatroom" aria-label="채팅방"></div>
+
 <!-- write editor (full screen, cafe-style) -->
 <div class="editor" id="writeModal" aria-label="글쓰기">
   <div class="ed-top">

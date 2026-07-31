@@ -2997,9 +2997,19 @@ function getUserIdFromPath(){
 /* ---------- 1:1 채팅 ---------- */
 var currentConversationId=null;
 var currentChatPartnerId=null;
+var currentChatPartnerName="";
+var currentChatPartnerAvatar=null;
 var chatChannel=null;
+var chatRoomVpListener=null;
 function unsubscribeFromChat(){
   if(chatChannel){window.supabase.removeChannel(chatChannel);chatChannel=null;}
+}
+// 채팅방 오버레이 높이를 보이는 영역(키보드 제외)에 맞춤 — body 최상위 오버레이라 아이폰에서도 fixed가 정상 동작
+function fitChatRoom(){
+  var el=document.getElementById("chatRoom");if(!el||!el.classList.contains("open"))return;
+  var h=(window.visualViewport&&window.visualViewport.height)||window.innerHeight;
+  el.style.height=h+"px";
+  var box=document.getElementById("chatMessages");if(box)box.scrollTop=box.scrollHeight;
 }
 function leaveChat(){
   unsubscribeFromChat();
@@ -3007,6 +3017,9 @@ function leaveChat(){
   currentChatPartnerId=null;
   cmPendingChatRef=null;
   document.body.classList.remove("chat-open");
+  var el=document.getElementById("chatRoom");
+  if(el){el.classList.remove("open");el.innerHTML="";el.style.height="";}
+  if(chatRoomVpListener&&window.visualViewport){window.visualViewport.removeEventListener("resize",chatRoomVpListener);chatRoomVpListener=null;}
 }
 /* ---------- 알림 (DB 저장, notifications 테이블) ---------- */
 var globalNotifChannel=null;
@@ -3098,8 +3111,10 @@ async function openChat(otherUserId){
   currentConversationId=conv.id;
   currentChatPartnerId=otherUserId;
 
-  var profRes=await window.supabase.from("profiles").select("nickname").eq("id",otherUserId).single();
+  var profRes=await window.supabase.from("profiles").select("nickname,avatar_url").eq("id",otherUserId).single();
   var partnerName=profRes.data?profRes.data.nickname:"상대방";
+  currentChatPartnerName=partnerName;
+  currentChatPartnerAvatar=profRes.data?profRes.data.avatar_url:null;
 
   var msgRes=await window.supabase.from("messages").select("*").eq("conversation_id",conv.id).order("created_at",{ascending:true});
   if(msgRes.error){toast("대화를 불러오지 못했어요: "+msgRes.error.message);return;}
@@ -3107,18 +3122,37 @@ async function openChat(otherUserId){
   subscribeToChat(conv.id);
   window.supabase.rpc("mark_messages_read",{p_conversation_id:conv.id}).then(function(){});
 }
+var CHAT_WEEKDAYS=["일","월","화","수","목","금","토"];
+function chatTimeLabel(iso){var d=new Date(iso);var hh=d.getHours(),ampm=hh<12?"오전":"오후",h12=hh%12||12;return ampm+" "+String(h12).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");}
+function chatDividerLabel(iso){var d=new Date(iso);return d.getFullYear()+"."+String(d.getMonth()+1).padStart(2,"0")+"."+String(d.getDate()).padStart(2,"0")+" ("+CHAT_WEEKDAYS[d.getDay()]+")";}
 function chatMessagesHtml(messages){
-  if(!messages.length)return '<div class="pf-empty">아직 대화가 없어요. 첫 메시지를 보내보세요!</div>';
-  return messages.map(function(m){
+  if(!messages.length)return '<div class="cr-empty">아직 대화가 없어요. 첫 메시지를 보내보세요!</div>';
+  var h="",lastDay="",prevSender=null;
+  messages.forEach(function(m){
+    var dayKey=new Date(m.created_at).toDateString();
+    if(dayKey!==lastDay){h+='<div class="cr-divider"><span>'+esc(chatDividerLabel(m.created_at))+'</span></div>';lastDay=dayKey;prevSender=null;}
     var mine=m.sender_id===AUTH.user.id;
-    var bubble=m.commission_id
-      ?('<div class="chat-bubble chat-commission-ref" onclick="cmOpenCommissionById('+m.commission_id+')">'+esc(m.content)+' <span class="chat-ref-arrow">→</span></div>')
-      :('<div class="chat-bubble">'+esc(m.content)+'</div>');
-    return '<div class="chat-msg'+(mine?' mine':'')+'" data-msg-id="'+m.id+'">'+
-      bubble+
-      (mine?'<span class="chat-read-status">'+(m.is_read?'읽음':'')+'</span>':'')+
-    '</div>';
-  }).join("");
+    var firstOfGroup=(m.sender_id!==prevSender);prevSender=m.sender_id;
+    var time='<span class="cr-time">'+esc(chatTimeLabel(m.created_at))+'</span>';
+    var bcls='cr-bubble'+(m.commission_id?' cr-commission':'');
+    var bclick=m.commission_id?(' onclick="cmOpenCommissionById('+m.commission_id+')"'):'';
+    var content=esc(m.content)+(m.commission_id?' <span class="cr-arrow">→</span>':'');
+    if(mine){
+      h+='<div class="cr-row mine">'+
+        '<div class="cr-meta">'+(m.is_read?'<span class="cr-read">읽음</span>':'')+time+'</div>'+
+        '<div class="'+bcls+'"'+bclick+'>'+content+'</div>'+
+      '</div>';
+    }else{
+      h+='<div class="cr-row other'+(firstOfGroup?' first':'')+'">'+
+        '<div class="cr-ava">'+(firstOfGroup?avatarHTML(currentChatPartnerName,currentChatPartnerAvatar):'')+'</div>'+
+        '<div class="cr-other-main">'+
+          (firstOfGroup?'<div class="cr-name">'+esc(currentChatPartnerName)+'</div>':'')+
+          '<div class="cr-other-line"><div class="'+bcls+'"'+bclick+'>'+content+'</div>'+time+'</div>'+
+        '</div>'+
+      '</div>';
+    }
+  });
+  return h;
 }
 async function openChatList(){
   if(!AUTH.user){toast("로그인이 필요해요");loginWithGoogle();return;}
@@ -3195,22 +3229,25 @@ function filterChatList(q){
   }
 }
 function renderChatView(partnerName,messages){
-  var h='<div class="profile">'+
-    '<button class="d-back" onclick="renderList()">← 목록으로</button>'+
-    '<div class="pf-card"><div class="pf-ava">'+esc(partnerName[0])+'</div><div class="pf-info"><div class="pf-name">'+esc(partnerName)+'</div></div>'+
-      '<button class="d-act" onclick="reportChat()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>신고</button>'+
+  var el=document.getElementById("chatRoom");
+  if(!el)return;
+  el.innerHTML=
+    '<div class="cr-top">'+
+      '<button class="cr-back" onclick="openChatList()" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>'+
+      '<div class="cr-title">'+esc(partnerName)+'</div>'+
+      '<button class="cr-report" onclick="reportChat()" aria-label="신고"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg></button>'+
     '</div>'+
-    '<div id="chatMessages" class="chat-list">'+chatMessagesHtml(messages)+'</div>'+
-    '<div class="chat-inputrow">'+
-      '<textarea id="chatInput" placeholder="메시지를 입력하세요" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendChatMessage();}"></textarea>'+
-      '<button class="chat-send" onclick="sendChatMessage()">보내기</button>'+
-    '</div>'+
-  '</div>';
-  document.getElementById("main").innerHTML=h;
-  document.body.classList.add("chat-open"); // 채팅 화면에선 상단 게시판 탭(catbar) 숨김
+    '<div id="chatMessages" class="cr-msgs">'+chatMessagesHtml(messages)+'</div>'+
+    '<div class="cr-inputrow">'+
+      '<button class="cr-icon" onclick="toast(\'첨부 기능은 준비 중이에요\')" aria-label="추가"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>'+
+      '<textarea id="chatInput" placeholder="메시지를 입력하세요." onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendChatMessage();}"></textarea>'+
+      '<button class="cr-send" onclick="sendChatMessage()" aria-label="전송"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></button>'+
+    '</div>';
+  el.classList.add("open");
+  fitChatRoom();
+  if(window.visualViewport&&!chatRoomVpListener){chatRoomVpListener=fitChatRoom;window.visualViewport.addEventListener("resize",chatRoomVpListener);}
   var box=document.getElementById("chatMessages");
   if(box)box.scrollTop=box.scrollHeight;
-  window.scrollTo({top:0,behavior:"smooth"});
 }
 async function sendChatMessage(){
   var inp=document.getElementById("chatInput");

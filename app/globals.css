@@ -730,6 +730,41 @@
   .clist-right{flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:5px;align-self:flex-start;padding-top:3px}
   .clist-date{font-size:11.5px;color:var(--muted-2)}
   .clist-unread{background:var(--brand);color:#fff;font-size:11px;font-weight:800;min-width:18px;height:18px;border-radius:9px;padding:0 5px;display:flex;align-items:center;justify-content:center}
+  /* 채팅방 오버레이 (이미지 1) — body 최상위 fixed 전체화면 */
+  .chatroom{display:none;position:fixed;top:0;left:0;right:0;height:100dvh;z-index:75;background:var(--bg);flex-direction:column;max-width:560px;margin:0 auto}
+  .chatroom.open{display:flex}
+  .cr-top{flex-shrink:0;display:flex;align-items:center;gap:6px;background:var(--brand);color:#fff;padding:calc(env(safe-area-inset-top,0px) + 10px) 10px 10px}
+  .cr-back{background:none;border:none;color:#fff;cursor:pointer;padding:4px;display:flex}
+  .cr-back svg{width:26px;height:26px}
+  .cr-title{flex:1;text-align:center;font-size:17px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cr-report{background:none;border:none;color:#fff;cursor:pointer;padding:4px;display:flex;opacity:.9}
+  .cr-report svg{width:22px;height:22px}
+  .cr-msgs{flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:8px}
+  .cr-empty{padding:40px 0;text-align:center;color:var(--muted);font-size:14px}
+  .cr-divider{text-align:center;margin:8px 0}
+  .cr-divider span{display:inline-block;background:rgba(0,0,0,.06);color:var(--muted);font-size:11.5px;font-weight:700;padding:4px 12px;border-radius:12px}
+  .cr-row{display:flex;align-items:flex-end;gap:6px}
+  .cr-row.mine{justify-content:flex-end}
+  .cr-meta{display:flex;flex-direction:column;align-items:flex-end;gap:1px;flex-shrink:0}
+  .cr-read{font-size:10px;color:var(--muted-2);font-weight:700}
+  .cr-time{font-size:10.5px;color:var(--muted-2);white-space:nowrap}
+  .cr-bubble{max-width:72vw;padding:9px 13px;border-radius:16px;font-size:14.5px;line-height:1.45;word-break:break-word;white-space:pre-wrap}
+  .cr-row.mine .cr-bubble{background:#b7e57f;color:#1f2a15;border-bottom-right-radius:5px}
+  .cr-row.other .cr-bubble{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-bottom-left-radius:5px}
+  .cr-bubble.cr-commission{border:1.5px solid var(--brand);background:var(--brand-soft);color:var(--brand-2);font-weight:700;cursor:pointer}
+  .cr-arrow{font-weight:800}
+  .cr-ava{width:40px;height:40px;border-radius:50%;flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--brand),var(--grape));color:#fff;font-weight:800;font-size:15px;align-self:flex-start}
+  .cr-row.other:not(.first) .cr-ava{background:none}
+  .cr-other-main{display:flex;flex-direction:column;gap:3px;min-width:0}
+  .cr-name{font-size:12.5px;font-weight:700;color:var(--ink-2);margin-left:2px}
+  .cr-other-line{display:flex;align-items:flex-end;gap:6px}
+  .cr-inputrow{flex-shrink:0;display:flex;align-items:flex-end;gap:8px;padding:8px 12px calc(8px + env(safe-area-inset-bottom,8px));background:var(--surface);border-top:1px solid var(--line)}
+  .cr-icon{background:none;border:none;color:var(--muted);cursor:pointer;padding:6px;display:flex;flex-shrink:0}
+  .cr-icon svg{width:24px;height:24px}
+  .cr-inputrow textarea{flex:1;min-width:0;min-height:40px;max-height:120px;border:none;background:var(--surface-2);border-radius:20px;padding:10px 16px;font-family:inherit;font-size:16px;resize:none;color:var(--ink);line-height:1.4}
+  .cr-inputrow textarea:focus{outline:none}
+  .cr-send{background:none;border:none;color:var(--brand);cursor:pointer;padding:6px;display:flex;flex-shrink:0}
+  .cr-send svg{width:24px;height:24px}
   @media(max-width:640px){.pf-stats{grid-template-columns:repeat(2,1fr)}}
 
   /* ===== 이용규칙 모달 ===== */
