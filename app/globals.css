@@ -756,6 +756,12 @@
   .pf-fl button{background:var(--surface-2);border:none;border-radius:8px;padding:5px 9px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit}
   .pf-fl button:hover{color:var(--brand)}
   .pf-set{display:flex;flex-direction:column;gap:8px}
+  .pf-notif-guide{background:var(--surface-2);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;font-size:13.5px;line-height:1.6;color:var(--ink-2)}
+  .pf-notif-guide.on{background:#e7f5ec}
+  .pf-notif-guide b{display:block;margin-bottom:4px;font-size:14.5px;color:var(--ink)}
+  .pf-notif-guide ol{margin:6px 0 6px;padding-left:20px}
+  .pf-notif-guide li{margin:3px 0}
+  .pf-notif-sub{display:block;color:var(--muted);font-size:12px;margin-top:5px}
   /* ===== 닉네임 모달 ===== */
   .nick-in{width:100%;border:1.5px solid var(--line-2);border-radius:12px;background:var(--surface-2);padding:13px 15px;font-family:inherit;font-size:15px;font-weight:700;color:var(--ink);margin-bottom:8px}
   .nick-in:focus{outline:none;border-color:var(--brand);background:var(--surface)}

@@ -96,7 +96,8 @@ var state={board:"all",sort:"new",query:"",shown:8,tag:null,viewMode:"list"};
 var PER=40;var page=1;var READ=new Set();var FOLLOW=new Set();
 var ME={nick:"나"};
 var AUTH={user:null,profile:null};
-var SETTINGS={cm:true,like:true,notice:true,chat:true};
+var SETTINGS={cm:true,like:true,notice:true,chat:true,cminquiry:true};
+try{var _savedPrefs=JSON.parse(localStorage.getItem("palo_notif_prefs")||"null");if(_savedPrefs&&typeof _savedPrefs==="object")Object.assign(SETTINGS,_savedPrefs);}catch(e){}
 var notifFilter="all";var pfTab="mine";
 function dispName(a){return a==="나"?ME.nick:a}
 function avatarHTML(name,avatarUrl){
@@ -2896,6 +2897,53 @@ function markAllRead(){
   NOTIFS.forEach(function(n){n.read=true});renderNotifs();syncNotifBadge();toast("모든 알림을 읽음 처리했어요");
   if(AUTH.user&&window.supabase)window.supabase.from("notifications").update({is_read:true}).eq("user_id",AUTH.user.id).eq("is_read",false).then(function(){});
 }
+/* ===== 웹 푸시 알림 설정 (PWA) ===== */
+function toggleNotifPref(key,on,label){
+  SETTINGS[key]=on;
+  try{localStorage.setItem("palo_notif_prefs",JSON.stringify(SETTINGS));}catch(e){}
+  toast(on?(label+" 알림을 켰어요"):(label+" 알림을 껐어요"));
+}
+function pushSupported(){return ("Notification" in window)&&("serviceWorker" in navigator)&&("PushManager" in window);}
+function isIOSDevice(){return /iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;}
+function isStandalonePWA(){return window.matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;}
+function notifPermState(){return (typeof Notification!=="undefined")?Notification.permission:"unsupported";}
+async function enablePushNotifications(){
+  if(!pushSupported()){toast("이 브라우저는 알림을 지원하지 않아요");return;}
+  if(isIOSDevice()&&!isStandalonePWA()){toast("먼저 홈 화면에 추가한 뒤 그 아이콘으로 열어주세요","📲");return;}
+  var perm;
+  try{perm=await Notification.requestPermission();}catch(e){perm=notifPermState();}
+  if(perm==="granted"){
+    try{
+      var reg=await navigator.serviceWorker.ready;
+      reg.showNotification("Palo",{body:"알림이 켜졌어요! 🔔 받고 싶은 알림 종류를 골라주세요.",icon:"/icon-192.png",badge:"/icon-192.png"});
+      // 2단계: 여기서 reg.pushManager.subscribe(VAPID 공개키) → 서버에 구독 저장 예정
+    }catch(e){}
+    toast("알림을 켰어요 🔔");
+  }else if(perm==="denied"){
+    toast("알림이 차단돼 있어요. 브라우저 설정에서 허용해주세요");
+  }else{
+    toast("알림 권한을 허용하지 않았어요");
+  }
+  if(document.getElementById("myProfileView"))openProfile();
+}
+function notifEnableHTML(){
+  if(isIOSDevice()&&!isStandalonePWA()){
+    return '<div class="pf-notif-guide">'+
+      '<b>📲 iPhone에서 알림 받기</b>'+
+      '<ol><li>Safari 하단 <b>공유</b> 버튼(<span aria-hidden="true">⎋</span>)을 탭</li>'+
+      '<li><b>"홈 화면에 추가"</b> 선택</li>'+
+      '<li>홈 화면의 <b>Palo 아이콘</b>으로 다시 열기</li>'+
+      '<li>그 화면에서 <b>알림 켜기</b> 누르기</li></ol>'+
+      '<span class="pf-notif-sub">아이폰은 홈 화면에 추가해야만 알림이 와요 (iOS 16.4 이상).</span></div>';
+  }
+  if(!pushSupported()){
+    return '<div class="pf-notif-guide"><b>이 브라우저는 알림을 지원하지 않아요</b><span class="pf-notif-sub">크롬·엣지·최신 사파리에서 사용해주세요.</span></div>';
+  }
+  var st=notifPermState();
+  if(st==="granted")return '<div class="pf-notif-guide on"><b>🔔 알림이 켜져 있어요</b><span class="pf-notif-sub">아래에서 받고 싶은 알림 종류를 골라주세요.</span></div>';
+  if(st==="denied")return '<div class="pf-notif-guide"><b>알림이 차단돼 있어요</b><span class="pf-notif-sub">주소창 옆 자물쇠 → 알림 → 허용으로 바꿔주세요.</span></div>';
+  return '<button class="r-ok" style="width:100%;margin-bottom:12px" onclick="enablePushNotifications()">🔔 알림 켜기</button>';
+}
 
 // ===== 내 정보 (프로필) =====
 function reviewCardHTML(p){
@@ -3366,11 +3414,14 @@ function openProfile(){
   else if(pfTab==="cm")h+=listOrEmpty(commented,'댓글을 단 글이 아직 없어요.<br>마음에 드는 글에 훈수를 남겨보세요!');
   else if(pfTab==="liked")h+=listOrEmpty(likedArr,'좋아요한 글이 아직 없어요.<br>마음에 드는 그림에 하트를 눌러보세요!');
   else h+=listOrEmpty(recent,'최근 본 글이 없어요.');
-  h+='<div class="pf-sec">알림 설정</div><div class="pf-set">'+
-     '<label class="pf-toggle"><span>내 글에 댓글이 달리면 알림</span><input type="checkbox" '+(SETTINGS.cm?'checked':'')+' onchange="SETTINGS.cm=this.checked;toast(this.checked?\'댓글 알림을 켰어요\':\'댓글 알림을 껐어요\')"></label>'+
-     '<label class="pf-toggle"><span>좋아요 알림</span><input type="checkbox" '+(SETTINGS.like?'checked':'')+' onchange="SETTINGS.like=this.checked;toast(this.checked?\'좋아요 알림을 켰어요\':\'좋아요 알림을 껐어요\')"></label>'+
-     '<label class="pf-toggle"><span>공지·챌린지 알림</span><input type="checkbox" '+(SETTINGS.notice?'checked':'')+' onchange="SETTINGS.notice=this.checked;toast(this.checked?\'공지 알림을 켰어요\':\'공지 알림을 껐어요\')"></label>'+
-     '<label class="pf-toggle"><span>채팅 알림</span><input type="checkbox" '+(SETTINGS.chat?'checked':'')+' onchange="SETTINGS.chat=this.checked;toast(this.checked?\'채팅 알림을 켰어요\':\'채팅 알림을 껐어요\')"></label></div>';
+  h+='<div class="pf-sec">알림 설정</div>';
+  h+=notifEnableHTML();
+  h+='<div class="pf-set">'+
+     '<label class="pf-toggle"><span>내 글에 댓글이 달리면 알림</span><input type="checkbox" '+(SETTINGS.cm?'checked':'')+' onchange="toggleNotifPref(\'cm\',this.checked,\'댓글\')"></label>'+
+     '<label class="pf-toggle"><span>좋아요 알림</span><input type="checkbox" '+(SETTINGS.like?'checked':'')+' onchange="toggleNotifPref(\'like\',this.checked,\'좋아요\')"></label>'+
+     '<label class="pf-toggle"><span>공지·챌린지 알림</span><input type="checkbox" '+(SETTINGS.notice?'checked':'')+' onchange="toggleNotifPref(\'notice\',this.checked,\'공지\')"></label>'+
+     '<label class="pf-toggle"><span>채팅 알림</span><input type="checkbox" '+(SETTINGS.chat?'checked':'')+' onchange="toggleNotifPref(\'chat\',this.checked,\'채팅\')"></label>'+
+     '<label class="pf-toggle"><span>커미션 문의 알림</span><input type="checkbox" '+(SETTINGS.cminquiry?'checked':'')+' onchange="toggleNotifPref(\'cminquiry\',this.checked,\'커미션 문의\')"></label></div>';
   h+='</div>';
   document.getElementById("main").innerHTML=h;
   syncTabs("me");window.scrollTo({top:0,behavior:"smooth"});
@@ -3996,6 +4047,15 @@ syncNotifBadge();
   if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",ensureRendered);}
   else{ensureRendered();}
   window.addEventListener("load",ensureRendered);
+})();
+
+// ===== 서비스워커 등록 (PWA·웹 푸시 기반) =====
+(function(){
+  if(!("serviceWorker" in navigator))return;
+  function reg(){navigator.serviceWorker.register("/sw.js").catch(function(err){console.error("SW 등록 실패:",err);});}
+  // palo.js는 afterInteractive로 로드돼 load 이벤트 뒤에 실행될 수 있으므로, 이미 로드됐으면 즉시 등록
+  if(document.readyState==="complete")reg();
+  else window.addEventListener("load",reg);
 })();
 
 
