@@ -322,6 +322,7 @@ async function loadRealPosts(){
   if(initialPost)openPost(initialPost.id);
   else if(initialUserId)openUserProfile(initialUserId);
   else renderList();
+  renderSidebarAd();
 }
 function getPostIdFromPath(){
   var m=location.pathname.match(/^\/post\/(\d+)$/);
@@ -522,41 +523,58 @@ function pagerHTML(tp){
   return h+'</nav>';
 }
 function gotoPage(n){page=n;renderList();window.scrollTo({top:0,behavior:"smooth"});}
-function adRow(){
-  // 지면 배분: 80% 유료 CPM 광고, 20% 유저 포인트 광고. 해당 타입 재고가 없으면 다른 쪽/하우스로 폴백.
-  var wantPaid=Math.random()<AD_PAID_SHARE;
-  if(wantPaid){
+// 지면 배분: 80% 유료 CPM 광고, 20% 유저 포인트 광고. 해당 타입 재고 없으면 다른 쪽으로 폴백, 둘 다 없으면 null(하우스).
+function pickServedAd(){
+  if(Math.random()<AD_PAID_SHARE){
     var camp=pickServableCampaign();
-    if(camp)return campaignBannerHTML(camp);
-    // 유료 재고 없음 → 유저 광고로 폴백
-    return userAdRowHTML();
+    if(camp)return {type:'paid',camp:camp};
   }
-  return userAdRowHTML();
-}
-function userAdRowHTML(){
   if(ACTIVE_ADS.length){
     var weights=ACTIVE_ADS.map(function(a){return a.points_spent||1;});
     var total=weights.reduce(function(s,w){return s+w;},0);
     var r=Math.random()*total,cum=0;
-    for(var i=0;i<ACTIVE_ADS.length;i++){
-      cum+=weights[i];
-      if(r<cum){
-        var ad=ACTIVE_ADS[i];
-        return '<div class="ad ad-banner" role="complementary" aria-label="광고" style="cursor:pointer;position:relative" onclick="'+adTargetOnclick(ad)+'">'+
-          '<span class="ad-label">유저 광고</span>'+
-          '<button class="ad-report-btn" onclick="reportAd('+ad.id+',event)" title="이 광고 신고">🚩</button>'+
-          '<img src="'+esc(ad.image_url)+'" alt="유저 광고">'+
-        '</div>';
-      }
-    }
+    for(var i=0;i<ACTIVE_ADS.length;i++){cum+=weights[i];if(r<cum)return {type:'user',ad:ACTIVE_ADS[i]};}
   }
-  return '<div class="ad" role="complementary" aria-label="광고">'+
+  return null;
+}
+// 서빙된 광고 배너 HTML. extraClass로 지면별 마진 등을 얹음(.d-ad, .side-ad). 유료 배너만 data-campaign-id를 달아 측정 대상이 됨.
+function servedBannerHTML(s,extraClass){
+  var ec=extraClass?(' '+extraClass):'';
+  if(s.type==='paid'){
+    return '<div class="ad ad-banner'+ec+'" role="complementary" aria-label="광고" data-campaign-id="'+s.camp.id+'" style="cursor:pointer;position:relative" onclick="openCampaignTarget('+s.camp.id+')">'+
+      '<span class="ad-label">광고</span><img src="'+esc(s.camp.image_url)+'" alt="광고"></div>';
+  }
+  return '<div class="ad ad-banner'+ec+'" role="complementary" aria-label="광고" style="cursor:pointer;position:relative" onclick="'+adTargetOnclick(s.ad)+'">'+
+    '<span class="ad-label">유저 광고</span>'+
+    '<button class="ad-report-btn" onclick="reportAd('+s.ad.id+',event)" title="이 광고 신고">🚩</button>'+
+    '<img src="'+esc(s.ad.image_url)+'" alt="유저 광고"></div>';
+}
+function houseAdHTML(extraClass){
+  var ec=extraClass?(' '+extraClass):'';
+  return '<div class="ad'+ec+'" role="complementary" aria-label="광고">'+
     '<span class="ad-label">AD</span>'+
     '<div class="ad-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="width:22px;height:22px"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 18 5-5 4 3 3-2 4 4"/></svg></div>'+
     '<div class="ad-body"><div class="ad-t">광고 문의 환영</div>'+
     '<div class="ad-d">이 자리에 유저 광고와 유료 광고가 노출됩니다</div></div>'+
   '</div>';
 }
+function adRow(extraClass){
+  var s=pickServedAd();
+  return s?servedBannerHTML(s,extraClass):houseAdHTML(extraClass);
+}
+// 정적 하우스 광고 지면(게시글 상세 댓글란 위 .d-ad, 데스크톱 사이드바 .ad-widget)을 실제 서빙으로 교체.
+// 재고가 없으면 기존 정적 하우스 광고를 그대로 둠.
+function replaceStaticAdSlot(el,extraClass){
+  if(!el)return;
+  var s=pickServedAd();
+  if(!s)return;
+  var tmp=document.createElement('div');
+  tmp.innerHTML=servedBannerHTML(s,extraClass);
+  el.replaceWith(tmp.firstElementChild);
+  observeAdBanners();
+}
+function renderDetailAd(){replaceStaticAdSlot(document.querySelector('#main .d-ad'),'d-ad');}
+function renderSidebarAd(){replaceStaticAdSlot(document.querySelector('.side-r .ad-widget'),'side-ad');}
 /* ---- 유료 광고 서빙(페이싱) + 뷰어블 노출 측정 ---- */
 function pickServableCampaign(){
   var avail=ACTIVE_CAMPAIGNS.filter(function(c){return c.impressions_served<c.impression_goal;});
@@ -573,12 +591,6 @@ function pickServableCampaign(){
   var r=Math.random()*total,cum=0;
   for(var i=0;i<avail.length;i++){cum+=weights[i];if(r<cum)return avail[i];}
   return avail[avail.length-1];
-}
-function campaignBannerHTML(c){
-  return '<div class="ad ad-banner" role="complementary" aria-label="광고" data-campaign-id="'+c.id+'" style="cursor:pointer;position:relative" onclick="openCampaignTarget('+c.id+')">'+
-    '<span class="ad-label">광고</span>'+
-    '<img src="'+esc(c.image_url)+'" alt="광고">'+
-  '</div>';
 }
 function openCampaignTarget(id){
   var c=ACTIVE_CAMPAIGNS.find(function(x){return x.id===id;});
@@ -613,7 +625,7 @@ function ensureAdObserver(){
 function observeAdBanners(){
   ensureAdObserver();
   if(!adObserver)return;
-  var els=document.querySelectorAll("#main [data-campaign-id]");
+  var els=document.querySelectorAll("[data-campaign-id]"); // 피드(#main)뿐 아니라 사이드바(#main 밖)·상세 지면까지 포함
   for(var i=0;i<els.length;i++){
     var el=els[i];
     if(el._observed||el._counted)continue;
@@ -693,6 +705,7 @@ function renderList(){
     return;
   }
   h+='<div class="list">';
+  var postsSinceAd=0,adGap=10+Math.floor(Math.random()*6); // 광고 간격: 10~15개 게시글마다 랜덤
   visible.forEach(function(p,idx){
     var c=catFor(p);
     var isHot=p.likes>=90;
@@ -711,7 +724,8 @@ function renderList(){
       thumb+
       '<div class="pcmt"><span class="cn">'+p.comments.length+'</span><span class="cl">댓글</span></div>'+
     '</div>';
-    if((idx+1)%5===0 && idx!==visible.length-1) h+=adRow();
+    postsSinceAd++;
+    if(postsSinceAd>=adGap && idx!==visible.length-1){h+=adRow();postsSinceAd=0;adGap=10+Math.floor(Math.random()*6);}
   });
   h+='</div>';
   if(totalPages>1)h+=pagerHTML(totalPages);
@@ -767,6 +781,7 @@ function renderPostDetail(id){
     '<div class="row"><span class="hint">인신공격·조롱은 삭제될 수 있어요</span><button class="send" onclick="addComment('+p.id+')">등록</button></div></div></div>'+
     '<div class="ad d-ad" role="complementary" aria-label="광고"><span class="ad-label">AD</span><div class="ad-ph"><svg viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"1.6\\" style=\\"width:22px;height:22px\\"><rect x=\\"3\\" y=\\"4\\" width=\\"18\\" height=\\"16\\" rx=\\"2\\"/><circle cx=\\"8.5\\" cy=\\"9.5\\" r=\\"1.6\\"/><path d=\\"m4 18 5-5 4 3 3-2 4 4\\"/></svg></div><div class="ad-body"><div class="ad-t">광고 문의 환영</div><div class="ad-d">이 자리에 광고가 노출됩니다</div></div></div>'+'<div class="cm-list" id="cmList">'+renderComments(p)+'</div></div></div>';
   main.innerHTML=h;
+  renderDetailAd();
 }
 async function deletePost(id){
   var p=POSTS.find(function(x){return x.id===id});if(!p)return;
