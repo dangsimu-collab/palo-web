@@ -1145,6 +1145,8 @@ var cmMyList=[]; // cmOpenMy()가 Supabase에서 실제로 불러와 채움
 var CM_IMAGE_BUCKET='commission-images';
 var CM_TYPES=['두상','흉상','반신','전신','SD','이모티콘','배경','기타'];
 var CM_BAD_REASONS=['퀄리티 불만족','마감 기한 미준수','소통이 어려웠어요','스타일이 요청과 달랐어요','기타'];
+// 작가가 거래 정책을 직접 안 적었을 때 뜨는 기본 면책 문구(신청서·상세 공용)
+var CM_DEFAULT_POLICY_HTML='Palo는 결제를 중개하지 않으며, 회원님들이 소통할 수 있는 공간만 제공해요.<br>작업 범위·기한·환불 등 모든 거래는 작가님과 신청자님이 직접 진행하므로, Palo는 거래의 당사자가 아니에요.<br><br>따라서 거래 과정에서 사기·미완성·환불 분쟁 등 어떤 문제가 생기더라도 Palo는 대금을 보증하거나 대신 돌려드릴 수 없으며, 법적인 책임을 지지 않아요.<br><br>또한, 미성년자와의 거래는 보호자(법정대리인)의 동의가 없으면 나중에 취소될 수 있으니 거래 시 이 점을 꼭 유의해 주세요!';
 var cmTopTags=[]; // cmLoadCommissions()가 실제 사용 빈도순으로 채움
 var cmBookmarkIds=null; // 로그인 후 Set으로 채워짐(북마크한 커미션 id들)
 var cmState={activeTag:null,wrType:null,wrCtype:null,query:'',sort:'home'};
@@ -1429,7 +1431,7 @@ function cmApplyImgsHTML(){
 }
 function cmRenderApplyForm(commission){
   var form=commission.form||[];
-  var policyHTML=commission.policy?esc(commission.policy).replace(/\n/g,'<br>'):'Palo는 결제를 중계하지 않아요. 작업 범위·기한·환불 등 세부 사항은 작가와 직접 협의해주세요.';
+  var policyHTML=commission.policy?esc(commission.policy).replace(/\n/g,'<br>'):CM_DEFAULT_POLICY_HTML;
   document.getElementById("main").innerHTML='<div class="cm-root">'+
     '<div class="cm-sub-top"><svg onclick="cmOpenCommissionById('+commission.id+')" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>커미션 신청서</b></div>'+
     '<div class="cm-reg">'+
@@ -1547,7 +1549,7 @@ function cmDetailHTML(d,idx){
   var desc=d.desc||'그림체 아래 샘플(팬아트, 커미션 샘플) 확인해주세요.\n\n두상: 어깨선\n흉상: 명치선 - 허리 위\n반신: 골반 - 허벅지 중간\n\n추가금 문의 편하게 주세요.';
   var descHTML=d.descHtml?sanitizePostHtml(d.descHtml):null;
   var usageHTML=d.usage?esc(d.usage).replace(/\n/g,'<br>'):'';
-  var policyHTML=d.policy?('<p>'+esc(d.policy).replace(/\n/g,'<br>')+'</p>'):('<p>Palo는 결제를 중계하지 않으니, 작업 범위·기한·환불 등 세부 사항은 작가와 직접 협의해주세요.</p>');
+  var policyHTML=d.policy?('<p>'+esc(d.policy).replace(/\n/g,'<br>')+'</p>'):('<p>'+CM_DEFAULT_POLICY_HTML+'</p>');
   var tags=(d.tags&&d.tags.length)?d.tags:['두상','흉상','반신','드림'];
   var hasImages=!!(d.images&&d.images.length);
   var sliderBg=hasImages?("url('"+cmQ(d.images[0])+"') center/cover"):cmGrads[idx%cmGrads.length];

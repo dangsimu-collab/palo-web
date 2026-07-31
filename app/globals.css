@@ -927,7 +927,7 @@
   .cm-acc-h svg{width:18px;height:18px;color:var(--muted);transition:transform .2s}
   .cm-acc.open .cm-acc-h svg{transform:rotate(180deg)}
   .cm-acc-c{padding:0 18px;max-height:0;overflow:hidden;transition:max-height .25s,padding .25s}
-  .cm-acc.open .cm-acc-c{max-height:400px;padding:0 18px 18px}
+  .cm-acc.open .cm-acc-c{max-height:600px;padding:0 18px 18px}
   .cm-acc-c p,.cm-acc-c li{font-size:14px;line-height:1.7;color:var(--ink-2)}
   .cm-acc-c ul{padding-left:18px}
   .cm-d-tags{display:flex;gap:8px;flex-wrap:wrap;padding:16px 0}
