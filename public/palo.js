@@ -1537,6 +1537,7 @@ async function cmOpenCommissionById(commissionId){
   cmDetailCtx={from:'list',idx:idx};
   document.getElementById("main").innerHTML=cmDetailHTML(cmData[idx],idx);
   window.scrollTo({top:0,behavior:'smooth'});
+  cmLoadWorksamples(cmData[idx].id);
 }
 function cmDetailHTML(d,idx){
   var artist=d.artist||'나';
@@ -1593,6 +1594,9 @@ function cmDetailHTML(d,idx){
         '<div>'+(realReviews.length?reviewListHTML(realReviews.slice(0,3)):'<div class="cm-my-empty">아직 후기가 없어요.</div>')+'</div>'+
         (canReview?'<button class="cm-write-btn" style="margin-top:10px" onclick="cmOpenWrite('+d.id+')">✍️ 후기 쓰기</button>':'')+
       '</div>'+
+      (d.id!=null?('<div class="cm-ws-sec"><div class="cm-rv-head"><b>최근 작업물</b>'+
+        ((AUTH.user&&d.authorId&&AUTH.user.id===d.authorId)?'<span class="cm-rv-more" onclick="cmOpenWorksampleForm('+d.id+')">+ 작업 사례 등록</span>':'')+
+        '</div><div class="cm-ws-list" id="cmWsList"><div class="cm-my-empty">불러오는 중...</div></div></div>'):'')+
       '<div class="cm-samples">'+samples+'</div>'+
       (usageHTML?('<div class="cm-acc open"><div class="cm-acc-h" onclick="this.parentElement.classList.toggle(\'open\')"><b>작업물 사용 권한</b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 15l6-6 6 6"/></svg></div>'+
         '<div class="cm-acc-c"><p>'+usageHTML+'</p></div></div>'):'')+
@@ -1612,6 +1616,7 @@ function cmOpenDetail(idx){
   cmDetailCtx={from:'list',idx:idx};
   document.getElementById("main").innerHTML=cmDetailHTML(cmData[idx],idx);
   window.scrollTo({top:0,behavior:"smooth"});
+  cmLoadWorksamples(cmData[idx].id);
 }
 function cmDetailBack(){
   if(cmDetailCtx.from==='register')cmRenderRegisterScreen();
@@ -1642,6 +1647,130 @@ function cmOpenArtistProfile(name){
     '<div class="cm-pf-note">※ 실제로는 기존에 만든 작가 프로필 화면으로 연결됩니다.<br>(여기선 연결 예시만 표시)</div>'+
   '</div>';
   window.scrollTo({top:0,behavior:"smooth"});
+}
+/* ---------- 커미션 작업 사례 (worksamples) — 커미션별 작업 결과물 쇼케이스 ---------- */
+var cmWsCache={};                            // {commissionId: [worksample...]} — 상세를 재조회 없이 재사용
+var cmWsForm={commissionId:null,images:[]};  // 등록 폼 상태
+// 커미션 상세의 "최근 작업물" 목록을 비동기로 불러와 채움(상세 렌더 직후 호출)
+async function cmLoadWorksamples(commissionId){
+  var el=document.getElementById("cmWsList");
+  if(!el||commissionId==null||!window.supabase)return;
+  var res=await window.supabase.from("commission_worksamples")
+    .select("id,title,description,work_date,created_at,commission_worksample_images(url,sort)")
+    .eq("commission_id",commissionId).order("created_at",{ascending:false});
+  if(res.error){el.innerHTML='<div class="cm-my-empty">작업 사례를 불러오지 못했어요.</div>';return;}
+  cmWsCache[commissionId]=res.data||[];
+  if(document.getElementById("cmWsList"))document.getElementById("cmWsList").innerHTML=cmWorksampleListHTML(res.data||[],commissionId);
+}
+function cmWsThumb(ws){
+  var imgs=(ws.commission_worksample_images||[]).slice().sort(function(a,b){return a.sort-b.sort;});
+  return imgs.length?("url('"+cmQ(imgs[0].url)+"') center/cover"):cmGrads[ws.id%cmGrads.length];
+}
+function cmWorksampleListHTML(list,commissionId){
+  if(!list.length)return '<div class="cm-my-empty">아직 등록된 작업 사례가 없어요.</div>';
+  return '<div class="cm-ws-strip">'+list.map(function(ws){
+    return '<div class="cm-ws-card" onclick="cmOpenWorksample('+ws.id+','+commissionId+')">'+
+      '<div class="cm-ws-thumb" style="background:'+cmWsThumb(ws)+'"></div>'+
+      '<div class="cm-ws-cap"><div class="cm-ws-t">'+esc(ws.title)+'</div>'+
+        (ws.work_date?'<div class="cm-ws-dt">'+esc(ws.work_date)+'</div>':'')+'</div>'+
+    '</div>';
+  }).join('')+'</div>';
+}
+// 작업 사례 상세 보기
+function cmOpenWorksample(worksampleId,commissionId){
+  enterScreen("cmWorksample",cmBackToDetail);
+  var backSvg='<svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>';
+  var list=cmWsCache[commissionId]||[];
+  var ws=list.find(function(x){return x.id===worksampleId;});
+  var main=document.getElementById("main");
+  if(!ws){main.innerHTML='<div class="cm-root"><div class="cm-sub-top">'+backSvg+'<b>작업 사례</b></div><div class="cm-my-empty">작업 사례를 찾을 수 없어요.</div></div>';return;}
+  var imgs=(ws.commission_worksample_images||[]).slice().sort(function(a,b){return a.sort-b.sort;});
+  main.innerHTML='<div class="cm-root">'+
+    '<div class="cm-sub-top">'+backSvg+'<b>작업 사례</b></div>'+
+    '<div class="cm-ws-detail">'+
+      '<div class="cm-ws-d-title">'+esc(ws.title)+'</div>'+
+      (ws.work_date?'<div class="cm-ws-d-date">📅 '+esc(ws.work_date)+'</div>':'')+
+      '<div class="cm-ws-d-imgs">'+imgs.map(function(im){return '<img class="cm-ws-d-img" src="'+esc(im.url)+'" alt="">';}).join('')+'</div>'+
+      (ws.description?'<div class="cm-ws-d-desc">'+esc(ws.description).replace(/\n/g,'<br>')+'</div>':'')+
+    '</div>'+
+  '</div>';
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+// 작업 사례 등록 폼 (그 커미션의 작가 본인만 진입 — 버튼도 본인에게만 보이고, RLS로도 서버가 막음)
+function cmOpenWorksampleForm(commissionId){
+  if(!AUTH.user){toast('로그인 후 이용할 수 있어요','🔒');loginWithGoogle();return;}
+  enterScreen("cmWsForm",cmBackToDetail);
+  cmWsForm={commissionId:commissionId,images:[]};
+  document.getElementById("main").innerHTML='<div class="cm-root">'+
+    '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>작업 사례 등록</b></div>'+
+    '<div class="cm-reg">'+
+      '<div class="cm-reg-label">제목 <span class="cm-reg-req">*</span></div>'+
+      '<input class="cm-reg-input" id="cmWsTitle" placeholder="예: LD 반신 채색 작업" oninput="cmWsCheck()">'+
+      '<div class="cm-reg-label">작업 이미지 <span class="cm-reg-req">*</span> <span class="cm-reg-sub">여러 장 가능 · 최대 10장</span></div>'+
+      '<input type="file" id="cmWsFileInput" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="cmWsOnFileChange(event)">'+
+      '<div class="cm-reg-imgs" id="cmWsImgs">'+cmWsImgsHTML()+'</div>'+
+      '<div class="cm-reg-label">상세 설명 <span class="cm-reg-sub">작업 내용, 소요 기간 등 자유롭게</span></div>'+
+      '<textarea class="cm-reg-textarea" id="cmWsDesc" placeholder="어떤 작업이었는지, 소요 기간, 특이사항 등을 자유롭게 적어주세요."></textarea>'+
+      '<div class="cm-reg-label">작업 날짜</div>'+
+      '<input class="cm-reg-input" id="cmWsDate" type="date">'+
+    '</div>'+
+    '<div class="cm-reg-bottom"><button class="cm-reg-btn" id="cmWsSubmit" onclick="cmSubmitWorksample()" disabled>등록하기</button></div>'+
+  '</div>';
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function cmWsImgsHTML(){
+  var h=cmWsForm.images.map(function(url,i){
+    return '<div class="cm-reg-img" style="background-image:url(\''+cmQ(url)+'\');background-size:cover;background-position:center"><div class="cm-del" onclick="cmWsDelImg('+i+')">×</div></div>';
+  }).join('');
+  h+='<div class="cm-reg-addimg" onclick="cmWsPickImg()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 8v8M8 12h8"/></svg><span class="cm-cnt" id="cmWsImgCnt">'+cmWsForm.images.length+'/10</span></div>';
+  return h;
+}
+function cmWsPickImg(){if(cmWsForm.images.length>=10){toast('최대 10장까지 올릴 수 있어요','⚠');return;}document.getElementById('cmWsFileInput').click();}
+function cmWsOnFileChange(e){var f=e.target.files[0];e.target.value='';if(f)cmWsUploadImg(f);}
+async function cmWsUploadImg(file){
+  if(!AUTH.user){toast('로그인 후 이용할 수 있어요','🔒');return;}
+  if(ALLOWED_IMAGE_TYPES.indexOf(file.type)===-1){toast('이미지 파일만 올릴 수 있어요');return;}
+  if(file.size>MAX_IMAGE_BYTES){toast('40MB 이하 이미지만 올릴 수 있어요');return;}
+  if(cmWsForm.images.length>=10){toast('최대 10장까지 올릴 수 있어요','⚠');return;}
+  var uploadBlob=file,ext=(file.name.match(/\.([^.]+)$/)||[,'png'])[1];
+  if(file.type!=='image/gif'){
+    toast('이미지 압축 중...');
+    try{var c=await compressImage(file);uploadBlob=c.blob;ext=c.ext;}catch(err){console.error('압축 실패, 원본 업로드:',err);}
+  }
+  toast('이미지 업로드 중...');
+  var safe=file.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_.-]/g,'_');
+  var path=AUTH.user.id+'/worksamples/'+Date.now()+'-'+safe+'.'+ext;
+  var up=await window.supabase.storage.from(CM_IMAGE_BUCKET).upload(path,uploadBlob,{contentType:uploadBlob.type});
+  if(up.error){toast('업로드 실패: '+up.error.message);return;}
+  var pub=window.supabase.storage.from(CM_IMAGE_BUCKET).getPublicUrl(path);
+  cmWsForm.images.push(pub.data.publicUrl);
+  cmWsRenderImgs();cmWsCheck();
+  toast('이미지를 넣었어요');
+}
+function cmWsRenderImgs(){var el=document.getElementById('cmWsImgs');if(el)el.innerHTML=cmWsImgsHTML();}
+function cmWsDelImg(i){cmWsForm.images.splice(i,1);cmWsRenderImgs();cmWsCheck();}
+function cmWsCheck(){
+  var el=document.getElementById('cmWsTitle');var t=el?el.value.trim():'';
+  var btn=document.getElementById('cmWsSubmit');if(btn)btn.disabled=!(t&&cmWsForm.images.length);
+}
+async function cmSubmitWorksample(){
+  if(!AUTH.user){toast('로그인이 필요해요');return;}
+  var title=document.getElementById('cmWsTitle').value.trim();
+  var desc=document.getElementById('cmWsDesc').value.trim();
+  var date=document.getElementById('cmWsDate').value||null;
+  if(!title){toast('제목을 입력해주세요');return;}
+  if(!cmWsForm.images.length){toast('작업 이미지를 최소 1장 올려주세요');return;}
+  var btn=document.getElementById('cmWsSubmit');btn.disabled=true;btn.textContent='등록 중...';
+  var ins=await window.supabase.from('commission_worksamples').insert({
+    commission_id:cmWsForm.commissionId,author_id:AUTH.user.id,title:title,description:desc||null,work_date:date
+  }).select('id').single();
+  if(ins.error){toast('등록 실패: '+ins.error.message);btn.disabled=false;btn.textContent='등록하기';return;}
+  var rows=cmWsForm.images.map(function(url,i){return {worksample_id:ins.data.id,url:url,sort:i};});
+  var imgIns=await window.supabase.from('commission_worksample_images').insert(rows);
+  if(imgIns.error){toast('이미지 저장 실패: '+imgIns.error.message);}
+  delete cmWsCache[cmWsForm.commissionId];  // 캐시 무효화 → 상세 복귀 시 새로 로드
+  toast('작업 사례를 등록했어요','✅');
+  screenBack();  // 폼 → 커미션 상세로 복귀(상세가 다시 그려지며 목록도 갱신됨)
 }
 function cmCommissionReviews(commissionId){
   return POSTS.filter(function(p){return p.board==='review'&&p.commissionId===commissionId;});

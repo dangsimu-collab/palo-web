@@ -151,6 +151,8 @@ Supabase 프로젝트: https://qabbdgfottbnapmyjudy.supabase.co
 | `commission_applications` | `id`(bigint PK), `commission_id`(FK→commissions, `on delete cascade`), `applicant_id`(uuid, FK→auth.users, `on delete cascade`), `reference_images`(text[] 또는 jsonb, 신청 시 첨부한 참고 이미지 URL 목록), `extra_request`(text), `answers`(jsonb, 제출 당시 커스텀 폼 응답 스냅샷 `[{field_id,label,type,value}]`), `agreed_policy_text`(text, 제출 당시 거래 정책 문구 스냅샷 — 나중에 작가가 정책을 바꿔도 신청 당시 합의 내용 보존), `status`(text: pending/accepted/rejected), `decided_at`(timestamptz, nullable), `created_at` | 2026-07-30 추가(커미션 페이지 프롬프트5 "신청하기"). **계좌·금융 정보는 이 테이블은 물론 어떤 테이블에도 저장하지 않음** — 수락 후 작가가 기존 1:1 채팅으로 직접 전달(사용자가 AskUserQuestion에서 명시적으로 선택한 방향) |
 | `ad_campaigns` | `id`(bigint identity PK), `advertiser`(text, nullable), `image_url`(text), `target_url`(text, 외부 URL 허용), `impression_goal`(int, 판매한 총 노출수), `impressions_served`(int, default 0, **서버 RPC만 증가**), `cpm_price`(numeric, nullable, 정산 기록용), `flight_start`/`flight_end`(timestamptz), `status`(text: active/paused/completed/archived), `created_at` | 유료 CPM 광고 캠페인(2026-07-31 추가). 관리자 수동 등록. select/insert/update/delete 전부 `is_admin()`만(RLS). 목표 도달 시 `record_ad_impressions`가 자동으로 `status='completed'`로 바꿔 더 이상 노출 안 됨 |
 | `ad_impression_daily` | `campaign_id`(FK→ad_campaigns, `on delete cascade`), `date`(date), `count`(int), PK `(campaign_id,date)` | 일별 뷰어블 노출 집계(2026-07-31 추가). 노출 1건마다 행을 쌓지 않고 날짜별로 뭉쳐 카운트(쓰기 폭증 방지, 리포트 그래프용). insert/update는 `record_ad_impressions`(security definer)만, select는 관리자만 |
+| `commission_worksamples` | `id`(bigint identity PK), `commission_id`(FK→commissions, `on delete cascade`), `author_id`(uuid FK→auth.users, `on delete cascade`), `title`(text), `description`(text, nullable), `description_html`(text, nullable — 리치 에디터 붙일 자리, 현재 미사용), `work_date`(date, nullable), `created_at` | 2026-08-01 추가. **커미션별 작업 사례**(작가가 그 커미션으로 작업한 결과물 쇼케이스). 조회 누구나, insert/update/delete는 그 커미션의 작가만(RLS 아래) |
+| `commission_worksample_images` | `id`(bigint identity PK), `worksample_id`(FK→commission_worksamples, `on delete cascade`), `url`(text, Storage 공개 URL), `sort`(int), `created_at` | 2026-08-01 추가. 작업 사례 1개에 이미지 여러 장(`commission_images`·`post_images`와 같은 분리 패턴). 조회 누구나, insert/delete는 그 작업 사례의 커미션 작가만 |
 
 ### Storage 버킷
 - `post-images` (Public) — 글 첨부 이미지. 업로드 경로는 `${Date.now()}-${파일명}` 형태(폴더 구분 없음).
@@ -804,6 +806,13 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **불러오기**(`loadFeedCache`): 24시간 이내 캐시만 유효(그 이상은 버림).
 - **프라임**(부팅 `initAuth().then(loadRealPosts)` 직전 `primeFromCache()`): 딥링크(`/post`·`/user`)나 `userLeftHome`이 아니고 캐시가 있으면 `POSTS`를 캐시로 채우고 `renderChips/renderHot/renderTrend/renderList` 즉시 실행 → 이어서 `loadRealPosts`가 최신으로 교체.
 - **검증**(dev): 캐시 저장 19KB(html 없음 확인), `loadRealPosts` 2회 호출 시 실제 글 수 28→28 그대로(멱등, 중복 없음), 캐시 있는 상태 새로고침 시 이른 시점에 이미 피드 21행 렌더(네트워크 갱신 후 동일), 콘솔 에러 없음.
+
+### 커미션 작업 사례 (worksamples) (2026-08-01 추가, 1단계)
+커미션 상세에 "그 커미션으로 최근 작업한 결과물"을 작가가 상세히 등록하고 주문자가 볼 수 있는 기능. **커미션 게시물별로 따로** 쌓이고 보임(작가 전체 포트폴리오가 아님).
+- **DB**: `commission_worksamples` + `commission_worksample_images`(스키마·RLS는 4절). **RLS**: 조회는 누구나(`*_select_all`), 등록/수정/삭제는 **그 커미션의 작가만**(`exists(select 1 from commissions where id=commission_id and author_id=auth.uid())`, insert는 `author_id=auth.uid()`까지) — 화면에서 버튼을 숨기는 것과 별개로 서버가 남의 커미션 등록을 막음. 이미지 RLS는 `commission_worksamples→commissions` 조인으로 작가 확인. **Storage는 기존 `commission-images` 버킷 재사용**(경로 `${uid}/worksamples/...` → 버킷 RLS의 `foldername[1]=uid` 그대로 통과, 새 정책 불필요).
+- **클라이언트**(`public/palo.js`, `cmWs*`): 커미션 상세(`cmDetailHTML`)에 "최근 작업물" 섹션(`#cmWsList`) + **작가 본인에게만** "+ 작업 사례 등록"(`AUTH.user.id===d.authorId` 판정). `cmOpenDetail`/`cmOpenCommissionById`가 렌더 직후 `cmLoadWorksamples(commissionId)`로 목록을 비동기 로드(가로 스크롤 썸네일 strip, `cmWsCache`에 캐시). 카드 클릭 → `cmOpenWorksample`(제목·이미지 전체·설명·날짜 상세). 등록 폼 `cmOpenWorksampleForm`(제목·이미지 여러 장·설명·작업날짜) → `cmSubmitWorksample`이 본체 insert 후 이미지 rows insert, 캐시 무효화 후 `screenBack()`으로 상세 복귀(목록 자동 갱신). 이미지 업로드는 기존 `compressImage`(긴 쪽 1800px·WebP·품질 0.8) + `CM_IMAGE_BUCKET` 재사용. 새 화면들은 `enterScreen(..., cmBackToDetail)`로 스와이프 뒤로가기에 편입(폼·상세→뒤로→커미션 상세).
+- **검증**(dev): 테이블 생성·select(누구나) 확인, 작가일 때만 등록 버튼 노출·비작가는 보기만, 폼/상세 렌더, 스택(상세→폼/사례→뒤로→상세) 확인. **실제 등록(insert)은 커미션 작가 본인 계정에서 사용자 확인 예정**(RLS가 auth.uid 요구라 dev 가짜 세션으론 insert 검증 불가).
+- **남은 것(2단계)**: 목록 '더보기'(현재는 가로 스크롤로 전부 노출), 필요 시 리치 텍스트 설명(`description_html` 자리 있음)·수정/삭제 UI.
 
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:
