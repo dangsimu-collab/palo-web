@@ -4522,26 +4522,31 @@ syncNotifBadge();
   document.addEventListener("touchmove",function(e){
     if(!active)return;
     dist=e.touches[0].clientY-startY;
-    var el=ind();
-    if(dist<=0){el.style.transition="";el.style.opacity="0";el.style.transform="translateY(0)";return;}
+    var el=ind(), sp=el.querySelector(".ptr-spin");
+    if(dist<=0){el.style.transition="";el.style.opacity="0";el.style.transform="translateY(0)";if(sp){sp.style.transition="";sp.style.transform="";}return;}
     el.style.transition="none"; // 당기는 동안 지연 없이 손가락 따라오게
     el.style.opacity=String(Math.min(1,dist/THRESH));
     el.style.transform="translateY("+Math.min(dist*0.4,48)+"px)";
     el.classList.toggle("ready",dist>THRESH);
+    // 당긴(그리고 다시 올린) 정도에 비례해 스피너 회전 — 손가락을 즉시 따라 돌고, 올리면 되돌아감
+    if(sp){sp.style.transition="none";sp.style.transform="rotate("+(dist*2)+"deg)";}
   },{passive:true});
   document.addEventListener("touchend",function(){
     if(!active)return; active=false;
-    var el=ind();
+    var el=ind(), sp=el.querySelector(".ptr-spin");
     el.style.transition="opacity .22s,transform .22s"; // 놓는 순간부터는 부드럽게
     if(dist>THRESH){
       refreshing=true;
-      el.classList.remove("ready"); el.classList.add("spinning");
+      el.classList.remove("ready");
+      if(sp){sp.style.transition="";sp.style.transform="";} // 인라인 회전 제거 → CSS 연속 스핀 애니메이션이 이어받음
+      el.classList.add("spinning");
       el.style.opacity="1"; el.style.transform="translateY(34px)";
       Promise.resolve(typeof refreshFeed==="function"?refreshFeed():null).then(function(){
         setTimeout(function(){el.classList.remove("spinning");el.style.opacity="0";el.style.transform="translateY(0)";refreshing=false;},450);
       });
     }else{
       el.classList.remove("ready"); el.style.opacity="0"; el.style.transform="translateY(0)";
+      if(sp){sp.style.transition="transform .22s";sp.style.transform="rotate(0deg)";} // 임계값 미만이면 부드럽게 원위치
     }
     dist=0;
   });
