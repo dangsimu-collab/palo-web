@@ -4426,9 +4426,12 @@ syncNotifBadge();
 })();
 
 // ===== 모바일 키보드: 텍스트 입력창 포커스 시 하단 탭바 숨김(키보드에 밀려 튀는 것 방지) =====
+// 단, 화면 키보드가 뜨는 터치 기기(주 포인터가 coarse)에서만. PC는 물리 키보드라 화면을 안 가리므로
+// 좁게 봐도(모바일처럼) 탭바를 숨기지 않음.
 (function(){
   function isTextInput(el){return el&&(el.tagName==="INPUT"||el.tagName==="TEXTAREA"||el.isContentEditable);}
-  document.addEventListener("focusin",function(e){if(isTextInput(e.target))document.body.classList.add("kb-open");});
+  function touchKeyboard(){return !!(window.matchMedia&&window.matchMedia("(pointer: coarse)").matches);}
+  document.addEventListener("focusin",function(e){if(isTextInput(e.target)&&touchKeyboard())document.body.classList.add("kb-open");});
   document.addEventListener("focusout",function(e){if(isTextInput(e.target))document.body.classList.remove("kb-open");});
 })();
 
