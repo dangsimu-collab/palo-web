@@ -166,7 +166,8 @@ var LATEST_NOTICE=null;
 var ACTIVE_ADS=[];
 var ACTIVE_CAMPAIGNS=[]; // 유료 CPM 캠페인(get_servable_ads RPC로 로드) — 지면의 80%를 차지
 var AD_LOCKED_COMMISSION_IDS={}; // 광고 심사중/집행중인 커미션 id들 — 수정 잠금용(POSTS의 adLocked와 동일한 목적)
-var AD_PAID_SHARE=0.80; // 지면 슬롯 중 유료 광고에 배정하는 비중(나머지 20%는 유저 광고). 유료 재고가 없으면 유저/하우스로 폴백
+var AD_PAID_SHARE=0; // 오픈 초기: 유료 광고 미서빙(0). 나중에 유료를 켜면 이 값(예: 0.80)이 유료에 배정되는 슬롯 비중이 됨.
+var AD_PER_AD_SHARE_MAX=0.04; // 유저 광고 1개당 노출 상한 4%(초기에 소수 광고가 독점하는 걸 방지). 유저 광고 '전체' 상한은 없음(최대 100%까지 유저 광고로 채움).
 function adTargetOnclick(ad){
   return ad.linked_commission_id?('cmOpenCommissionById('+ad.linked_commission_id+')'):('openPost('+(100000+ad.linked_post_id)+')');
 }
@@ -535,19 +536,23 @@ function pagerHTML(tp){
   return h+'</nav>';
 }
 function gotoPage(n){page=n;renderList();window.scrollTo({top:0,behavior:"smooth"});}
-// 지면 배분: 80% 유료 CPM 광고, 20% 유저 포인트 광고. 해당 타입 재고 없으면 다른 쪽으로 폴백, 둘 다 없으면 null(하우스).
+// 지면 배분(오픈 초기 = 유저 광고만): 유료는 AD_PAID_SHARE=0이라 서빙 안 함(나중에 켜면 그 비중만큼 유료).
+// 유저 광고는 각 광고 확률 = min(4%, 그 광고 points_spent 지분)로 뽑음 — 개당 4% 상한만 있고 '전체' 상한은 없어
+// 광고가 많으면 최대 100%까지 유저 광고로 채워지고, 남는 확률(1 - 합)은 하우스("광고 문의 환영")로 감.
 function pickServedAd(){
-  if(Math.random()<AD_PAID_SHARE){
+  if(AD_PAID_SHARE>0&&Math.random()<AD_PAID_SHARE){
     var camp=pickServableCampaign();
     if(camp)return {type:'paid',camp:camp};
   }
   if(ACTIVE_ADS.length){
-    var weights=ACTIVE_ADS.map(function(a){return a.points_spent||1;});
-    var total=weights.reduce(function(s,w){return s+w;},0);
-    var r=Math.random()*total,cum=0;
-    for(var i=0;i<ACTIVE_ADS.length;i++){cum+=weights[i];if(r<cum)return {type:'user',ad:ACTIVE_ADS[i]};}
+    var total=ACTIVE_ADS.reduce(function(s,a){return s+(a.points_spent||1);},0);
+    var r=Math.random(),cum=0;
+    for(var i=0;i<ACTIVE_ADS.length;i++){
+      cum+=Math.min(AD_PER_AD_SHARE_MAX,(ACTIVE_ADS[i].points_spent||1)/total); // 개당 4% 상한
+      if(r<cum)return {type:'user',ad:ACTIVE_ADS[i]};
+    }
   }
-  return null;
+  return null; // 남는 확률 → 하우스
 }
 // 서빙된 광고 배너 HTML. extraClass로 지면별 마진 등을 얹음(.d-ad, .side-ad). 유료 배너만 data-campaign-id를 달아 측정 대상이 됨.
 function servedBannerHTML(s,extraClass){
@@ -567,7 +572,7 @@ function houseAdHTML(extraClass){
     '<span class="ad-label">AD</span>'+
     '<div class="ad-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="width:22px;height:22px"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 18 5-5 4 3 3-2 4 4"/></svg></div>'+
     '<div class="ad-body"><div class="ad-t">광고 문의 환영</div>'+
-    '<div class="ad-d">이 자리에 유저 광고와 유료 광고가 노출됩니다</div></div>'+
+    '<div class="ad-d">이 자리에 유저 광고가 노출돼요</div></div>'+
   '</div>';
 }
 function adRow(extraClass){
