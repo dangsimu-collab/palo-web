@@ -266,7 +266,7 @@ async function loadRealPosts(skipRender){
       views:row.views,thumb:"none",stage:row.stage,images:imagesByPost[row.id],
       isManagerPick:!!row.is_manager_pick,pickPosition:row.pick_position,pickedAt:row.picked_at,adLocked:!!adLockedIds[row.id],
       reviewedNickname:row.reviewed_nickname||null,reviewedUserId:row.reviewed_user_id||null,commissionPostId:row.commission_post_id||null,commissionSentiment:row.commission_sentiment||null,
-      commissionId:row.commission_id||null,commissionCtype:row.commission_ctype||null,commissionBadReason:row.commission_bad_reason||null,
+      commissionId:row.commission_id||null,commissionCtype:row.commission_ctype||null,commissionBadReason:row.commission_bad_reason||null,acceptedCommentId:row.accepted_comment_id||null,
       content:(row.content||"").split("\n").filter(Boolean),html:row.content_html||undefined,comments:commentsByPost[row.id]||[]};
   });
   // 기존 실제 글(dbId 있음)은 방금 새로 받은 real로 교체하고, 클라이언트에만 있는 글(낙관적 추가·
@@ -1068,10 +1068,34 @@ function confirmDialog(message){
 }
 function renderComments(p){
   if(p.comments.length===0)return '<div style="padding:26px 0;text-align:center;color:var(--muted);font-size:13px">첫 훈수를 남겨보세요 ✏️</div>';
-  return p.comments.map(function(c,ci){
+  var isFeedback=(p.board==='crit');                                  // '피드백 요청' 게시판만 채택 기능
+  var isPostAuthor=!!(AUTH.user&&p.authorId&&p.authorId===AUTH.user.id);
+  var accId=p.acceptedCommentId||null;
+  // 원본 인덱스(ci)는 helpful/deleteComment용으로 보존하면서, 채택된 댓글만 맨 위로 정렬
+  var list=p.comments.map(function(c,ci){return {c:c,ci:ci};});
+  if(isFeedback&&accId)list.sort(function(a,b){return ((a.c.dbId===accId)?0:1)-((b.c.dbId===accId)?0:1);});
+  return list.map(function(item){
+    var c=item.c,ci=item.ci;
     var canDelete=c.dbId&&AUTH.user&&c.authorId===AUTH.user.id;
-    return '<div class="cm"><div class="d-ava serif">'+avatarHTML(c.n,c.av)+'</div><div class="cbody"><div class="ch"><span class="cn"'+(c.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+c.authorId+'\')"':'')+'>'+esc(c.n)+'</span>'+levelBadgeHtml(c.lv,"lv-badge")+'<span class="ct">'+esc(c.t)+'</span></div><div class="ctext">'+esc(c.txt).replace(/^@(\S+)/,'<b class="mention">@$1</b>')+'</div><div class="cfoot"><span onclick="helpful('+p.id+','+ci+',this)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 6h5a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7"/></svg>도움돼요'+(c.h?' <b>'+c.h+'</b>':'')+'</span><span onclick="replyTo(\''+esc(c.n)+'\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>답글</span>'+(canDelete?'<span onclick="deleteComment('+p.id+','+ci+')">삭제</span>':'')+'</div></div></div>';
+    var isAccepted=isFeedback&&accId&&c.dbId===accId;
+    var acceptBtn=(isFeedback&&isPostAuthor&&c.dbId)
+      ? (isAccepted?'<span class="cm-accept-btn on" onclick="acceptFeedback('+p.id+','+c.dbId+',true)">채택 취소</span>'
+                   :'<span class="cm-accept-btn" onclick="acceptFeedback('+p.id+','+c.dbId+',false)">✅ 채택</span>')
+      : '';
+    var badge=isAccepted?'<div class="cm-accepted-badge">✅ 채택된 피드백</div>':'';
+    return '<div class="cm'+(isAccepted?' accepted':'')+'"><div class="d-ava serif">'+avatarHTML(c.n,c.av)+'</div><div class="cbody">'+badge+'<div class="ch"><span class="cn"'+(c.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+c.authorId+'\')"':'')+'>'+esc(c.n)+'</span>'+levelBadgeHtml(c.lv,"lv-badge")+'<span class="ct">'+esc(c.t)+'</span></div><div class="ctext">'+esc(c.txt).replace(/^@(\S+)/,'<b class="mention">@$1</b>')+'</div><div class="cfoot"><span onclick="helpful('+p.id+','+ci+',this)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 6h5a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7"/></svg>도움돼요'+(c.h?' <b>'+c.h+'</b>':'')+'</span><span onclick="replyTo(\''+esc(c.n)+'\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>답글</span>'+(canDelete?'<span onclick="deleteComment('+p.id+','+ci+')">삭제</span>':'')+acceptBtn+'</div></div></div>';
   }).join("");
+}
+async function acceptFeedback(postId,commentDbId,isCancel){
+  var p=POSTS.find(function(x){return x.id===postId});if(!p||!p.dbId||!window.supabase)return;
+  if(!AUTH.user||p.authorId!==AUTH.user.id){toast("글 작성자만 채택할 수 있어요");return;}
+  var res=await window.supabase.rpc("set_accepted_feedback",{p_post_id:p.dbId,p_comment_id:isCancel?null:commentDbId});
+  if(res.error){toast("채택 실패: "+res.error.message);return;}
+  var data=res.data||{};
+  if(!data.ok){toast("채택할 수 없어요 ("+(data.error||"오류")+")");return;}
+  p.acceptedCommentId=data.accepted||null;
+  var el=document.getElementById("cmList");if(el)el.innerHTML=renderComments(p);
+  toast(isCancel?"채택을 취소했어요":(data.rewarded?"채택했어요! 작성자에게 포인트를 지급했어요 🎁":"채택했어요"));
 }
 async function deleteComment(postId,ci){
   var p=POSTS.find(function(x){return x.id===postId});if(!p)return;
