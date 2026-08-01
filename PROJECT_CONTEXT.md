@@ -789,7 +789,15 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **수정**: 의존 관계로 3개 wave로 묶어 각 wave 안은 `Promise.all`로 병렬 실행. **1차**(서로 독립): notices/level_thresholds/user_ads(active)/get_servable_ads/user_ads(adlock)/posts/profiles 7개 동시. **2차**(posts의 dbIds 필요): comments/likes/post_images 3개 동시. **3차**(comments의 id 필요): comment_helpful. 11번 순차 → 3번 묶음.
 - **검증**(dev 브라우저 실측): 동일 쿼리 순차 585ms → 새 병렬 `loadRealPosts()` 142ms = **약 4.1배** 단축. 로드 후 글/작성자/좋아요/댓글/이미지 매핑·피드 렌더 정상 확인. 모바일에선 왕복 지연이 커 절대 개선폭이 더 큼.
 - **스켈레톤은 이미 있음**: `app/body-html.js`의 정적 `#main`에 `.skel-row` 5줄 + 트렌드바 스켈레톤이 박혀 있어 데이터 오기 전 첫 페인트에 즉시 표시됨(빈 화면 아님).
-- **아직 안 한 것(효과 대비 위험 커서 보류)**: ① 초기 posts 쿼리에서 `content_html`(상세 전용, 인라인 이미지로 커질 수 있음) 제외하고 `openPost` 때 지연 로드 — 현재 데이터에선 1KB라 이득 미미. ② posts 페이지네이션(limit) — 클라이언트 정렬/필터가 전체 POSTS 배열에 의존해 동작이 바뀜. ③ 재진입 캐시(sessionStorage/localStorage로 즉시 표시 후 백그라운드 갱신) — **주의**: 현재 `POSTS=real.concat(POSTS)`가 호출마다 앞에 덧붙이는 구조라, 캐시+백그라운드 재호출을 넣으려면 먼저 `loadRealPosts()`를 멱등하게(데모 글과 실제 글을 분리해 매번 교체) 고쳐야 함.
+- **아직 안 한 것(효과 대비 위험 커서 보류)**: ① 초기 posts 쿼리에서 `content_html`(상세 전용, 인라인 이미지로 커질 수 있음) 제외하고 `openPost` 때 지연 로드 — 현재 데이터에선 1KB라 이득 미미. ② posts 페이지네이션(limit) — 클라이언트 정렬/필터가 전체 POSTS 배열에 의존해 동작이 바뀜.
+
+### 초기 로딩 속도 개선 — 재진입 캐시 (2026-08-01)
+앱을 다시 열 때(특히 홈화면 PWA 재실행) 네트워크를 기다리지 않고 지난번 피드를 **즉시** 보여주고, 뒤에서 최신으로 교체하는 stale-while-revalidate 캐시.
+- **멱등화 선행(필수)**: `POSTS=real.concat(POSTS)`가 호출마다 앞에 덧붙여 재호출 시 글이 중복되던 구조를, `POSTS=real.concat(POSTS.filter(p=>!p.dbId))`로 변경 — 기존 실제 글(dbId 있음)은 새 `real`로 교체하고 클라이언트 전용 글(낙관적 추가·캐시 프라임 등 dbId 없는 것)만 남김. 이게 있어야 "캐시 렌더 → 백그라운드 loadRealPosts 재실행"이 중복 없이 안전함.
+- **저장**(`saveFeedCache`): `loadRealPosts()` 성공 시 `real`을 `localStorage["palo_feed_v1"]`에 `{t,posts}`로 저장. **`content_html`(=`html` 필드)은 제외** — 인라인 이미지로 커져 localStorage 용량(≈5MB)을 위협하고 목록엔 안 쓰이며 갱신 시 다시 채워짐. `try/catch`로 용량 초과 시 조용히 건너뜀. (실측 28개 ≈ 19KB.)
+- **불러오기**(`loadFeedCache`): 24시간 이내 캐시만 유효(그 이상은 버림).
+- **프라임**(부팅 `initAuth().then(loadRealPosts)` 직전 `primeFromCache()`): 딥링크(`/post`·`/user`)나 `userLeftHome`이 아니고 캐시가 있으면 `POSTS`를 캐시로 채우고 `renderChips/renderHot/renderTrend/renderList` 즉시 실행 → 이어서 `loadRealPosts`가 최신으로 교체.
+- **검증**(dev): 캐시 저장 19KB(html 없음 확인), `loadRealPosts` 2회 호출 시 실제 글 수 28→28 그대로(멱등, 중복 없음), 캐시 있는 상태 새로고침 시 이른 시점에 이미 피드 21행 렌더(네트워크 갱신 후 동일), 콘솔 에러 없음.
 
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:

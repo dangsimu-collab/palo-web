@@ -171,6 +171,25 @@ function showNotice(){
   document.getElementById("noticeModal").classList.add("open");
 }
 function closeNotice(){document.getElementById("noticeModal").classList.remove("open");}
+// 재진입 캐시: 마지막으로 불러온 피드를 localStorage에 저장해 두고, 다음에 앱을 다시 열 때
+// 네트워크를 기다리지 않고 즉시 화면에 뿌린 뒤(백그라운드에서 최신으로 교체). content_html은
+// 인라인 이미지로 커질 수 있어 저장에서 제외(목록엔 안 쓰이고, 새로고침되면 다시 채워짐).
+var FEED_CACHE_KEY="palo_feed_v1";
+function saveFeedCache(real){
+  try{
+    var slim=real.map(function(p){var c={};for(var k in p){if(k!=="html")c[k]=p[k];}return c;});
+    localStorage.setItem(FEED_CACHE_KEY,JSON.stringify({t:Date.now(),posts:slim}));
+  }catch(e){/* 용량 초과 등은 무시 — 캐시는 있으면 좋고 없어도 그만 */}
+}
+function loadFeedCache(){
+  try{
+    var raw=localStorage.getItem(FEED_CACHE_KEY);if(!raw)return null;
+    var o=JSON.parse(raw);
+    if(!o||!Array.isArray(o.posts))return null;
+    if(Date.now()-(o.t||0)>24*3600*1000)return null; // 24시간 지난 캐시는 버림
+    return o.posts;
+  }catch(e){return null;}
+}
 async function loadRealPosts(){
   if(!window.supabase)return;
   var sb=window.supabase;
@@ -244,8 +263,11 @@ async function loadRealPosts(){
       commissionId:row.commission_id||null,commissionCtype:row.commission_ctype||null,commissionBadReason:row.commission_bad_reason||null,
       content:(row.content||"").split("\n").filter(Boolean),html:row.content_html||undefined,comments:commentsByPost[row.id]||[]};
   });
-  POSTS=real.concat(POSTS);
+  // 기존 실제 글(dbId 있음)은 방금 새로 받은 real로 교체하고, 클라이언트에만 있는 글(낙관적 추가·
+  // 캐시 프라임 등 dbId 없는 것)만 남김 — loadRealPosts()를 여러 번 불러도(캐시→백그라운드 갱신) 중복 안 됨.
+  POSTS=real.concat(POSTS.filter(function(p){return !p.dbId;}));
   postsLoaded=true;
+  saveFeedCache(real);
   renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
   renderTrend();
   // 로딩이 끝나기 전에 사용자가 이미 홈 밖 다른 화면으로 이동했다면, 그 화면을 그대로 두고
@@ -4232,5 +4254,17 @@ syncNotifBadge();
   onMain();
 })();
 
+// 재진입 시 즉시 표시: 지난번 피드를 캐시에서 꺼내 바로 그림(빈 스켈레톤 대기 없이).
+// 곧이어 initAuth→loadRealPosts가 최신 데이터로 교체함. 딥링크(글·유저)나 이미 다른 화면으로
+// 이동한 경우엔 캐시로 홈을 그리지 않음.
+(function primeFromCache(){
+  if(getPostIdFromPath()||getUserIdFromPath()||userLeftHome)return;
+  if(!window.supabase)return; // supabase 없는 로컬 데모는 기존 폴백에 맡김
+  var cached=loadFeedCache();
+  if(cached&&cached.length){
+    POSTS=cached.concat(POSTS.filter(function(p){return !p.dbId;}));
+    try{renderChips();renderHot();renderTrend();renderList();}catch(e){}
+  }
+})();
 initAuth().then(loadRealPosts);
 
