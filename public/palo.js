@@ -1117,12 +1117,12 @@ async function toggleLike(id){
   }
   if(wasLiked)toast("좋아요를 눌렀어요","♥");
 }
-function selectBoard(id){
+function selectBoard(id,skipRender){
   state.board=id;state.query="";state.tag=null;page=1;
   document.getElementById("searchInput").value="";var m=document.getElementById("searchInputM");if(m)m.value="";
   renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
   renderChips();closeDrawer();closeSheet();syncTabs(id);
-  renderList();
+  if(!skipRender)renderList(); // skipRender: 이미 그 목록을 보고 있어 다시 그릴 필요가 없을 때(홈 재탭 등)
   window.scrollTo({top:0,behavior:"smooth"});
 }
 /* ===== 커미션 페이지 (cm-) : 화면 시안 이식 · 데모 데이터 ===== */
@@ -2514,7 +2514,14 @@ function postAlbumHTML(posts){
   return '<div class="post-album">'+posts.map(postCardHTML).join("")+'</div>';
 }
 function showMore(){state.shown+=6;renderList()}
-function goHome(){resetScreens();userLeftHome=false;selectBoard("all");refreshFeed();}
+function goHome(){
+  // 이미 '전체 글' 홈 피드를 보고 있으면 캐시로 다시 안 그림 → refreshFeed가 새 글 있을 때만 딱 한 번,
+  // 그것도 최신(새 글 포함)으로 그림. 다른 화면/게시판에서 왔으면 즉시 전환용으로 캐시를 그림.
+  var onHomeFeed=(!userLeftHome&&state.board==="all"&&!state.query&&!state.tag);
+  resetScreens();userLeftHome=false;
+  selectBoard("all",onHomeFeed);
+  refreshFeed();
+}
 // 홈 피드를 DB에서 다시 불러와 갱신. goHome이 이미 캐시로 한 번 그렸으므로, 재조회 후에는
 // 내용이 실제로 바뀐 경우에만 딱 한 번 더 그림(안 바뀌면 다시 안 그려서 껌뻑임 없음).
 function feedSignature(){
