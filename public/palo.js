@@ -1131,6 +1131,26 @@ var cmGrads=['linear-gradient(135deg,#f7d5e6,#e8a5c8)','linear-gradient(135deg,#
   'linear-gradient(135deg,#d5f7e3,#a5e8c0)','linear-gradient(135deg,#f7d5d5,#e8a5a5)'];
 var cmData=[]; // openCommissionList()가 Supabase에서 실제로 불러와 채움
 var cmDataLoaded=false;
+var cmRefreshing=false; // refreshCommissions() 중복 실행 방지
+// 커미션 목록이 실제로 바뀌었는지 판단용 서명(새 커미션·상태/제목/가격 변경 감지)
+function cmListSignature(){
+  return cmData.map(function(c){return c.id+"."+c.status+"."+(c.title||"")+"."+(c.price||"");}).join(",");
+}
+// 커미션 목록을 DB에서 다시 불러와, '리스트 화면을 보고 있고 & 내용이 바뀐' 경우에만 그리드/칩을 한 번 갱신.
+async function refreshCommissions(){
+  if(!window.supabase||cmRefreshing)return;
+  cmRefreshing=true;
+  var before=cmListSignature();
+  try{
+    await cmLoadCommissions();
+    if(cmBookmarkIds===null)await cmLoadMyBookmarks();
+  }catch(e){}
+  cmRefreshing=false;
+  if(document.getElementById('cmGrid')&&cmListSignature()!==before){
+    var chipsEl=document.querySelector('.cm-chips');if(chipsEl)chipsEl.innerHTML=cmChipsHTML();
+    var gridEl=document.getElementById('cmGrid');if(gridEl)gridEl.innerHTML=cmGridHTML();
+  }
+}
 var cmReviews=[
   {who:'달빛초',type:'호',ctype:'반신',txt:'퀄리티 미쳤어요... 명암 표현이 진짜 섬세하고 기한도 딱 맞춰주셨어요! 재의뢰 무조건 합니다 🥹',date:'2026.07.28'},
   {who:'구름사탕',type:'호',ctype:'두상',txt:'캐릭터 특징 너무 잘 살려주셨어요 소통도 친절하시고 만족스러운 거래였습니다!',date:'2026.07.20'},
@@ -1285,17 +1305,13 @@ async function openCommissionList(){
   if(!navigatingBack)resetScreens();
   enterScreen("cmList",goHome);
   closeDrawer();closeSheet();syncTabs("commission");
-  document.getElementById("main").innerHTML=cmListHTML();
-  window.scrollTo({top:0,behavior:"smooth"});
-  var needsRefresh=false;
-  if(!cmDataLoaded){await cmLoadCommissions();needsRefresh=true;}
-  if(cmBookmarkIds===null){await cmLoadMyBookmarks();needsRefresh=true;}
-  if(needsRefresh){
-    var chipsEl=document.querySelector('.cm-chips');
-    if(chipsEl)chipsEl.innerHTML=cmChipsHTML();
-    var gridEl=document.getElementById('cmGrid');
-    if(gridEl)gridEl.innerHTML=cmGridHTML();
+  // 이미 커미션 리스트 화면(#cmGrid 존재)이면 셸을 다시 안 그리고 스크롤만 → refreshCommissions가
+  // 새 커미션 있을 때만 그리드를 딱 한 번 갱신(껌뻑임 없이). 다른 화면/뒤로에서 왔으면 캐시로 즉시 셸 렌더.
+  if(!document.getElementById('cmGrid')){
+    document.getElementById("main").innerHTML=cmListHTML();
   }
+  window.scrollTo({top:0,behavior:"smooth"});
+  refreshCommissions();
 }
 function cmCardHTML(d,idx){
   var thumb=(d.images&&d.images[0])?("background-image:url('"+cmQ(d.images[0])+"');background-size:cover;background-position:center"):('background:'+cmGrads[idx%cmGrads.length]);
