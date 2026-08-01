@@ -173,43 +173,49 @@ function showNotice(){
 function closeNotice(){document.getElementById("noticeModal").classList.remove("open");}
 async function loadRealPosts(){
   if(!window.supabase)return;
-  var noticeRes=await window.supabase.from("notices").select("*").order("created_at",{ascending:false}).limit(1);
+  var sb=window.supabase;
+  var nowIso=new Date().toISOString();
+  // ── 1차: 서로 독립적인 쿼리 7개를 병렬로 실행(예전엔 하나씩 순서대로 await해서 왕복 지연이 그대로 누적됐음) ──
+  var wave1=await Promise.all([
+    sb.from("notices").select("*").order("created_at",{ascending:false}).limit(1),
+    sb.from("level_thresholds").select("*").order("level"),
+    sb.from("user_ads").select("id,image_url,linked_post_id,linked_commission_id,points_spent").eq("status","active").gt("expires_at",nowIso),
+    sb.rpc("get_servable_ads"),
+    sb.from("user_ads").select("linked_post_id,linked_commission_id,status,expires_at").in("status",["pending","active"]),
+    sb.from("posts").select("*").order("created_at",{ascending:false}),
+    sb.from("profiles").select("id,nickname,level,avatar_url")
+  ]);
+  var noticeRes=wave1[0],lvRes=wave1[1],adRes=wave1[2],campRes=wave1[3],adLockRes=wave1[4],res=wave1[5],profRes=wave1[6];
   if(!noticeRes.error&&noticeRes.data.length)LATEST_NOTICE=noticeRes.data[0];
-
-  var lvRes=await window.supabase.from("level_thresholds").select("*").order("level");
   if(!lvRes.error)LEVEL_THRESHOLDS=lvRes.data||[];
-
-  var adRes=await window.supabase.from("user_ads").select("id,image_url,linked_post_id,linked_commission_id,points_spent").eq("status","active").gt("expires_at",new Date().toISOString());
   if(!adRes.error)ACTIVE_ADS=adRes.data||[];
-
-  var campRes=await window.supabase.rpc("get_servable_ads");
   if(!campRes.error)ACTIVE_CAMPAIGNS=campRes.data||[];
-
-  var adLockRes=await window.supabase.from("user_ads").select("linked_post_id,linked_commission_id,status,expires_at").in("status",["pending","active"]);
   var adLockedIds={};
   AD_LOCKED_COMMISSION_IDS={};
-  var nowIso=new Date().toISOString();
   (adLockRes.data||[]).forEach(function(a){
     if(a.status==="pending"||(a.status==="active"&&a.expires_at&&a.expires_at>nowIso)){
       if(a.linked_post_id)adLockedIds[a.linked_post_id]=true;
       if(a.linked_commission_id)AD_LOCKED_COMMISSION_IDS[a.linked_commission_id]=true;
     }
   });
-
-  var res=await window.supabase.from("posts").select("*").order("created_at",{ascending:false});
   if(res.error){console.error(res.error);return;}
   var dbIds=res.data.map(function(row){return row.id});
-
-  var profRes=await window.supabase.from("profiles").select("id,nickname,level,avatar_url");
   var profById={};
   if(!profRes.error)profRes.data.forEach(function(row){profById[row.id]={nickname:row.nickname,level:row.level,avatarUrl:row.avatar_url};});
   function nameFor(uid){return uid&&profById[uid]?profById[uid].nickname:"익명";}
   function levelFor(uid){return uid&&profById[uid]?profById[uid].level:null;}
   function avatarFor(uid){return uid&&profById[uid]?profById[uid].avatarUrl:null;}
 
-  var cmRes=dbIds.length?await window.supabase.from("comments").select("*").in("post_id",dbIds).order("created_at"):{data:[]};
+  // ── 2차: posts에 의존하는 댓글·좋아요·이미지를 병렬로 ──
+  var wave2=await Promise.all([
+    dbIds.length?sb.from("comments").select("*").in("post_id",dbIds).order("created_at"):Promise.resolve({data:[]}),
+    dbIds.length?sb.from("likes").select("post_id,user_id").in("post_id",dbIds):Promise.resolve({data:[]}),
+    dbIds.length?sb.from("post_images").select("post_id,url,sort").in("post_id",dbIds).order("sort"):Promise.resolve({data:[]})
+  ]);
+  var cmRes=wave2[0],likeRes=wave2[1],imgRes=wave2[2];
   var commentIds=(cmRes.data||[]).map(function(c){return c.id});
-  var helpfulRes=commentIds.length?await window.supabase.from("comment_helpful").select("comment_id,user_id").in("comment_id",commentIds):{data:[]};
+  // ── 3차: 댓글에 의존하는 도움돼요(comment_helpful) ──
+  var helpfulRes=commentIds.length?await sb.from("comment_helpful").select("comment_id,user_id").in("comment_id",commentIds):{data:[]};
   var helpfulCountByComment={},helpfulMine={};
   (helpfulRes.data||[]).forEach(function(hf){
     helpfulCountByComment[hf.comment_id]=(helpfulCountByComment[hf.comment_id]||0)+1;
@@ -219,14 +225,10 @@ async function loadRealPosts(){
   (cmRes.data||[]).forEach(function(c){
     (commentsByPost[c.post_id]=commentsByPost[c.post_id]||[]).push({n:nameFor(c.author_id),t:timeAgo(c.created_at),txt:c.content,dbId:c.id,authorId:c.author_id,lv:levelFor(c.author_id),av:avatarFor(c.author_id),h:helpfulCountByComment[c.id]||0,_me:!!helpfulMine[c.id]});
   });
-
-  var likeRes=dbIds.length?await window.supabase.from("likes").select("post_id,user_id").in("post_id",dbIds):{data:[]};
   var likesByPost={};
   (likeRes.data||[]).forEach(function(l){
     (likesByPost[l.post_id]=likesByPost[l.post_id]||[]).push(l.user_id);
   });
-
-  var imgRes=dbIds.length?await window.supabase.from("post_images").select("post_id,url,sort").in("post_id",dbIds).order("sort"):{data:[]};
   var imagesByPost={};
   (imgRes.data||[]).forEach(function(im){
     (imagesByPost[im.post_id]=imagesByPost[im.post_id]||[]).push(im.url);

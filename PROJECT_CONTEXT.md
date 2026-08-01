@@ -784,6 +784,13 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **주의**: `public/palo.js`는 `/public`의 정적 파일이라 Next dev의 HMR 대상이 아님 — 수정 후 브라우저 **새로고침**해야 반영됨(검증 중 옛 코드가 잡혀 헷갈렸던 지점). `applySession()`은 프로필 화면에 있을 때만(`#myProfileView` 존재 시) 다시 그리므로 홈 강제 복귀의 원인이 아님(확인함).
 - **검증**(dev): `userLeftHome=true`면 `loadRealPosts()` 완료 후에도 기존 화면 유지(홈 강제 렌더 안 함), `false`면 피드 정상 렌더 확인.
 
+### 초기 로딩 속도 개선 — 쿼리 병렬화 (2026-08-01)
+`loadRealPosts()`가 쿼리 11개(notices·level_thresholds·user_ads×2·get_servable_ads·posts·profiles·comments·comment_helpful·likes·post_images)를 **하나씩 순차 await**해서, 데이터가 작아도(글 28개 ≈ 13KB) 네트워크 **왕복 지연이 11번 누적**되는 게 병목이었음(모바일망에선 왕복당 100~300ms라 체감이 큼). 데이터 크기가 아니라 **왕복 횟수**가 문제.
+- **수정**: 의존 관계로 3개 wave로 묶어 각 wave 안은 `Promise.all`로 병렬 실행. **1차**(서로 독립): notices/level_thresholds/user_ads(active)/get_servable_ads/user_ads(adlock)/posts/profiles 7개 동시. **2차**(posts의 dbIds 필요): comments/likes/post_images 3개 동시. **3차**(comments의 id 필요): comment_helpful. 11번 순차 → 3번 묶음.
+- **검증**(dev 브라우저 실측): 동일 쿼리 순차 585ms → 새 병렬 `loadRealPosts()` 142ms = **약 4.1배** 단축. 로드 후 글/작성자/좋아요/댓글/이미지 매핑·피드 렌더 정상 확인. 모바일에선 왕복 지연이 커 절대 개선폭이 더 큼.
+- **스켈레톤은 이미 있음**: `app/body-html.js`의 정적 `#main`에 `.skel-row` 5줄 + 트렌드바 스켈레톤이 박혀 있어 데이터 오기 전 첫 페인트에 즉시 표시됨(빈 화면 아님).
+- **아직 안 한 것(효과 대비 위험 커서 보류)**: ① 초기 posts 쿼리에서 `content_html`(상세 전용, 인라인 이미지로 커질 수 있음) 제외하고 `openPost` 때 지연 로드 — 현재 데이터에선 1KB라 이득 미미. ② posts 페이지네이션(limit) — 클라이언트 정렬/필터가 전체 POSTS 배열에 의존해 동작이 바뀜. ③ 재진입 캐시(sessionStorage/localStorage로 즉시 표시 후 백그라운드 갱신) — **주의**: 현재 `POSTS=real.concat(POSTS)`가 호출마다 앞에 덧붙이는 구조라, 캐시+백그라운드 재호출을 넣으려면 먼저 `loadRealPosts()`를 멱등하게(데모 글과 실제 글을 분리해 매번 교체) 고쳐야 함.
+
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:
 1. **1차(채팅만, 이후 폐기된 설계)**: `messages` 테이블을 직접 실시간 구독해서 클라이언트가 알림을 만드는 방식으로 시작 — 그런데 이러면 "지금 내가 참여 중인 대화방 id 목록"을 클라이언트가 직접 관리해야 하고, 새로 생긴 대화방을 놓치는 등 허점이 많았음.
