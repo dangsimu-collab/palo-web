@@ -21,6 +21,7 @@ var CATMAP={talk:{label:"수다",cls:"talk-c"},ask:{label:"고민",cls:"help-c"}
   review:{label:"후기",cls:"free-c"},adult:{label:"에치치",cls:"help-c"}};
 
 var postsLoaded=false; // loadRealPosts()가 실제 글을 POSTS에 합친 뒤 true — 이 전에는 데모 글로 renderList()를 강제로 돌리지 않음(로그인 리다이렉트 직후 더미 글이 잠깐 보이는 버그 방지)
+var userLeftHome=false; // 초기 로딩이 끝나기 전에 사용자가 피드(홈) 밖 화면(커미션/채팅/글쓰기/프로필/글·유저 상세)으로 이동했으면 true — loadRealPosts() 완료 시 홈으로 강제 복귀시키지 않기 위함
 var POSTS=[]; // 실제 글은 loadRealPosts()가 DB에서 채움
 var TREND=[
   {name:"비 오는 창가",tag:"챌린지 1위",thumb:"t1",sub:"참여 38명"},
@@ -245,12 +246,16 @@ async function loadRealPosts(){
   postsLoaded=true;
   renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
   renderTrend();
-  var initialDbId=getPostIdFromPath();
-  var initialPost=initialDbId?POSTS.find(function(x){return x.dbId===initialDbId}):null;
-  var initialUserId=getUserIdFromPath();
-  if(initialPost)openPost(initialPost.id);
-  else if(initialUserId)openUserProfile(initialUserId);
-  else renderList();
+  // 로딩이 끝나기 전에 사용자가 이미 홈 밖 다른 화면으로 이동했다면, 그 화면을 그대로 두고
+  // 홈/딥링크로 강제 복귀시키지 않음(로딩 중 탭을 눌렀다가 홈으로 튕기던 문제 해결).
+  if(!userLeftHome){
+    var initialDbId=getPostIdFromPath();
+    var initialPost=initialDbId?POSTS.find(function(x){return x.dbId===initialDbId}):null;
+    var initialUserId=getUserIdFromPath();
+    if(initialPost)openPost(initialPost.id);
+    else if(initialUserId)openUserProfile(initialUserId);
+    else renderList();
+  }
   renderSidebarAd();
 }
 function getPostIdFromPath(){
@@ -691,6 +696,7 @@ function renderList(){
   observeAdBanners();
 }
 function openPost(id){
+  userLeftHome=true;
   resetScreens();
   leaveChat();
   var p=POSTS.find(function(x){return x.id===id});if(!p)return;p.views++;READ.add(id);
@@ -1245,6 +1251,7 @@ async function cmToggleBookmark(commissionId,el){
   }
 }
 async function openCommissionList(){
+  userLeftHome=true;
   if(!navigatingBack)resetScreens();
   enterScreen("cmList",goHome);
   closeDrawer();closeSheet();syncTabs("commission");
@@ -2371,6 +2378,7 @@ function renderCommissionSelected(){
   el.style.display="flex";
 }
 function openWrite(){
+  userLeftHome=true;
   resetScreens();
   editingPostId=null;
   edState={board:(state.board!=="all"&&state.board!=="sketch")?state.board:null,tag:null,img:false,images:[],commissionPostId:null,reviewedNick:null,reviewedUserId:null,sentiment:null};
@@ -2986,6 +2994,7 @@ function listOrEmpty(arr,emptyMsg,cta){
 }
 async function openUserProfile(userId){
   if(!userId||!window.supabase)return;
+  userLeftHome=true;
   resetScreens();
   leaveChat();
   closeNotif();
@@ -3221,6 +3230,7 @@ function chatMessagesHtml(messages){
 }
 async function openChatList(){
   if(!AUTH.user){toast("로그인이 필요해요");loginWithGoogle();return;}
+  userLeftHome=true;
   if(!navigatingBack)resetScreens();
   enterScreen("chatList",goHome);
   leaveChat();
@@ -3433,6 +3443,7 @@ function renderLeaderboard(rows,period){
   window.scrollTo({top:0,behavior:"smooth"});
 }
 function openProfile(){
+  userLeftHome=true;
   resetScreens();
   leaveChat();
   closeNotif();

@@ -778,6 +778,12 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **채팅 적용**: `openChatList`(탭 진입 겸 채팅방의 뒤로-대상 → `goHome`)에 `if(!navigatingBack)resetScreens();enterScreen("chatList",goHome)`, `openChat`이 `renderChatView` 직전에 `enterScreen("chatRoom",openChatList)`, 채팅방 `‹`(`cr-back`) onclick을 `screenBack()`으로 변경. 채팅방은 body 최상위 오버레이(`#chatRoom`)라 뒤로 시 `openChatList`가 `leaveChat()`으로 오버레이를 닫고 리스트를 다시 그림. **주의**: 채팅방은 `lockBodyForChat()`으로 `body{position:fixed}` 잠금 상태라, iOS 가장자리 스와이프가 이 잠금과 충돌 없이 히스토리 뒤로가기를 발동하는지는 실기기 확인이 특히 중요(Chromium에선 재현 불가).
 - **검증**(dev 브라우저): 커미션 목록→상세→후기 진입 시 스택이 `cmList>cmDetail>cmReviews`로 쌓이고 `history.back()` 두 번에 후기→상세→목록 한 단계씩 복귀, 한 번 더로 홈. 상세에서 홈 탭을 누르면 스택이 비고 이후 뒤로가기로 커미션이 안 되살아남. 채팅도 `chatList>chatRoom` 스택 + 뒤로 시 채팅방→리스트→홈 순서 확인. 실제 iOS 스와이프 체감은 사용자 실기기 확인.
 
+### 초기 로딩 중 다른 탭으로 이동해도 홈으로 튕기던 문제 수정 (2026-08-01)
+사이트 진입(또는 홈화면 앱 실행) 시 `loadRealPosts()`가 글을 불러오는 동안, 사용자가 하단 탭으로 다른 화면(커미션/채팅/글쓰기/프로필 등)에 이동해도 **로딩이 끝나는 순간 무조건 홈으로 되돌려지던** 문제. 원인: `loadRealPosts()` 꼬리에서 딥링크(`/post`·`/user`)가 아니면 무조건 `renderList()`(홈)를 호출해 사용자가 이동한 화면을 덮어썼음.
+- **수정**: 전역 `userLeftHome` 플래그 추가 — `openCommissionList`/`openChatList`/`openWrite`/`openProfile`/`openPost`/`openUserProfile`(=홈 피드 밖으로 나가는 진입점) 시작에서 `true`로 세팅. `loadRealPosts()` 꼬리의 초기 라우팅(`openPost`/`openUserProfile`/`renderList`)을 `if(!userLeftHome){...}`로 감쌈. 홈 피드 안에서의 게시판 전환(`selectBoard`/`goHome`)은 플래그를 안 세워, 로딩 완료 시 피드가 정상적으로 실제 글로 갱신됨.
+- **주의**: `public/palo.js`는 `/public`의 정적 파일이라 Next dev의 HMR 대상이 아님 — 수정 후 브라우저 **새로고침**해야 반영됨(검증 중 옛 코드가 잡혀 헷갈렸던 지점). `applySession()`은 프로필 화면에 있을 때만(`#myProfileView` 존재 시) 다시 그리므로 홈 강제 복귀의 원인이 아님(확인함).
+- **검증**(dev): `userLeftHome=true`면 `loadRealPosts()` 완료 후에도 기존 화면 유지(홈 강제 렌더 안 함), `false`면 피드 정상 렌더 확인.
+
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:
 1. **1차(채팅만, 이후 폐기된 설계)**: `messages` 테이블을 직접 실시간 구독해서 클라이언트가 알림을 만드는 방식으로 시작 — 그런데 이러면 "지금 내가 참여 중인 대화방 id 목록"을 클라이언트가 직접 관리해야 하고, 새로 생긴 대화방을 놓치는 등 허점이 많았음.
