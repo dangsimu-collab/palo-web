@@ -194,7 +194,7 @@ function loadFeedCache(){
     return o.posts;
   }catch(e){return null;}
 }
-async function loadRealPosts(){
+async function loadRealPosts(skipRender){
   if(!window.supabase)return;
   var sb=window.supabase;
   var nowIso=new Date().toISOString();
@@ -276,7 +276,9 @@ async function loadRealPosts(){
   renderTrend();
   // 로딩이 끝나기 전에 사용자가 이미 홈 밖 다른 화면으로 이동했다면, 그 화면을 그대로 두고
   // 홈/딥링크로 강제 복귀시키지 않음(로딩 중 탭을 눌렀다가 홈으로 튕기던 문제 해결).
-  if(!userLeftHome){
+  // skipRender: refreshFeed()가 호출한 경우 — 여기서 목록을 그리지 않고, 내용이 바뀐 경우에만
+  // refreshFeed가 한 번 다시 그림(홈/로고 재탭 시 캐시 렌더 + 재조회 렌더로 두 번 그려지던 껌뻑임 방지).
+  if(!userLeftHome&&!skipRender){
     var initialDbId=getPostIdFromPath();
     var initialPost=initialDbId?POSTS.find(function(x){return x.dbId===initialDbId}):null;
     var initialUserId=getUserIdFromPath();
@@ -2513,13 +2515,19 @@ function postAlbumHTML(posts){
 }
 function showMore(){state.shown+=6;renderList()}
 function goHome(){resetScreens();userLeftHome=false;selectBoard("all");refreshFeed();}
-// 홈 피드를 DB에서 다시 불러와 조용히 갱신. 화면을 비우지 않고(현재 목록 유지) 다 받은 뒤 교체 →
-// 껌뻑임 없음. loadRealPosts()가 POSTS 갱신 후 tail에서 renderList까지 해줌(userLeftHome=false일 때).
+// 홈 피드를 DB에서 다시 불러와 갱신. goHome이 이미 캐시로 한 번 그렸으므로, 재조회 후에는
+// 내용이 실제로 바뀐 경우에만 딱 한 번 더 그림(안 바뀌면 다시 안 그려서 껌뻑임 없음).
+function feedSignature(){
+  return POSTS.filter(function(p){return p.dbId;})
+    .map(function(p){return p.dbId+"."+p.likes+"."+(p.comments?p.comments.length:0);}).join(",");
+}
 async function refreshFeed(){
   if(!window.supabase||feedRefreshing)return;
   feedRefreshing=true;
-  try{await loadRealPosts();}catch(e){}
+  var before=feedSignature();
+  try{await loadRealPosts(true);}catch(e){} // true = loadRealPosts는 목록을 안 그림(중복 렌더 방지)
   feedRefreshing=false;
+  if(!userLeftHome&&feedSignature()!==before)renderList(); // 내용 바뀌었고 아직 홈일 때만 한 번 갱신
 }
 var _searchT;
 function liveSearch(v){clearTimeout(_searchT);_searchT=setTimeout(function(){doSearch(v)},180);}
