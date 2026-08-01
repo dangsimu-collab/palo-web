@@ -922,6 +922,37 @@ function renderManagerPickList(picks){
 /* 관리자 삭제 기록 뷰어 — admin_post_deletions 표(RLS로 관리자만 조회 가능)를 읽어 목록 표시.
    각 행은 삭제된 글의 스냅샷(제목·본문·이미지 등)을 담고 있어, 클릭하면 원본 글처럼 보관본을 볼 수 있음. */
 var ADMIN_DEL_LOG=[];
+/* 관리자 추천 점수 조정 기록 뷰어 — commission_admin_bonus_log(RLS로 관리자만 조회) */
+async function openCommissionBonusLog(){
+  if(!AUTH.profile||!AUTH.profile.is_admin||!window.supabase)return;
+  var res=await window.supabase.from("commission_admin_bonus_log").select("*").order("created_at",{ascending:false}).limit(100);
+  if(res.error){toast("불러오기 실패: "+res.error.message);return;}
+  renderCommissionBonusLog(res.data||[]);
+}
+function renderCommissionBonusLog(rows){
+  var h='<div class="profile">'+
+    '<button class="d-back" onclick="openProfile()">← 내 정보로</button>'+
+    '<div class="pf-sec">⭐ 추천 점수 조정 기록 ('+rows.length+')</div>';
+  if(!rows.length){
+    h+='<div class="pf-empty">아직 추천 점수 조정 기록이 없어요.</div>';
+  }else{
+    h+='<div class="del-log-list">';
+    rows.forEach(function(r){
+      var oldV=(r.old_value==null?0:r.old_value),newV=(r.new_value==null?0:r.new_value);
+      var dir=newV>oldV?'<span style="color:#c0392b;font-weight:800">▲</span>':(newV<oldV?'<span style="color:#2f9e58;font-weight:800">▼</span>':'<span style="opacity:.5">—</span>');
+      h+='<div class="del-log" style="cursor:default">'+
+        '<div class="del-log-top"><span class="del-log-board">추천 점수 조정</span><span class="del-log-time">'+timeAgo(r.created_at)+'</span></div>'+
+        '<div class="del-log-title">'+esc(r.commission_title||"(제목 없음)")+'</div>'+
+        '<div class="del-log-meta">조정 관리자 <b>'+esc(r.admin_nick||"(알 수 없음)")+'</b></div>'+
+        '<div class="del-log-reason">추가 점수 '+oldV+' → '+newV+' '+dir+'</div>'+
+      '</div>';
+    });
+    h+='</div>';
+  }
+  h+='</div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
+}
 async function openAdminDeletionLog(){
   if(!AUTH.profile||!AUTH.profile.is_admin||!window.supabase)return;
   var res=await window.supabase.from("admin_post_deletions").select("*").order("created_at",{ascending:false}).limit(100);
@@ -4115,6 +4146,7 @@ function renderMyProfile(){
          '<button class="pf-edit" onclick="openReviewAnalysis()">🔍 후기 분석'+(function(){var n=reviewSuspicionCountSync();return n?' <span style="background:#e0607a;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:800">'+n+'</span>':'';})()+'</button>'+
          '<button class="pf-edit" onclick="openManagerPickList()">📌 매니저 픽 관리</button>'+
          '<button class="pf-edit" onclick="openAdminDeletionLog()">🗑 삭제 기록</button>'+
+         '<button class="pf-edit" onclick="openCommissionBonusLog()">⭐ 추천 점수 조정 기록</button>'+
        '</div>';
   }
   h+=pinnedPostCardHTML(AUTH.profile?AUTH.profile.pinned_post_id:null);
