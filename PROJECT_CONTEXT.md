@@ -824,6 +824,14 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **스토리지 정리**: DB 삭제 전에 `commission_images`+작업사례 이미지 URL을 모아, 삭제 후 `commission-images` 버킷에서 실제 파일도 `storage.remove()`. `cmStoragePathFromUrl()`이 공개 URL→버킷 경로 추출(쿼리·퍼센트 인코딩 처리). 본인 uid 폴더 파일만 대상(버킷 RLS가 그렇게 허용), 신청자 참고이미지는 그들 폴더라 대상 아님. 실패해도 삭제엔 지장 없게 try/catch.
 - **후처리**: 상세에서 삭제 시 `screenBack()`으로 목록 복귀, 내 커미션/전체 목록이면 그 자리 그리드 갱신. dev 검증: 작가만 버튼 노출·경로 추출·플로우 확인(실제 삭제는 본인 계정 필요).
 
+### 네비게이션 재조회 — 탭/로고 누르면 최신 갱신 (2026-08-01, 4단계)
+"홈/로고/커미션/내 정보를 눌러도 새 글·새 커미션이 안 뜬다"(앱 시작 때 1번만 로드하고 이후엔 메모리 재렌더만 하던 문제). 인스타/트위터처럼 **같은 탭 재탭 시 최신 재조회 + 맨 위 스크롤 + 껌뻑임 없이**로 개선. **공통 원칙(단일 렌더)**: 이미 그 화면이면 캐시로 다시 안 그리고, 재조회 후 **내용이 바뀐 경우에만** 딱 한 번 다시 그림(서명 비교). 다른 화면에서 오면 캐시로 즉시 전환.
+- **홈/로고**(`goHome`): `refreshFeed()` 추가 — `loadRealPosts(true)`(피드 렌더 스킵)로 재조회 후 `feedSignature()`(글 id+좋아요+댓글수) 변화 시에만 `renderList` 1회. `selectBoard(id, skipRender)`에 skipRender 추가해 이미 홈이면 캐시 렌더 생략. **핵심 버그 수정**: 원래 `selectBoard`(캐시) + `loadRealPosts` tail(최신)로 **2번 렌더**돼 껌뻑이고 첫 렌더엔 새 글이 없었음 → `loadRealPosts(skipRender)` + 변화 감지로 단일 렌더.
+- **커미션 탭**(`openCommissionList`): `refreshCommissions()` — `cmLoadCommissions` 재조회 후 `cmListSignature()`(id+status+title+price) 변화 시에만 `#cmGrid`/`.cm-chips` 갱신. 이미 리스트(`#cmGrid` 존재)면 셸 재렌더 생략.
+- **내 정보**(`openProfile`): 렌더를 `renderMyProfile()`로 분리. `refreshProfile()` — `refreshMyProfile`(AUTH.profile 점수/등급)+`loadRealPosts(true)`(내 글·후기) 재조회 후 `profileSignature()`(score/level/ad_points+내글수+받은후기수) 변화 시에만 1회. 이미 프로필(`#myProfileView`)이면 캐시 렌더 생략.
+- **피드 pull-to-refresh**: 목록 최상단에서 아래로 당기면 새로고침(`.ptr` 스피너). 터치 핸들러가 scroll-top+피드(`.board-head` 있고 detail/cm-root/profile 아님)에서만, 70px 임계값 넘겨 놓으면 `refreshFeed()` 호출. 기존 "글 상세 아래로 당겨 목록 복귀" 제스처(`.detail` 기준)와 상호배타라 안 겹침.
+- 각 재조회 함수는 `feedRefreshing`/`cmRefreshing`/`profileRefreshing` 플래그로 연타 중복 방지. dev에서 렌더 횟수(0/1) 계측으로 단일-렌더 검증.
+
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:
 1. **1차(채팅만, 이후 폐기된 설계)**: `messages` 테이블을 직접 실시간 구독해서 클라이언트가 알림을 만드는 방식으로 시작 — 그런데 이러면 "지금 내가 참여 중인 대화방 id 목록"을 클라이언트가 직접 관리해야 하고, 새로 생긴 대화방을 놓치는 등 허점이 많았음.
