@@ -1410,9 +1410,38 @@ function cmAdminScoreHTML(d){
     row('신규 보정',b.new_score,'0.07')+
     (b.gated?'<div class="cm-as-note">⚠️ 후기 품질 게이트 적용(×0.5) — 후기 '+b.rv_total+'개 중 호 후기율 낮음</div>':'')+
     row('자동 점수 합계',b.auto_score,'','cm-as-sub')+
-    row('관리자 추가 점수',b.admin_bonus,'')+
+    '<div class="cm-as-row cm-as-adjust"><span>관리자 추가 점수</span>'+
+      '<span class="cm-as-ctrl">'+
+        '<button onclick="cmAdjustBonus('+d.id+',0)" title="0으로">0</button>'+
+        '<button onclick="cmAdjustBonus('+d.id+','+(b.admin_bonus-5)+')">−5</button>'+
+        '<button onclick="cmAdjustBonus('+d.id+','+(b.admin_bonus-1)+')">−1</button>'+
+        '<b class="cm-as-bonusval">'+b.admin_bonus+'</b>'+
+        '<button onclick="cmAdjustBonus('+d.id+','+(b.admin_bonus+1)+')">+1</button>'+
+        '<button onclick="cmAdjustBonus('+d.id+','+(b.admin_bonus+5)+')">+5</button>'+
+      '</span>'+
+    '</div>'+
     row('최종 점수',b.final_score,'','cm-as-final')+
   '</div>';
+}
+// 관리자 추가 점수 조정 — 서버 RPC(admin_set_rec_bonus)로 저장(0~30 클램프+로그), 로컬 점수·순위 즉시 반영, 패널 재렌더.
+async function cmAdjustBonus(commissionId,newValue){
+  if(!(AUTH.profile&&AUTH.profile.is_admin)||!window.supabase)return;
+  newValue=Math.max(0,Math.min(30,parseInt(newValue,10)||0)); // 클라 클램프(서버도 클램프)
+  var res=await window.supabase.rpc("admin_set_rec_bonus",{p_commission_id:commissionId,p_value:newValue});
+  if(res.error){toast("조정 실패: "+res.error.message);return;}
+  var data=res.data||{};
+  if(!data.ok){toast(data.error==="not_admin"?"관리자만 조정할 수 있어요":("조정 실패 ("+(data.error||"오류")+")"));return;}
+  var b=cmRecBreakdown[commissionId];
+  if(b){
+    var delta=data.value-b.admin_bonus;      // 추가 점수는 게이트 밖 선형 가산이라 최종에 그대로 반영
+    b.admin_bonus=data.value;
+    b.final_score=+(b.final_score+delta).toFixed(2);
+    cmRecScores[commissionId]=b.final_score; // 추천 순위(목록)도 즉시 반영
+  }
+  toast("추가 점수를 "+data.value+"점으로 조정했어요 (상한 "+data.cap+")");
+  var d=cmData.find(function(x){return x.id===commissionId;});
+  var el=document.querySelector('.cm-adminscore');
+  if(d&&el)el.outerHTML=cmAdminScoreHTML(d);   // 패널만 다시 그림(값·최종 갱신)
 }
 function cmComputeTopTags(){
   var counts={};
