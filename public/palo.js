@@ -1095,7 +1095,11 @@ async function acceptFeedback(postId,commentDbId,isCancel){
   if(!data.ok){toast("채택할 수 없어요 ("+(data.error||"오류")+")");return;}
   p.acceptedCommentId=data.accepted||null;
   var el=document.getElementById("cmList");if(el)el.innerHTML=renderComments(p);
-  toast(isCancel?"채택을 취소했어요":(data.rewarded?"채택했어요! 작성자에게 포인트를 지급했어요 🎁":"채택했어요"));
+  var msg;
+  if(isCancel)msg="채택을 취소했어요";
+  else if(data.rewarded)msg="채택했어요! 작성자에게 광고 "+(data.ad!=null?data.ad:25)+"·활동 "+(data.activity!=null?data.activity:25)+"점 지급 🎁";
+  else msg="채택했어요";
+  toast(msg);
 }
 async function deleteComment(postId,ci){
   var p=POSTS.find(function(x){return x.id===postId});if(!p)return;
