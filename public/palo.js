@@ -341,13 +341,30 @@ window.addEventListener("popstate",function(){
 });
 
 /* ---------- 로그인 (Supabase Auth) ---------- */
+var authReady=false; // getSession()이 최소 1회 끝났는지 — 그 전엔 '로그인 필요' 대신 로딩 표시(가짜 로그아웃 깜빡임 방지)
 async function initAuth(){
   if(!window.supabase)return;
   var res=await window.supabase.auth.getSession();
   await applySession(res.data.session);
+  authReady=true;
+  if(document.getElementById("myProfileView"))openProfile(); // 로딩 상태로 그려졌으면 실제 상태로 다시 그림
   window.supabase.auth.onAuthStateChange(function(event,session){
     applySession(session);
   });
+  // PWA(홈 화면 추가)에서 백그라운드→복귀 시 세션이 로그아웃처럼 보이던 문제 완화:
+  // 화면이 다시 보일 때 세션을 재확인해서 살아있으면 로그인 상태를 자동 복원(자동 토큰 갱신도 재개됨).
+  document.addEventListener("visibilitychange",function(){
+    if(document.visibilityState==="visible")recheckAuthSession();
+  });
+}
+async function recheckAuthSession(){
+  if(!window.supabase)return;
+  try{
+    var res=await window.supabase.auth.getSession();
+    var sid=res.data.session?res.data.session.user.id:null;
+    var cur=AUTH.user?AUTH.user.id:null;
+    if(sid!==cur)await applySession(res.data.session); // 상태가 달라졌을 때만 다시 반영
+  }catch(e){}
 }
 var globalChatNotifUserId=null;
 async function applySession(session){
@@ -3922,6 +3939,12 @@ function openProfile(){
   leaveChat();
   closeNotif();
   if(!AUTH.user){
+    if(!authReady){
+      // 세션 확인이 아직 안 끝남 — 로그인돼 있는데 로그아웃 화면이 잠깐 뜨는 걸 막기 위해 로딩 표시
+      document.getElementById("main").innerHTML=
+        '<div class="profile" id="myProfileView"><div class="empty" style="color:var(--muted)">불러오는 중…</div></div>';
+      syncTabs("me");return;
+    }
     document.getElementById("main").innerHTML=
       '<div class="profile" id="myProfileView"><div class="empty"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>'+
       '<h3>로그인이 필요해요</h3><p>로그인하면 내 닉네임으로 글을 쓰고 활동을 볼 수 있어요.</p>'+

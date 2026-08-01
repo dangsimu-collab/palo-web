@@ -850,6 +850,11 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **클라이언트**(`public/palo.js`): `renderComments`가 crit이면 채택된 댓글을 맨 위로 정렬 + "채택된 피드백" 뱃지(`.cm.accepted`/`.cm-accepted-badge`), 작성자에게만 댓글별 "✅ 채택"/"채택 취소"(`acceptFeedback`→RPC, 다른 댓글 채택 시 RPC가 회수+지급 처리). `loadRealPosts`가 `accepted_comment_id` 매핑. 토스트에 실제 지급액 표시.
 - **[3] 안내 문구**: 작성 폼은 crit 선택 시 `#edAcceptNotice`(`refreshBoardLabel`에서 토글, `.ed-accept-notice`), 글 상세는 crit이면 댓글 헤더 아래 `.cm-accept-info`(둘 다 "채택하면 광고 25 + 활동 25 지급, 하루 최대 100" 안내). body-html에 `#edAcceptNotice` 추가.
 
+### PWA 로그인 유지 개선 (2026-08-01)
+홈 화면 추가(iOS 독립실행 PWA)에서 "로그인이 자주 풀린 것처럼 보임" 리포트. 진단: 브라우저 auth 클라이언트는 1개(post/user `page.js`의 `createClient`는 서버 전용 metadata용), 서비스워커는 푸시 전용(앱셸 캐싱 없음)이라 세션과 무관 → **푸시는 세션과 별개로 계속 옴**. 증상은 `getSession()`이 비동기라 끝나기 전에 로그아웃 UI가 뜨거나(깜빡임), 백그라운드 복귀 시 세션 재확인이 없어 로그아웃처럼 남는 것. 사용자 확인: "구글 로그인 버튼 누르면 구글 계정 선택 없이 즉시 로그인"(=구글 SSO는 살아있고 Supabase 세션 복원만 안 된 상태).
+- **고침**(`public/palo.js`): (1) `authReady` 플래그 — `getSession()` 최소 1회 끝나기 전엔 `openProfile`이 "로그인 필요" 대신 "불러오는 중" 표시(가짜 로그아웃 깜빡임 제거), 끝나면 실제 상태로 재렌더. (2) `visibilitychange`에서 화면이 다시 보일 때 `recheckAuthSession()`이 `getSession()`을 다시 호출해 세션 상태가 바뀌었으면 `applySession`으로 반영(복귀 시 자동 로그인 복원 + 자동 토큰 갱신 재개).
+- **미해결 한계**: iOS가 독립실행 PWA의 script-writable 스토리지(localStorage)를 미사용 기간 등으로 **아예 비우면** 세션이 진짜 사라져 재로그인(한 번 탭, 구글 SSO라 즉시) 외엔 순수 클라이언트로 못 막음. 위 개선은 "세션은 살아있는데 UI만 로그아웃처럼 보이던" 다수 케이스를 없애는 것.
+
 ### 관리자 게시글 삭제 (2026-08-01 추가, Phase 1 기본흐름+보안 / Phase 2 삭제기록)
 관리자가 신고 없이도 임의의 글을 바로 삭제하고 작성자에게 사유를 통보하는 기능.
 - **버튼**: 글 상세 관리자 영역(매니저 픽 옆)에 `is_admin`일 때만 "🗑️ 관리자 삭제"(`.d-act-admindel`, 붉은색). 잠금 게시판(ask/vote/crit, 댓글 달린 글) 글에도 노출 — 작성자용 "🔒 수정·삭제 불가"와 별개 블록이라 잠금과 무관.
