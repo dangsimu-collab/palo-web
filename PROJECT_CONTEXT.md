@@ -832,6 +832,17 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **피드 pull-to-refresh**: 목록 최상단에서 아래로 당기면 새로고침(`.ptr` 스피너). 터치 핸들러가 scroll-top+피드(`.board-head` 있고 detail/cm-root/profile 아님)에서만, 70px 임계값 넘겨 놓으면 `refreshFeed()` 호출. 기존 "글 상세 아래로 당겨 목록 복귀" 제스처(`.detail` 기준)와 상호배타라 안 겹침.
 - 각 재조회 함수는 `feedRefreshing`/`cmRefreshing`/`profileRefreshing` 플래그로 연타 중복 방지. dev에서 렌더 횟수(0/1) 계측으로 단일-렌더 검증.
 
+### 특정 게시판 글 수정·삭제 잠금 (2026-08-01 추가)
+`ask`(질문/시세문의)·`vote`(투표·수요조사)·`crit`(피드백 요청) 세 게시판은 **작성자 본인이 아닌 사람의 댓글이 하나라도 달리면 작성자가 그 글을 수정·삭제 불가**(관리자 삭제는 예외).
+- **서버(진짜 방어선)**: `post_edit_locked(p_id)`(security definer — board가 셋 중 하나 & `comments.author_id is distinct from posts.author_id`인 댓글 존재 여부) 함수 신설. `posts_update_own`/`posts_delete_own` 정책을 `auth.uid()=author_id and not post_edit_locked(id)`로 재작성(둘 다 `drop`+`create`). `posts_delete_admin`(is_admin)은 그대로 → **잠긴 글도 관리자는 삭제 가능**. RLS라 버튼 우회해도 서버가 거부.
+- **클라이언트**(`public/palo.js`): `POST_EDIT_LOCK_BOARDS=['ask','vote','crit']` + `postEditLocked(p)`(`p.comments.some(c=>c.authorId!==p.authorId)`). 글 상세에서 잠기면 수정·삭제 버튼을 "🔒 수정·삭제 불가"로 대체, `openEditPost`/`deletePost`에 가드(관리자는 통과). 작성 화면(`refreshBoardLabel`)에서 이 세 게시판 선택 시 주황 안내(`#edLockNotice`, `.ed-lock-notice`): "다른 분의 댓글이 달리면 수정·삭제할 수 없어요".
+
+### 피드백 요청 '답변 채택' (2026-08-01 추가, 지식인식)
+`crit`(피드백 요청) 게시판 전용. 글 작성자가 피드백 댓글 하나를 '채택'하면 그 댓글 작성자에게 **광고 25 + 활동 25** 지급.
+- **DB**: `posts.accepted_comment_id`(FK→comments, `on delete set null`) + `feedback_accept_rewards`(PK `comment_id` → **댓글당 1회 = 중복 지급 방지**, `rewarded_user`/`ad_points`/`activity_points`/`created_at`; RLS select는 본인 것만, 쓰기는 RPC만).
+- **RPC `set_accepted_feedback(p_post_id, p_comment_id)`**(security definer): 채택은 **crit + 글 작성자만**(서버 확인). `p_comment_id=null`이면 채택 해제. 보상은 **남의 댓글(자기 자신 제외 #6) + 아직 그 댓글로 미지급(#7)**일 때만 — `app.trusted_score_update` 신호 켜고 `profiles.ad_points` +지급 & `award_score()`로 활동점수, 실제 지급액을 `feedback_accept_rewards`에 기록. **일일 상한 각 100점(#5)**: 오늘(한국시간 `at time zone 'Asia/Seoul'`) 그 사람의 채택보상 합계를 세서 남은 만큼만 지급(넘으면 0). 반환 `{ok,accepted,rewarded,ad,activity}`.
+- **클라이언트**(`public/palo.js`): `renderComments`가 crit이면 채택된 댓글을 맨 위로 정렬 + "채택된 피드백" 뱃지(`.cm.accepted`/`.cm-accepted-badge`), 작성자에게만 댓글별 "✅ 채택"/"채택 취소"(`acceptFeedback`→RPC). `loadRealPosts`가 `accepted_comment_id` 매핑. 토스트에 실제 지급액 표시.
+
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:
 1. **1차(채팅만, 이후 폐기된 설계)**: `messages` 테이블을 직접 실시간 구독해서 클라이언트가 알림을 만드는 방식으로 시작 — 그런데 이러면 "지금 내가 참여 중인 대화방 id 목록"을 클라이언트가 직접 관리해야 하고, 새로 생긴 대화방을 놓치는 등 허점이 많았음.
