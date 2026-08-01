@@ -1697,9 +1697,10 @@ function cmOpenWorksample(worksampleId,commissionId){
   window.scrollTo({top:0,behavior:"smooth"});
 }
 // 작업 사례 등록 폼 (그 커미션의 작가 본인만 진입 — 버튼도 본인에게만 보이고, RLS로도 서버가 막음)
-function cmOpenWorksampleForm(commissionId){
+// back: 뒤로/등록 후 돌아갈 화면 함수. 기본은 커미션 상세(cmBackToDetail), 등록 페이지 흐름에선 커미션 선택 화면.
+function cmOpenWorksampleForm(commissionId,back){
   if(!AUTH.user){toast('로그인 후 이용할 수 있어요','🔒');loginWithGoogle();return;}
-  enterScreen("cmWsForm",cmBackToDetail);
+  enterScreen("cmWsForm",back||cmBackToDetail);
   cmWsForm={commissionId:commissionId,images:[]};
   document.getElementById("main").innerHTML='<div class="cm-root">'+
     '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>작업 사례 등록</b></div>'+
@@ -1717,6 +1718,31 @@ function cmOpenWorksampleForm(commissionId){
     '<div class="cm-reg-bottom"><button class="cm-reg-btn" id="cmWsSubmit" onclick="cmSubmitWorksample()" disabled>등록하기</button></div>'+
   '</div>';
   window.scrollTo({top:0,behavior:"smooth"});
+}
+// 커미션 등록 페이지에서 "작업 사례 등록"을 누르면: 내 커미션 중 어느 것에 붙일지 고르는 화면.
+// 고르면 기존 등록 폼(cmOpenWorksampleForm)을 그대로 재사용하되, 뒤로는 이 선택 화면으로 돌아오게 함.
+async function cmOpenWsCommissionPicker(){
+  if(!AUTH.user){toast('로그인 후 이용할 수 있어요','🔒');loginWithGoogle();return;}
+  enterScreen("cmWsPicker",cmRenderRegisterScreen);
+  document.getElementById("main").innerHTML='<div class="cm-root">'+
+    '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>작업 사례를 등록할 커미션</b></div>'+
+    '<div class="cm-ws-pick" id="cmWsPickList"><div class="cm-my-empty">불러오는 중...</div></div>'+
+  '</div>';
+  window.scrollTo({top:0,behavior:"smooth"});
+  var res=await window.supabase.from('commissions').select('id,title,commission_images(url,sort)').eq('author_id',AUTH.user.id).order('created_at',{ascending:false});
+  var el=document.getElementById("cmWsPickList"); if(!el)return;
+  if(res.error){el.innerHTML='<div class="cm-my-empty">불러오지 못했어요: '+esc(res.error.message)+'</div>';return;}
+  var list=res.data||[];
+  if(!list.length){el.innerHTML='<div class="cm-my-empty">아직 등록한 커미션이 없어요.<br>먼저 커미션을 등록해주세요.</div>';return;}
+  el.innerHTML=list.map(function(c){
+    var imgs=(c.commission_images||[]).slice().sort(function(a,b){return a.sort-b.sort;});
+    var thumb=imgs.length?("url('"+cmQ(imgs[0].url)+"') center/cover"):cmGrads[c.id%cmGrads.length];
+    return '<div class="cm-ws-pick-row" onclick="cmOpenWorksampleForm('+c.id+',cmOpenWsCommissionPicker)">'+
+      '<div class="cm-ws-pick-thumb" style="background:'+thumb+'"></div>'+
+      '<div class="cm-ws-pick-title">'+esc(c.title||'제목 없음')+'</div>'+
+      '<svg class="cm-ws-pick-arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>'+
+    '</div>';
+  }).join('');
 }
 function cmWsImgsHTML(){
   var h=cmWsForm.images.map(function(url,i){
@@ -1983,6 +2009,7 @@ function cmRenderRegisterScreen(){
   var tagsHTML=cmReg.tags.map(function(t){return '<div class="cm-reg-tagchip">#'+esc(t)+'<span class="cm-x" onclick="cmRemoveTag(\''+cmQ(t)+'\')">×</span></div>';}).join('');
   document.getElementById("main").innerHTML='<div class="cm-root">'+
     '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg><b>'+(editing?'커미션 수정':'커미션 등록')+'</b></div>'+
+    '<div class="cm-ws-shortcut" onclick="cmOpenWsCommissionPicker()"><span>🎨 이미 등록한 커미션에 작업 사례 올리기</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></div>'+
     '<div class="cm-reg">'+
       '<div class="cm-reg-label">샘플 이미지 <span class="cm-reg-req">*</span> <span class="cm-reg-sub">최대 10장</span></div>'+
       '<input type="file" id="cmRegFileInput" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="cmOnRegFileChange(event)">'+
