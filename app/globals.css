@@ -1153,6 +1153,12 @@
   .cm-reg-bottom .cm-prev{flex:1;background:var(--brand-soft);color:var(--brand-2);border:none;font-size:15px;font-weight:700;padding:15px;border-radius:12px;cursor:pointer}
   .cm-reg-bottom .cm-reg-btn{flex:1.4;background:var(--brand);color:#fff;border:none;font-size:15px;font-weight:800;padding:15px;border-radius:12px;cursor:pointer}
   .cm-reg-bottom .cm-reg-btn:disabled{background:var(--muted-2);cursor:not-allowed}
+  /* 웹(데스크톱)에서는 하단 탭바가 없어 버튼 바가 브라우저 창 맨 아래에 고정돼, 480px 폼과 멀리
+     떨어져 누르기 어색했음 → 데스크톱에선 고정 해제하고 폼 끝에 자연스럽게 배치(모바일은 그대로 고정) */
+  @media(min-width:861px){
+    .cm-reg{padding-bottom:18px}
+    .cm-reg-bottom{position:static;transform:none;left:auto;width:auto;max-width:none;margin:0;padding-bottom:22px}
+  }
   /* FAB 등록 버튼 (목록에서) */
 
   /* 커미션 태그 입력 */
