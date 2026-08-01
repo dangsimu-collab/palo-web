@@ -26,6 +26,7 @@ var CATMAP={talk:{label:"수다",cls:"talk-c"},ask:{label:"고민",cls:"help-c"}
 var postsLoaded=false; // loadRealPosts()가 실제 글을 POSTS에 합친 뒤 true — 이 전에는 데모 글로 renderList()를 강제로 돌리지 않음(로그인 리다이렉트 직후 더미 글이 잠깐 보이는 버그 방지)
 var userLeftHome=false; // 초기 로딩이 끝나기 전에 사용자가 피드(홈) 밖 화면(커미션/채팅/글쓰기/프로필/글·유저 상세)으로 이동했으면 true — loadRealPosts() 완료 시 홈으로 강제 복귀시키지 않기 위함
 var feedRefreshing=false; // refreshFeed() 중복 실행 방지(홈/로고 연타 대비)
+var profileRefreshing=false; // refreshProfile() 중복 실행 방지
 var POSTS=[]; // 실제 글은 loadRealPosts()가 DB에서 채움
 var TREND=[
   {name:"비 오는 창가",tag:"챌린지 1위",thumb:"t1",sub:"참여 38명"},
@@ -3763,6 +3764,15 @@ function openProfile(){
     syncTabs("me");window.scrollTo({top:0,behavior:"smooth"});
     return;
   }
+  // 이미 내 정보 화면이면 캐시로 다시 안 그림(스크롤만) → refreshProfile이 내용 바뀐 경우에만 한 번 그림.
+  // 다른 화면에서 왔으면 캐시로 즉시 렌더.
+  if(document.getElementById("myProfileView")){syncTabs("me");window.scrollTo({top:0,behavior:"smooth"});}
+  else renderMyProfile();
+  refreshProfile();
+}
+// 내 정보 화면을 실제로 그리는 부분(캐시 데이터 기준). openProfile/refreshProfile 양쪽에서 호출.
+function renderMyProfile(){
+  if(!AUTH.user)return;
   var mine=POSTS.filter(function(p){return p.author==="나"||(AUTH.user&&p.authorId===AUTH.user.id)});
   var commented=POSTS.filter(function(p){return p.author!=="나"&&p.comments.some(function(c){return c.n==="나"})});
   var likedArr=POSTS.filter(function(p){return p._liked});
@@ -3842,6 +3852,22 @@ function openProfile(){
     var el=document.getElementById("pfhBmCount");
     if(el)el.textContent=n;
   });
+}
+// 내 정보 내용(점수/등급/광고포인트, 내 글 수, 받은 후기 수)이 바뀌었는지 판단용 서명
+function profileSignature(){
+  var p=AUTH.profile||{}; var uid=AUTH.user&&AUTH.user.id;
+  var posts=POSTS.filter(function(x){return x.dbId&&x.authorId===uid;}).length;
+  var reviews=POSTS.filter(function(x){return x.dbId&&x.board==='review'&&x.reviewedUserId===uid;}).length;
+  return (p.score||0)+"."+(p.level||0)+"."+(p.ad_points||0)+"|"+posts+"|"+reviews;
+}
+// 내 프로필(AUTH.profile)과 글/후기(POSTS)를 다시 불러와, 내 정보 화면을 보고 있고 내용이 바뀐 경우에만 한 번 다시 그림.
+async function refreshProfile(){
+  if(!window.supabase||profileRefreshing||!AUTH.user)return;
+  profileRefreshing=true;
+  var before=profileSignature();
+  try{await refreshMyProfile();await loadRealPosts(true);}catch(e){} // loadRealPosts(true)=피드는 안 그림
+  profileRefreshing=false;
+  if(document.getElementById("myProfileView")&&profileSignature()!==before)renderMyProfile();
 }
 function unfollowFromProfile(n){FOLLOW.delete(n);toast(dispName(n)+"님 팔로우를 취소했어요");openProfile();}
 async function openAdminReports(){
