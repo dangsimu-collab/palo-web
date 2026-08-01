@@ -1721,9 +1721,9 @@ function cmOpenWorksampleForm(commissionId,back){
 }
 // 커미션 등록 페이지에서 "작업 사례 등록"을 누르면: 내 커미션 중 어느 것에 붙일지 고르는 화면.
 // 고르면 기존 등록 폼(cmOpenWorksampleForm)을 그대로 재사용하되, 뒤로는 이 선택 화면으로 돌아오게 함.
-async function cmOpenWsCommissionPicker(){
+async function cmOpenWsCommissionPicker(back){
   if(!AUTH.user){toast('로그인 후 이용할 수 있어요','🔒');loginWithGoogle();return;}
-  enterScreen("cmWsPicker",cmRenderRegisterScreen);
+  enterScreen("cmWsPicker",back||cmRenderRegisterScreen);
   document.getElementById("main").innerHTML='<div class="cm-root">'+
     '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>작업 사례를 등록할 커미션</b></div>'+
     '<div class="cm-ws-pick" id="cmWsPickList"><div class="cm-my-empty">불러오는 중...</div></div>'+
@@ -2324,7 +2324,10 @@ async function cmOpenMy(tab){
   var containerClass=activeTab==='bookmarks'?'cm-grid':'cm-my-list';
   document.getElementById("main").innerHTML='<div class="cm-root">'+
     '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>내 커미션</b>'+
-      (activeTab==='mine'?'<button class="cm-write-btn" onclick="cmOpenRegister()">+ 새 커미션</button>':'')+
+      (activeTab==='mine'?('<div class="cm-sub-actions">'+
+        '<button class="cm-write-btn ghost" onclick="cmOpenWsCommissionPicker(cmOpenMy)">🎨 작업 사례</button>'+
+        '<button class="cm-write-btn" onclick="cmOpenRegister()">+ 새 커미션</button>'+
+      '</div>'):'')+
     '</div>'+
     '<div class="cm-tabs" style="padding:14px 18px 0">'+
       '<div class="cm-tab'+(activeTab==='mine'?' on':'')+'" onclick="cmOpenMy(\'mine\')">내가 등록한 커미션</div>'+

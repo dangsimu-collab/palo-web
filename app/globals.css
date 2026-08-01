@@ -1073,6 +1073,9 @@
   .cm-sub-top b{font-size:18px;font-weight:800}
   .cm-write-btn{background:var(--brand);color:#fff;font-size:13.5px;font-weight:700;padding:8px 15px;border-radius:20px;border:none;cursor:pointer}
   .cm-sub-top .cm-write-btn{margin-left:auto}
+  .cm-sub-actions{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .cm-sub-actions .cm-write-btn{margin-left:0;white-space:nowrap}
+  .cm-write-btn.ghost{background:var(--brand-soft);color:var(--brand);padding:8px 13px}
   /* 후기 전체 페이지 */
   .cm-rv-all{padding:18px}
   /* 후기 작성 페이지 */
