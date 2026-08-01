@@ -2363,11 +2363,34 @@ var cmMyApplications=[];
 // 커미션 삭제(작가 본인만). 확인창 → DB 삭제(RLS가 서버에서도 본인만 허용) → 목록/상세에서 제거.
 // 연결 데이터: commission_images·worksamples·applications·user_ads는 FK on delete cascade로 자동 삭제,
 // 후기(posts.commission_id)·알림·메시지는 on delete set null로 남김(작가 평판 보존 — 2단계에서 스토리지 파일도 정리 예정).
+function cmStoragePathFromUrl(url){ // 공개 URL → 버킷 내부 경로 추출(스토리지 삭제용)
+  if(!url)return null;
+  var marker="/"+CM_IMAGE_BUCKET+"/";
+  var i=url.indexOf(marker);
+  if(i<0)return null;
+  return decodeURIComponent(url.slice(i+marker.length).split("?")[0]);
+}
 async function cmDeleteCommission(id){
   if(id==null||!window.supabase)return;
   if(!(await confirmDialog("이 커미션을 삭제할까요? 삭제하면 되돌릴 수 없어요.")))return;
+  // 1) 삭제 전에 이 커미션(과 그 작업 사례)의 이미지 URL을 모아둠 — DB 삭제 후엔 조회 불가하므로 먼저.
+  var urls=[];
+  try{
+    var imgRes=await window.supabase.from("commission_images").select("url").eq("commission_id",id);
+    (imgRes.data||[]).forEach(function(r){if(r.url)urls.push(r.url);});
+    var wsRes=await window.supabase.from("commission_worksamples").select("id").eq("commission_id",id);
+    var wsIds=(wsRes.data||[]).map(function(w){return w.id;});
+    if(wsIds.length){
+      var wsImgRes=await window.supabase.from("commission_worksample_images").select("url").in("worksample_id",wsIds);
+      (wsImgRes.data||[]).forEach(function(r){if(r.url)urls.push(r.url);});
+    }
+  }catch(e){}
+  // 2) DB에서 커미션 삭제(RLS로 본인만). cascade로 이미지·작업사례·신청·광고 '기록'이 자동 삭제됨.
   var res=await window.supabase.from("commissions").delete().eq("id",id);
   if(res.error){toast("삭제 실패: "+res.error.message);return;}
+  // 3) 스토리지 실제 파일 삭제(본인 uid 폴더의 파일만 — 버킷 RLS가 그렇게 허용). 실패해도 삭제 자체엔 지장 없음.
+  var paths=urls.map(cmStoragePathFromUrl).filter(Boolean);
+  if(paths.length){try{await window.supabase.storage.from(CM_IMAGE_BUCKET).remove(paths);}catch(e){}}
   cmData=cmData.filter(function(c){return c.id!==id;});
   if(Array.isArray(cmMyList))cmMyList=cmMyList.filter(function(c){return c.id!==id;});
   if(cmWsCache)delete cmWsCache[id];
