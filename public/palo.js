@@ -1375,12 +1375,44 @@ async function cmLoadCommissions(){
 // 추천 점수(서버 계산)를 불러와 {커미션id: 점수} 맵으로 저장. 추천 탭 정렬에 사용.
 // RPC가 아직 없거나(실행 전) 오류면 빈 맵으로 두고, 정렬은 후기 순으로 자연 폴백.
 var cmRecScores={};
+var cmRecBreakdown={}; // {커미션id: 요소별 점수} — 관리자만 채워짐(get_commission_rec_breakdown)
 async function cmLoadRecScores(){
   try{
     var res=await window.supabase.rpc("get_commission_rec_scores");
     cmRecScores={};
     if(!res.error&&res.data)res.data.forEach(function(r){cmRecScores[r.commission_id]=r.score;});
   }catch(e){cmRecScores={};}
+  await cmLoadRecBreakdown();
+}
+// 관리자만: 커미션별 요소 점수 분해를 불러와 cmRecBreakdown에 저장(비관리자는 서버가 0행 반환).
+async function cmLoadRecBreakdown(){
+  cmRecBreakdown={};
+  if(!(AUTH.profile&&AUTH.profile.is_admin)||!window.supabase)return;
+  try{
+    var res=await window.supabase.rpc("get_commission_rec_breakdown");
+    if(!res.error&&res.data)res.data.forEach(function(r){cmRecBreakdown[r.commission_id]=r;});
+  }catch(e){}
+}
+// 관리자 전용 추천 점수 패널 HTML (요소별 값 + 가중치 라벨 + 최종). 일반 유저에겐 빈 문자열.
+function cmAdminScoreHTML(d){
+  if(!(AUTH.profile&&AUTH.profile.is_admin)||!d||d.id==null)return '';
+  var b=cmRecBreakdown[d.id];
+  if(!b)return '<div class="cm-adminscore"><div class="cm-as-h">🛠 추천 점수 <span class="cm-as-badge">관리자 전용</span></div>'+
+    '<div class="cm-as-note">'+(d.status==='open'?'추천 점수를 불러오지 못했어요. 목록을 새로고침하면 표시돼요.':'이 커미션은 접수중이 아니라 추천 순위에서 제외돼요.')+'</div></div>';
+  function row(label,val,w,cls){return '<div class="cm-as-row'+(cls?' '+cls:'')+'"><span>'+label+'</span><span><b>'+val+'</b>'+(w?' <span class="cm-as-w">×'+w+'</span>':'')+'</span></div>';}
+  return '<div class="cm-adminscore">'+
+    '<div class="cm-as-h">🛠 추천 점수 <span class="cm-as-badge">관리자 전용</span></div>'+
+    row('호 후기율',b.ho_rate,'0.35')+
+    row('작가 활동',b.activity_score,'0.19')+
+    row('후기 개수',b.reviewcnt_score,'0.15')+
+    row('작업물 활발도',b.ws_score,'0.12')+
+    row('인기',b.pop_score,'0.12')+
+    row('신규 보정',b.new_score,'0.07')+
+    (b.gated?'<div class="cm-as-note">⚠️ 후기 품질 게이트 적용(×0.5) — 후기 '+b.rv_total+'개 중 호 후기율 낮음</div>':'')+
+    row('자동 점수 합계',b.auto_score,'','cm-as-sub')+
+    row('관리자 추가 점수',b.admin_bonus,'')+
+    row('최종 점수',b.final_score,'','cm-as-final')+
+  '</div>';
 }
 function cmComputeTopTags(){
   var counts={};
@@ -1798,6 +1830,7 @@ function cmDetailHTML(d,idx){
       '</div>'+
       '<div class="cm-stats"><div class="cm-stat"><span class="cm-k">신청 가능</span><span class="cm-v">'+esc(d.slots||'8')+'개 남음</span></div>'+
         '<div class="cm-stat"><span class="cm-k">작업 기간</span><span class="cm-v">'+esc(period)+'</span></div></div>'+
+      cmAdminScoreHTML(d)+
       ((isOwner&&d.id!=null)?'<div class="cm-owner-bar"><button class="cm-owner-del" onclick="cmDeleteCommission('+d.id+')">🗑 이 커미션 삭제</button></div>':'')+
       '<div class="cm-desc">'+(descHTML?descHTML:esc(desc))+'</div>'+
       (showRevEvent?('<div class="cm-revevent">'+

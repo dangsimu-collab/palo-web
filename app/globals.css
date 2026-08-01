@@ -987,6 +987,17 @@
   .cm-revevent-benefit{font-size:14px;line-height:1.6;color:var(--ink);white-space:normal;font-weight:600}
   .cm-revevent-cta{margin-top:12px;width:100%;background:linear-gradient(120deg,#e0607a,#c0392b);color:#fff;border:none;border-radius:12px;padding:12px;font-size:14px;font-weight:800;cursor:pointer}
   .cm-revevent-note{margin-top:10px;font-size:11.5px;line-height:1.5;color:var(--muted)}
+  .cm-adminscore{border:1.5px solid #cdd8e6;background:#f4f7fb;border-radius:14px;padding:14px 15px;margin:14px 0}
+  .cm-as-h{font-size:13.5px;font-weight:900;color:#31435c;margin-bottom:9px;display:flex;align-items:center;gap:7px}
+  .cm-as-badge{font-size:10.5px;font-weight:800;color:#fff;background:#5b7aa8;border-radius:20px;padding:2px 8px}
+  .cm-as-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--ink-2);padding:5px 0;border-top:1px solid #e4ebf3}
+  .cm-as-row:first-of-type{border-top:none}
+  .cm-as-row b{color:var(--ink);font-weight:800}
+  .cm-as-w{font-size:11px;color:var(--muted);font-weight:700;margin-left:2px}
+  .cm-as-sub{margin-top:2px;border-top:1.5px solid #cdd8e6;font-weight:700}
+  .cm-as-final{border-top:1.5px solid #cdd8e6;font-size:14.5px}
+  .cm-as-final b{color:#c0392b}
+  .cm-as-note{font-size:11.5px;line-height:1.5;color:#b9770a;background:#fff6e5;border-radius:8px;padding:7px 9px;margin:8px 0}
   .cm-reg-note{margin:8px 0 4px;font-size:12px;line-height:1.5;color:var(--muted)}
   .cm-c-artist{font-size:13px;color:var(--muted);margin:10px 2px 4px;font-weight:500}
   .cm-c-title{font-size:17px;font-weight:700;line-height:1.3;margin:0 2px 6px;
