@@ -25,6 +25,7 @@ var CATMAP={talk:{label:"수다",cls:"talk-c"},ask:{label:"고민",cls:"help-c"}
 
 var postsLoaded=false; // loadRealPosts()가 실제 글을 POSTS에 합친 뒤 true — 이 전에는 데모 글로 renderList()를 강제로 돌리지 않음(로그인 리다이렉트 직후 더미 글이 잠깐 보이는 버그 방지)
 var userLeftHome=false; // 초기 로딩이 끝나기 전에 사용자가 피드(홈) 밖 화면(커미션/채팅/글쓰기/프로필/글·유저 상세)으로 이동했으면 true — loadRealPosts() 완료 시 홈으로 강제 복귀시키지 않기 위함
+var feedRefreshing=false; // refreshFeed() 중복 실행 방지(홈/로고 연타 대비)
 var POSTS=[]; // 실제 글은 loadRealPosts()가 DB에서 채움
 var TREND=[
   {name:"비 오는 창가",tag:"챌린지 1위",thumb:"t1",sub:"참여 38명"},
@@ -2511,7 +2512,15 @@ function postAlbumHTML(posts){
   return '<div class="post-album">'+posts.map(postCardHTML).join("")+'</div>';
 }
 function showMore(){state.shown+=6;renderList()}
-function goHome(){resetScreens();selectBoard("all")}
+function goHome(){resetScreens();userLeftHome=false;selectBoard("all");refreshFeed();}
+// 홈 피드를 DB에서 다시 불러와 조용히 갱신. 화면을 비우지 않고(현재 목록 유지) 다 받은 뒤 교체 →
+// 껌뻑임 없음. loadRealPosts()가 POSTS 갱신 후 tail에서 renderList까지 해줌(userLeftHome=false일 때).
+async function refreshFeed(){
+  if(!window.supabase||feedRefreshing)return;
+  feedRefreshing=true;
+  try{await loadRealPosts();}catch(e){}
+  feedRefreshing=false;
+}
 var _searchT;
 function liveSearch(v){clearTimeout(_searchT);_searchT=setTimeout(function(){doSearch(v)},180);}
 function doSearch(v){state.query=v.trim();page=1;if(state.query)state.board="all";
