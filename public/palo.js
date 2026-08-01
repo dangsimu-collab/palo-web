@@ -1576,7 +1576,7 @@ function cmDetailHTML(d,idx){
       satisfactionHTML+
       '<div class="cm-d-title">'+esc(title)+'</div>'+
       (d.hidePrice?'':'<div class="cm-d-price">'+esc(price)+'원</div>')+
-      '<div class="cm-artist-row" onclick="'+(d.authorId?('openUserProfile(\''+cmQ(d.authorId)+'\')'):('cmOpenArtistProfile(\''+cmQ(artist)+'\')'))+'">'+
+      '<div class="cm-artist-row" onclick="'+(d.authorId?('cmOpenAuthorProfile(\''+cmQ(d.authorId)+'\')'):('cmOpenArtistProfile(\''+cmQ(artist)+'\')'))+'">'+
         '<div class="cm-l"><div class="cm-ava"></div><div><span class="cm-nm">'+esc(artist)+'</span> <span class="cm-rv">'+realReviews.length+'개 후기</span></div></div>'+
         '<div class="cm-r"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 2l4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3"/></svg>0</span>'+
         '<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-8-5-8-11a4.5 4.5 0 0 1 8-2.5A4.5 4.5 0 0 1 20 10c0 6-8 11-8 11z"/></svg>'+(d.likes||0)+'</span></div>'+
@@ -1621,6 +1621,12 @@ function cmBackToDetail(){
   }else{
     cmOpenDetail(cmDetailCtx.idx);
   }
+}
+// 커미션 상세에서 작가(실제 회원) 프로필로 이동 — 뒤로가기 스택에 얹어(뒤로 시 커미션 상세로 복귀)
+// keepStack 모드로 openUserProfile을 열어, 커미션 흐름의 단계별 뒤로가기가 끊기지 않게 함.
+function cmOpenAuthorProfile(userId){
+  enterScreen("cmAuthorProfile",cmBackToDetail);
+  openUserProfile(userId,true);
 }
 function cmOpenArtistProfile(name){
   enterScreen("cmArtist",cmBackToDetail);
@@ -3016,10 +3022,12 @@ function listOrEmpty(arr,emptyMsg,cta){
   if(arr.length)return '<div class="list">'+arr.map(profileRow).join("")+'</div>';
   return '<div class="pf-empty">'+emptyMsg+(cta?'<button onclick="openWrite()">✏️ 첫 글 쓰기</button>':'')+'</div>';
 }
-async function openUserProfile(userId){
+// keepStack=true면 커미션·채팅 같은 앱 내부 화면 흐름 '안에서' 열린 것 — 스택을 비우거나
+// URL(/user/)로 바꾸지 않고, 그 화면 흐름의 뒤로가기 스택에 그대로 얹혀 한 단계씩 돌아가게 함.
+async function openUserProfile(userId,keepStack){
   if(!userId||!window.supabase)return;
   userLeftHome=true;
-  resetScreens();
+  if(!keepStack)resetScreens();
   leaveChat();
   closeNotif();
   var res=await window.supabase.from("profiles").select("*").eq("id",userId).single();
@@ -3028,8 +3036,10 @@ async function openUserProfile(userId){
     return;
   }
   var profile=res.data;
-  var targetPath="/user/"+userId;
-  if(location.pathname!==targetPath)history.pushState({},"",targetPath);
+  if(!keepStack){
+    var targetPath="/user/"+userId;
+    if(location.pathname!==targetPath)history.pushState({},"",targetPath);
+  }
   document.title=profile.nickname+"님의 프로필 · Palo";
   var theirPosts=POSTS.filter(function(p){return p.authorId===userId});
   var likeSum=theirPosts.reduce(function(a,p){return a+p.likes},0);
