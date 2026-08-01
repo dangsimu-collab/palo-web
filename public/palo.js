@@ -2341,8 +2341,9 @@ function syncTabs(id){
 }
 /* ---------- editor ---------- */
 var TAGS_BY_BOARD={
-  talk:["잡담","질문","정보"],ask:["고민","질문","장비"],crit:["러프","선화","채색","완성"],
-  wip:["러프","선화","채색","완성"],tip:["강좌","꿀팁","자료"],challenge:["참가작"],
+  talk:["잡담","질문","정보"],ask:["질문","시세문의"],crit:["피드백 요청"],
+  wip:["러프","선화","채색","완성"],sketch:["러프","선화","채색"],tip:["강좌","꿀팁","자료"],challenge:["참가작"],
+  vote:["투표","수요조사"],request:["모집중","모집완료","후기글"],recruit:["개인용","비상업용","방송용","상업용","외주"],
   trade:["구인","구직"],used:["판매","구매"]
 };
 var edState={board:null,tag:null,img:false,images:[]};
@@ -2414,7 +2415,7 @@ function openWrite(){
   userLeftHome=true;
   resetScreens();
   editingPostId=null;
-  edState={board:(state.board!=="all"&&state.board!=="sketch")?state.board:null,tag:null,img:false,images:[],commissionPostId:null,reviewedNick:null,reviewedUserId:null,sentiment:null};
+  edState={board:(state.board!=="all")?state.board:null,tag:null,img:false,images:[],commissionPostId:null,reviewedNick:null,reviewedUserId:null,sentiment:null};
   buildBoardMenu();refreshBoardLabel();renderEdTags();
   document.getElementById("wTitle").value="";
   document.getElementById("edReviewNickInput").value="";
@@ -2490,7 +2491,7 @@ function closeWrite(){editingPostId=null;document.getElementById("writeModal").c
 function buildBoardMenu(){
   var h="";
   BOARDS.forEach(function(g){
-    var items=g.items.filter(function(b){return b.id!=="all"&&b.id!=="sketch"});
+    var items=g.items.filter(function(b){return b.id!=="all"});
     if(!items.length)return;
     h+='<div class="ed-bm-g">'+g.group+'</div>';
     items.forEach(function(b){
