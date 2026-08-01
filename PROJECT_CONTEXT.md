@@ -663,6 +663,13 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **등록/수정 폼**(`public/palo.js`): 거래 정책 아래 `cmSetReviewEvent(on)` 토글(🎁 진행/안 함, `.cm-reg-toggle` 재사용). 켜면 `#cmRegRevWrap`(혜택 textarea `#cmRegRevBenefit` + `.cm-reg-note` "작가 직접 제공, Palo 미중개" 안내) 표시. `cmCheckReg`가 **이벤트 on이면 혜택 필수**로 등록 버튼 게이트. `cmReg`/`cmSyncReg`/`cmOpenRegister`(수정 로드)/`cmSubmitReg`(row에 `review_event_on`/`review_event_benefit`)/`cmPreviewReg`에 반영.
 - **표시**: 목록 카드 썸네일에 `.cm-revevent-badge`(🎁 리뷰 이벤트), 상세는 제목 옆 `.cm-revevent-tag`(🎁 리뷰 이벤트 중) + 설명 아래 `.cm-revevent` 카드(혜택 내용 + `canReview`일 때 "✍️ 후기 쓰고 혜택 받기"→`cmOpenWrite` + `.cm-revevent-note` 중개 안내). 매핑(cmData/cmMyList) + `cmListSignature`에 `reviewEventOn` 포함.
 
+### 커미션 추천 랭킹 (2026-08-02, 단계별 진행 중)
+'추천' 탭에 좋은 커미션이 위로 오게 하는 서버 계산 랭킹. 원칙: **점수 계산·저장은 서버에서만**(사용자 조작 불가), 가중치·기준값은 **한 곳**에서 관리, 품질(후기)이 최우선. 4단계 계획(1 품질3요소 / 2 작가활동+작업물 / 3 신규보정 / 4 관리자 추가점수+열람·조정·기록).
+- **[1단계 완료] 품질 3요소 + 접수중 필터**
+  - **DB**: `commissions.views`(int, default 0) 추가 + `increment_commission_views(p_id)`(security definer — 작가 전용 update RLS 우회해 누구나 조회수만 +1, `increment_post_views`와 같은 패턴). **좋아요는 커미션에 기능이 없어** 목록/상세의 ♥ 표시를 **조회수(👁)로 교체**(장식뿐이던 `d.likes` 대신 `d.views`).
+  - **점수 RPC `get_commission_rec_scores()`**(security definer, `returns table(commission_id,score)`): `status='open'`만 대상. 점수 = 호후기율(호/전체×100)×0.35 + 후기개수(`min(cnt,10)/10×100`, 상한 10)×0.15 + 인기(`조회×1+북마크×3`을 접수중 최고값 대비 0~100)×0.12. **가중치·기준값은 함수 최상단 `cfg` CTE 한 곳**에서 관리. 북마크 카운트는 `commission_bookmarks`(select-own RLS)를 definer로 우회해 집계. 후기는 `posts`(board='review', `commission_id`, `commission_sentiment` good/bad). 반환은 점수뿐(요소별 분해는 4단계에서 관리자 전용).
+  - **클라이언트**: `cmLoadCommissions`가 `cmLoadRecScores()`로 `{cid:score}`(`cmRecScores`) 로드(RPC 없거나 오류면 빈 맵→후기순 폴백). `cmSortedFilteredIdx`의 `recommend` 분기가 **마감 제외(open만) + `cmRecScores` 높은 순**(동점 후기수). `cmOpenDetail`이 상세 열 때 `increment_commission_views` 호출 + 로컬 `d.views` 증가.
+
 ### 프로필 재디자인 — 크레페 시안 2단계: 커미션 타입 목록 (2026-07-30 추가)
 1단계(헤어) 확인 후 "다음으로 넘어가줘"로 진행. 시작 전 AskUserQuestion으로 배치 범위를 확인 — "**남의 프로필(`openUserProfile`)에만 추가**, 내 프로필(`openProfile`)의 기존 활동 대시보드(통계·팔로잉·쓴글/댓글/좋아요/최근본 탭·알림설정)는 그대로 유지"로 결정(사용자가 추천 옵션을 선택). DB 변경 없음 — `commissions`/`commission_images`를 그대로 재사용.
 - **데이터**: `pfArtistCommissions(userId,nickname)`이 그 유저가 등록한 `commissions`를 `commission_images`와 함께 조회(`cmOpenMy()`의 "내가 등록한 커미션" 쿼리와 동일 패턴, 대상 유저만 다름) → 기존 `cmRowToData()`로 매핑해서 재사용. 조회 결과는 전역 `cmData`에 병합(`if(!cmData.some(...))cmData.push(...)`)해서, 항목 클릭 시 `cmOpenCommissionById()`가 재조회 없이 바로 상세로 이동.

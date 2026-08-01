@@ -1351,7 +1351,7 @@ function cmRowToData(row,artistNickname){
     artist:artistNickname||'탈퇴한 사용자',
     title:row.title,price:row.price,status:row.status,tags:row.tags||[],
     period:row.period,slots:row.slots,desc:row.description,descHtml:row.description_html||null,usage:row.usage_rights,policy:row.trade_policy,
-    images:imgs,likes:0,createdAt:row.created_at,form:row.application_form||[],
+    images:imgs,likes:0,views:row.views||0,createdAt:row.created_at,form:row.application_form||[],
     reviewEventOn:!!row.review_event_on,reviewEventBenefit:row.review_event_benefit||'',
     reviewCount:revs.length,satisfaction:revs.length?(goodCount/revs.length):0,
     adLocked:!!AD_LOCKED_COMMISSION_IDS[row.id]
@@ -1369,7 +1369,18 @@ async function cmLoadCommissions(){
     return cmRowToData(row,prof?prof.nickname:null);
   });
   cmTopTags=cmComputeTopTags();
+  await cmLoadRecScores();
   cmDataLoaded=true;
+}
+// 추천 점수(서버 계산)를 불러와 {커미션id: 점수} 맵으로 저장. 추천 탭 정렬에 사용.
+// RPC가 아직 없거나(실행 전) 오류면 빈 맵으로 두고, 정렬은 후기 순으로 자연 폴백.
+var cmRecScores={};
+async function cmLoadRecScores(){
+  try{
+    var res=await window.supabase.rpc("get_commission_rec_scores");
+    cmRecScores={};
+    if(!res.error&&res.data)res.data.forEach(function(r){cmRecScores[r.commission_id]=r.score;});
+  }catch(e){cmRecScores={};}
 }
 function cmComputeTopTags(){
   var counts={};
@@ -1499,7 +1510,7 @@ function cmCardHTML(d,idx){
     '<div class="cm-c-artist">'+esc(d.artist)+'</div>'+
     '<div class="cm-c-title">'+esc(d.title)+'</div>'+
     (tagsLine?'<div class="cm-c-tags">'+esc(tagsLine)+'</div>':'')+
-    '<div class="cm-c-meta"><span>♥ '+(d.likes||0)+'</span><span>💬 '+(d.reviewCount||0)+'</span></div></div>';
+    '<div class="cm-c-meta"><span>👁 '+(d.views||0)+'</span><span>💬 '+(d.reviewCount||0)+'</span></div></div>';
 }
 function cmFilteredIdx(){
   var q=(cmState.query||'').trim().toLowerCase();
@@ -1521,11 +1532,13 @@ function cmSortedFilteredIdx(){
   }else if(cmState.sort==='hot'){
     idxs=idxs.slice().sort(function(a,b){return (cmData[b].reviewCount||0)-(cmData[a].reviewCount||0);});
   }else if(cmState.sort==='recommend'){
+    // 추천 탭: '접수중(open)'만 노출(마감 제외) + 서버가 계산한 추천 점수 높은 순
+    idxs=idxs.filter(function(i){return cmData[i].status==='open';});
     idxs=idxs.slice().sort(function(a,b){
-      var ra=cmData[a],rb=cmData[b];
-      var sa=ra.reviewCount?ra.satisfaction:-1,sb=rb.reviewCount?rb.satisfaction:-1;
+      var sa=cmRecScores[cmData[a].id],sb=cmRecScores[cmData[b].id];
+      sa=(sa==null?-1:sa);sb=(sb==null?-1:sb);
       if(sb!==sa)return sb-sa;
-      return (rb.reviewCount||0)-(ra.reviewCount||0);
+      return (cmData[b].reviewCount||0)-(cmData[a].reviewCount||0); // 동점이면 후기 많은 순
     });
   }
   return idxs;
@@ -1780,7 +1793,7 @@ function cmDetailHTML(d,idx){
       '<div class="cm-artist-row" onclick="'+(d.authorId?('cmOpenAuthorProfile(\''+cmQ(d.authorId)+'\')'):('cmOpenArtistProfile(\''+cmQ(artist)+'\')'))+'">'+
         '<div class="cm-l"><div class="cm-ava"></div><div><span class="cm-nm">'+esc(artist)+'</span> <span class="cm-rv">'+realReviews.length+'개 후기</span></div></div>'+
         '<div class="cm-r"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 2l4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3"/></svg>0</span>'+
-        '<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-8-5-8-11a4.5 4.5 0 0 1 8-2.5A4.5 4.5 0 0 1 20 10c0 6-8 11-8 11z"/></svg>'+(d.likes||0)+'</span></div>'+
+        '<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/></svg>'+(d.views||0)+'</span></div>'+
       '</div>'+
       '<div class="cm-stats"><div class="cm-stat"><span class="cm-k">신청 가능</span><span class="cm-v">'+esc(d.slots||'8')+'개 남음</span></div>'+
         '<div class="cm-stat"><span class="cm-k">작업 기간</span><span class="cm-v">'+esc(period)+'</span></div></div>'+
@@ -1818,9 +1831,12 @@ function cmDetailHTML(d,idx){
 function cmOpenDetail(idx){
   enterScreen("cmDetail",cmDetailBack);
   cmDetailCtx={from:'list',idx:idx};
-  document.getElementById("main").innerHTML=cmDetailHTML(cmData[idx],idx);
+  var d=cmData[idx];
+  document.getElementById("main").innerHTML=cmDetailHTML(d,idx);
   window.scrollTo({top:0,behavior:"smooth"});
-  cmLoadWorksamples(cmData[idx].id);
+  cmLoadWorksamples(d.id);
+  // 조회수 +1 (추천 점수의 '인기' 요소에 쓰임) — 서버에서 증가, 조작 방지 위해 딱 이 동작만 하는 RPC
+  if(d&&d.id!=null&&window.supabase){d.views=(d.views||0)+1;window.supabase.rpc("increment_commission_views",{p_id:d.id}).then(function(){});}
 }
 function cmDetailBack(){
   if(cmDetailCtx.from==='register')cmRenderRegisterScreen();
