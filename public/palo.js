@@ -897,12 +897,15 @@ function renderManagerPickList(picks){
   document.getElementById("main").innerHTML=h;
   window.scrollTo({top:0,behavior:"smooth"});
 }
-/* 관리자 삭제 기록 뷰어 — admin_post_deletions 표(RLS로 관리자만 조회 가능)를 읽어 목록 표시 */
+/* 관리자 삭제 기록 뷰어 — admin_post_deletions 표(RLS로 관리자만 조회 가능)를 읽어 목록 표시.
+   각 행은 삭제된 글의 스냅샷(제목·본문·이미지 등)을 담고 있어, 클릭하면 원본 글처럼 보관본을 볼 수 있음. */
+var ADMIN_DEL_LOG=[];
 async function openAdminDeletionLog(){
   if(!AUTH.profile||!AUTH.profile.is_admin||!window.supabase)return;
   var res=await window.supabase.from("admin_post_deletions").select("*").order("created_at",{ascending:false}).limit(100);
   if(res.error){toast("불러오기 실패: "+res.error.message);return;}
-  renderAdminDeletionLog(res.data||[]);
+  ADMIN_DEL_LOG=res.data||[];
+  renderAdminDeletionLog(ADMIN_DEL_LOG);
 }
 function renderAdminDeletionLog(rows){
   var h='<div class="profile">'+
@@ -915,17 +918,50 @@ function renderAdminDeletionLog(rows){
     rows.forEach(function(r){
       var snippet=(r.content||"").replace(/\s+/g," ").trim();
       if(snippet.length>140)snippet=snippet.slice(0,140)+"…";
-      h+='<div class="del-log">'+
+      h+='<div class="del-log" onclick="openArchivedPost('+r.id+')">'+
         '<div class="del-log-top"><span class="del-log-board">'+esc(boardName(r.board)||r.board||"게시판")+'</span><span class="del-log-time">'+timeAgo(r.created_at)+'</span></div>'+
         '<div class="del-log-title">'+esc(r.title||"(제목 없음)")+'</div>'+
         (snippet?'<div class="del-log-snip">'+esc(snippet)+'</div>':'')+
         '<div class="del-log-meta">작성자 <b>'+esc(r.author_nick||"(알 수 없음)")+'</b> · 삭제 관리자 <b>'+esc(r.admin_nick||"(알 수 없음)")+'</b></div>'+
         '<div class="del-log-reason">사유: '+(r.reason?esc(r.reason):'<span style="opacity:.6">미입력</span>')+(r.notified?'':' · <span style="opacity:.75">알림 미발송</span>')+'</div>'+
+        '<div class="del-log-open">원본 글 보기 ›</div>'+
       '</div>';
     });
     h+='</div>';
   }
   h+='</div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function openArchivedPost(logId){
+  var row=(ADMIN_DEL_LOG||[]).find(function(x){return x.id===logId;});
+  if(!row){toast("보관본을 찾을 수 없어요");return;}
+  renderArchivedPost(row);
+}
+/* 삭제된 글의 스냅샷(보관본)을 원본 글 상세처럼 읽기 전용으로 재구성 */
+function renderArchivedPost(row){
+  var imgs=row.images;
+  if(typeof imgs==="string"){try{imgs=JSON.parse(imgs);}catch(e){imgs=null;}}
+  var p={board:row.board,category:row.category,title:row.title,stage:row.stage,thumb:"none",
+    html:row.content_html||undefined,content:(row.content||"").split("\n").filter(Boolean),
+    images:imgs,author:row.author_nick||"익명",authorAvatar:row.author_avatar,authorLevel:row.author_level,
+    time:row.post_created_at?timeAgo(row.post_created_at):"삭제됨"};
+  var c=catFor(p);
+  var safeHtml=p.html?sanitizePostHtml(p.html):null;
+  var contentHasMedia=safeHtml&&/<img[\s>]|<video[\s>]/i.test(safeHtml);
+  var canvas=(!contentHasMedia&&p.images&&p.images.length)?
+    '<div class="d-canvas" style="height:auto;display:block;padding:0">'+(p.stage?'<span class="stage-tag">'+esc(p.stage)+' 단계</span>':'')+
+      p.images.map(function(url){return '<img src="'+esc(url)+'" alt="" style="width:100%;display:block;max-height:520px;object-fit:cover">'}).join("")+
+    '</div>':'';
+  var delMeta='삭제 관리자 <b>'+esc(row.admin_nick||"(알 수 없음)")+'</b> · '+timeAgo(row.created_at)+' · 사유: '+(row.reason?esc(row.reason):"미입력")+(row.notified?'':' · 알림 미발송');
+  var body=safeHtml?safeHtml:(p.content.length?p.content.map(function(x){return '<p>'+esc(x)+'</p>'}).join(""):'<p style="color:var(--muted)">(본문 없음)</p>');
+  var h='<div class="detail">'+
+    '<button class="d-back" onclick="openAdminDeletionLog()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>삭제 기록으로</button>'+
+    '<div class="archived-banner">🗑 삭제된 글 보관본<div class="archived-banner-sub">'+delMeta+'</div></div>'+
+    '<div class="d-head"><div class="line1"><span class="cat '+c.cls+'">'+c.label+'</span></div><h1 class="serif">'+esc(p.title||"(제목 없음)")+'</h1>'+
+    '<div class="d-author"><div class="d-ava serif">'+avatarHTML(p.author,p.authorAvatar)+'</div><div class="d-au-info"><div class="n">'+esc(dispName(p.author))+levelBadgeHtml(p.authorLevel,"lv-badge")+'</div><div class="meta">'+esc(p.time)+'</div></div></div></div>'+
+    canvas+'<div class="d-content">'+body+'</div>'+
+  '</div>';
   document.getElementById("main").innerHTML=h;
   window.scrollTo({top:0,behavior:"smooth"});
 }
