@@ -3182,6 +3182,7 @@ async function openChat(otherUserId){
 
   var msgRes=await window.supabase.from("messages").select("*").eq("conversation_id",conv.id).order("created_at",{ascending:true});
   if(msgRes.error){toast("대화를 불러오지 못했어요: "+msgRes.error.message);return;}
+  enterScreen("chatRoom",openChatList);
   renderChatView(partnerName,msgRes.data||[]);
   subscribeToChat(conv.id);
   window.supabase.rpc("mark_messages_read",{p_conversation_id:conv.id}).then(function(){});
@@ -3220,6 +3221,8 @@ function chatMessagesHtml(messages){
 }
 async function openChatList(){
   if(!AUTH.user){toast("로그인이 필요해요");loginWithGoogle();return;}
+  if(!navigatingBack)resetScreens();
+  enterScreen("chatList",goHome);
   leaveChat();
   closeNotif();
   syncTabs("chat");
@@ -3297,7 +3300,7 @@ function renderChatView(partnerName,messages){
   if(!el)return;
   el.innerHTML=
     '<div class="cr-top">'+
-      '<button class="cr-back" onclick="openChatList()" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>'+
+      '<button class="cr-back" onclick="screenBack()" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>'+
       '<div class="cr-title">'+esc(partnerName)+'</div>'+
       '<button class="cr-report" onclick="reportChat()" aria-label="신고"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg></button>'+
     '</div>'+
