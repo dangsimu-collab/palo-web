@@ -897,6 +897,38 @@ function renderManagerPickList(picks){
   document.getElementById("main").innerHTML=h;
   window.scrollTo({top:0,behavior:"smooth"});
 }
+/* 관리자 삭제 기록 뷰어 — admin_post_deletions 표(RLS로 관리자만 조회 가능)를 읽어 목록 표시 */
+async function openAdminDeletionLog(){
+  if(!AUTH.profile||!AUTH.profile.is_admin||!window.supabase)return;
+  var res=await window.supabase.from("admin_post_deletions").select("*").order("created_at",{ascending:false}).limit(100);
+  if(res.error){toast("불러오기 실패: "+res.error.message);return;}
+  renderAdminDeletionLog(res.data||[]);
+}
+function renderAdminDeletionLog(rows){
+  var h='<div class="profile">'+
+    '<button class="d-back" onclick="openProfile()">← 내 정보로</button>'+
+    '<div class="pf-sec">🗑 삭제 기록 ('+rows.length+')</div>';
+  if(!rows.length){
+    h+='<div class="pf-empty">아직 관리자 삭제 기록이 없어요.</div>';
+  }else{
+    h+='<div class="del-log-list">';
+    rows.forEach(function(r){
+      var snippet=(r.content||"").replace(/\s+/g," ").trim();
+      if(snippet.length>140)snippet=snippet.slice(0,140)+"…";
+      h+='<div class="del-log">'+
+        '<div class="del-log-top"><span class="del-log-board">'+esc(boardName(r.board)||r.board||"게시판")+'</span><span class="del-log-time">'+timeAgo(r.created_at)+'</span></div>'+
+        '<div class="del-log-title">'+esc(r.title||"(제목 없음)")+'</div>'+
+        (snippet?'<div class="del-log-snip">'+esc(snippet)+'</div>':'')+
+        '<div class="del-log-meta">작성자 <b>'+esc(r.author_nick||"(알 수 없음)")+'</b> · 삭제 관리자 <b>'+esc(r.admin_nick||"(알 수 없음)")+'</b></div>'+
+        '<div class="del-log-reason">사유: '+(r.reason?esc(r.reason):'<span style="opacity:.6">미입력</span>')+(r.notified?'':' · <span style="opacity:.75">알림 미발송</span>')+'</div>'+
+      '</div>';
+    });
+    h+='</div>';
+  }
+  h+='</div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
+}
 async function savePickPosition(id){
   var p=POSTS.find(function(x){return x.id===id});if(!p||!p.dbId||!window.supabase)return;
   var input=document.getElementById("pickPos"+id);
@@ -3905,6 +3937,7 @@ function renderMyProfile(){
          '<button class="pf-edit" onclick="openAdminCampaigns()">🎯 유료 광고 관리</button>'+
          '<button class="pf-edit" onclick="openReviewAnalysis()">🔍 후기 분석'+(function(){var n=reviewSuspicionCountSync();return n?' <span style="background:#e0607a;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:800">'+n+'</span>':'';})()+'</button>'+
          '<button class="pf-edit" onclick="openManagerPickList()">📌 매니저 픽 관리</button>'+
+         '<button class="pf-edit" onclick="openAdminDeletionLog()">🗑 삭제 기록</button>'+
        '</div>';
   }
   h+=pinnedPostCardHTML(AUTH.profile?AUTH.profile.pinned_post_id:null);
