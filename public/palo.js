@@ -1582,6 +1582,7 @@ function cmDetailHTML(d,idx){
   var goodCnt=realReviews.filter(function(r){return r.commissionSentiment==='good'}).length;
   var badCnt=realReviews.filter(function(r){return r.commissionSentiment==='bad'}).length;
   var canReview=AUTH.user&&d.authorId&&AUTH.user.id!==d.authorId;
+  var isOwner=AUTH.user&&d.authorId&&AUTH.user.id===d.authorId; // 이 커미션의 작가 본인
   var bookmarked=(d.id!=null)&&cmBookmarkIds&&cmBookmarkIds.has(d.id);
   var satisfactionHTML=realReviews.length>0
     ?('<div class="cm-verify"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>만족율 '+Math.round(goodCnt/realReviews.length*100)+'%</div>')
@@ -1606,6 +1607,7 @@ function cmDetailHTML(d,idx){
       '</div>'+
       '<div class="cm-stats"><div class="cm-stat"><span class="cm-k">신청 가능</span><span class="cm-v">'+esc(d.slots||'8')+'개 남음</span></div>'+
         '<div class="cm-stat"><span class="cm-k">작업 기간</span><span class="cm-v">'+esc(period)+'</span></div></div>'+
+      ((isOwner&&d.id!=null)?'<div class="cm-owner-bar"><button class="cm-owner-del" onclick="cmDeleteCommission('+d.id+')">🗑 이 커미션 삭제</button></div>':'')+
       '<div class="cm-desc">'+(descHTML?descHTML:esc(desc))+'</div>'+
       '<div class="cm-rv-sec"><div class="cm-rv-head"><b>커미션 후기 '+realReviews.length+'</b><span class="cm-rv-more" onclick="cmOpenReviews('+(d.id!=null?d.id:'null')+')">더보기 ></span></div>'+
         '<div class="cm-rv-summary"><div class="cm-rv-box good"><div class="cm-ic">😊</div><div class="cm-n">'+goodCnt+'</div><div class="cm-l">만족 후기</div></div>'+
@@ -2352,11 +2354,32 @@ function cmMyListHTML(){
       '<div class="cm-my-info"><div class="cm-my-title">'+esc(c.title)+'</div>'+
         '<div class="cm-my-price">'+Number(c.price).toLocaleString()+'원~</div>'+st+'</div>'+
       '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">'+editBtn+
-        '<button class="cm-my-edit" onclick="openCreateAdForCommission('+c.id+')">📢 광고</button></div></div>';
+        '<button class="cm-my-edit" onclick="openCreateAdForCommission('+c.id+')">📢 광고</button>'+
+        '<button class="cm-my-edit cm-my-del" onclick="cmDeleteCommission('+c.id+')">🗑 삭제</button></div></div>';
   }).join('');
 }
 var cmMyBookmarks=[];
 var cmMyApplications=[];
+// 커미션 삭제(작가 본인만). 확인창 → DB 삭제(RLS가 서버에서도 본인만 허용) → 목록/상세에서 제거.
+// 연결 데이터: commission_images·worksamples·applications·user_ads는 FK on delete cascade로 자동 삭제,
+// 후기(posts.commission_id)·알림·메시지는 on delete set null로 남김(작가 평판 보존 — 2단계에서 스토리지 파일도 정리 예정).
+async function cmDeleteCommission(id){
+  if(id==null||!window.supabase)return;
+  if(!(await confirmDialog("이 커미션을 삭제할까요? 삭제하면 되돌릴 수 없어요.")))return;
+  var res=await window.supabase.from("commissions").delete().eq("id",id);
+  if(res.error){toast("삭제 실패: "+res.error.message);return;}
+  cmData=cmData.filter(function(c){return c.id!==id;});
+  if(Array.isArray(cmMyList))cmMyList=cmMyList.filter(function(c){return c.id!==id;});
+  if(cmWsCache)delete cmWsCache[id];
+  toast("커미션을 삭제했어요","🗑");
+  if(document.querySelector('#main .cm-d-top')){          // 커미션 상세를 보고 있었으면 → 목록으로 되돌아감
+    screenBack();
+  }else if(document.getElementById('cmMyList')){          // 내 커미션 목록이면 그 자리에서 갱신
+    document.getElementById('cmMyList').innerHTML=cmMyListHTML();
+  }else if(document.getElementById('cmGrid')){            // 전체 커미션 목록이면 그리드 갱신
+    document.getElementById('cmGrid').innerHTML=cmGridHTML();
+  }
+}
 async function cmOpenMy(tab){
   if(!AUTH.user){
     toast('로그인 후 내 커미션을 볼 수 있어요','🔒');
