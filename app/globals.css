@@ -1113,10 +1113,9 @@
   .cm-reg-sub{font-size:12.5px;color:var(--muted);font-weight:500}
   .cm-reg-input{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:14px;font-size:15px;font-family:inherit;color:var(--ink);background:var(--surface)}
   .cm-reg-input::placeholder{color:var(--muted-2)}
-  /* type=date는 iOS/웹킷이 네이티브 스타일을 입혀 다른 입력란과 안 맞음 → 정규화해서 통일 */
-  .cm-reg-input[type="date"]{-webkit-appearance:none;appearance:none;min-height:50px;line-height:normal;text-align:left;color:var(--ink);background:var(--surface)}
-  .cm-reg-input[type="date"]::-webkit-date-and-time-value{text-align:left;margin:0}
-  .cm-reg-input[type="date"]::-webkit-calendar-picker-indicator{opacity:.55;cursor:pointer}
+  /* 작업 날짜: 네이티브 date 픽커는 OS가 그려 CSS로 못 꾸미므로, Palo 스타일 드롭다운 3개(연/월/일)로 대체 */
+  .cm-date-row{display:flex;gap:8px}
+  .cm-date-sel{flex:1;min-width:0;-webkit-appearance:none;appearance:none;padding:14px 30px 14px 13px;cursor:pointer;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23b3a1ad' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 9px center;background-size:15px}
   .cm-reg-textarea{width:100%;min-height:120px;border:1.5px solid var(--line);border-radius:12px;padding:14px;font-size:14.5px;line-height:1.7;resize:vertical;font-family:inherit;color:var(--ink);background:var(--surface)}
   .cm-reg-toolbar{display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:7px;border:1.5px solid var(--line);border-bottom:none;border-radius:12px 12px 0 0;background:var(--surface-2)}
   .cm-reg-toolbar button{width:34px;height:34px;border:none;background:none;border-radius:9px;color:var(--ink-2);font-size:13px;cursor:pointer;transition:.12s;display:flex;align-items:center;justify-content:center}

@@ -1712,8 +1712,8 @@ function cmOpenWorksampleForm(commissionId,back){
       '<div class="cm-reg-imgs" id="cmWsImgs">'+cmWsImgsHTML()+'</div>'+
       '<div class="cm-reg-label">상세 설명 <span class="cm-reg-sub">작업 내용, 소요 기간 등 자유롭게</span></div>'+
       '<textarea class="cm-reg-textarea" id="cmWsDesc" placeholder="어떤 작업이었는지, 소요 기간, 특이사항 등을 자유롭게 적어주세요."></textarea>'+
-      '<div class="cm-reg-label">작업 날짜</div>'+
-      '<input class="cm-reg-input" id="cmWsDate" type="date">'+
+      '<div class="cm-reg-label">작업 날짜 <span class="cm-reg-sub">선택</span></div>'+
+      '<div class="cm-date-row">'+cmDateSelectsHTML()+'</div>'+
     '</div>'+
     '<div class="cm-reg-bottom"><button class="cm-reg-btn" id="cmWsSubmit" onclick="cmSubmitWorksample()" disabled>등록하기</button></div>'+
   '</div>';
@@ -1743,6 +1743,30 @@ async function cmOpenWsCommissionPicker(back){
       '<svg class="cm-ws-pick-arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>'+
     '</div>';
   }).join('');
+}
+// 작업 날짜: 네이티브 date 대신 Palo 스타일 드롭다운 3개(연/월/일). y/m/d는 초기 선택값(선택).
+function cmDaysInMonth(y,m){ if(!m)return 31; return new Date(y||2000,m,0).getDate(); } // 윤년 포함 그 달의 일수
+function cmDateSelectsHTML(y,m,d){
+  var cy=new Date().getFullYear();
+  var years='<option value="">연도</option>';
+  for(var yy=cy;yy>=cy-10;yy--)years+='<option value="'+yy+'"'+(y==yy?' selected':'')+'>'+yy+'년</option>';
+  var months='<option value="">월</option>';
+  for(var mm=1;mm<=12;mm++)months+='<option value="'+mm+'"'+(m==mm?' selected':'')+'>'+mm+'월</option>';
+  var days='<option value="">일</option>';
+  var dim=cmDaysInMonth(y,m);
+  for(var dd=1;dd<=dim;dd++)days+='<option value="'+dd+'"'+(d==dd?' selected':'')+'>'+dd+'일</option>';
+  return '<select class="cm-reg-input cm-date-sel" id="cmWsYear" onchange="cmWsSyncDays()">'+years+'</select>'+
+         '<select class="cm-reg-input cm-date-sel" id="cmWsMonth" onchange="cmWsSyncDays()">'+months+'</select>'+
+         '<select class="cm-reg-input cm-date-sel" id="cmWsDay">'+days+'</select>';
+}
+// 연/월이 바뀌면 그 달의 실제 일수로 '일' 목록을 다시 생성(2월 30일 같은 잘못된 날짜 방지)
+function cmWsSyncDays(){
+  var y=document.getElementById('cmWsYear').value, m=document.getElementById('cmWsMonth').value;
+  var daySel=document.getElementById('cmWsDay'); if(!daySel)return;
+  var cur=daySel.value, dim=cmDaysInMonth(y?+y:0,m?+m:0);
+  var html='<option value="">일</option>';
+  for(var dd=1;dd<=dim;dd++)html+='<option value="'+dd+'"'+(cur==dd?' selected':'')+'>'+dd+'일</option>';
+  daySel.innerHTML=html;
 }
 function cmWsImgsHTML(){
   var h=cmWsForm.images.map(function(url,i){
@@ -1783,7 +1807,8 @@ async function cmSubmitWorksample(){
   if(!AUTH.user){toast('로그인이 필요해요');return;}
   var title=document.getElementById('cmWsTitle').value.trim();
   var desc=document.getElementById('cmWsDesc').value.trim();
-  var date=document.getElementById('cmWsDate').value||null;
+  var y=document.getElementById('cmWsYear').value,m=document.getElementById('cmWsMonth').value,dd=document.getElementById('cmWsDay').value;
+  var date=(y&&m&&dd)?(y+'-'+(m<10?'0'+m:m)+'-'+(dd<10?'0'+dd:dd)):null;
   if(!title){toast('제목을 입력해주세요');return;}
   if(!cmWsForm.images.length){toast('작업 이미지를 최소 1장 올려주세요');return;}
   var btn=document.getElementById('cmWsSubmit');btn.disabled=true;btn.textContent='등록 중...';
