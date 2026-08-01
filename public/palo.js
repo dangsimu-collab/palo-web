@@ -538,7 +538,7 @@ function pagerHTML(tp){
 function gotoPage(n){page=n;renderList();window.scrollTo({top:0,behavior:"smooth"});}
 // 지면 배분(오픈 초기 = 유저 광고만): 유료는 AD_PAID_SHARE=0이라 서빙 안 함(나중에 켜면 그 비중만큼 유료).
 // 유저 광고는 각 광고 확률 = min(4%, 그 광고 points_spent 지분)로 뽑음 — 개당 4% 상한만 있고 '전체' 상한은 없어
-// 광고가 많으면 최대 100%까지 유저 광고로 채워지고, 남는 확률(1 - 합)은 하우스("광고 문의 환영")로 감.
+// 광고가 많으면 최대 100%까지 유저 광고로 채워지고, 남는 확률(1 - 합)은 하우스(포인트 안내 자리)로 감.
 function pickServedAd(){
   if(AD_PAID_SHARE>0&&Math.random()<AD_PAID_SHARE){
     var camp=pickServableCampaign();
@@ -571,8 +571,8 @@ function houseAdHTML(extraClass){
   return '<div class="ad'+ec+'" role="complementary" aria-label="광고">'+
     '<span class="ad-label">AD</span>'+
     '<div class="ad-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="width:22px;height:22px"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 18 5-5 4 3 3-2 4 4"/></svg></div>'+
-    '<div class="ad-body"><div class="ad-t">광고 문의 환영</div>'+
-    '<div class="ad-d">이 자리에 유저 광고가 노출돼요</div></div>'+
+    '<div class="ad-body"><div class="ad-t">열심히 활동해서 포인트를 모아보세요!</div>'+
+    '<div class="ad-d">포인트를 사용하여 이 자리에 광고를 집행할 수 있어요!</div></div>'+
   '</div>';
 }
 function adRow(extraClass){
@@ -801,7 +801,7 @@ function renderPostDetail(id){
     (p.board==='crit'?'<div class="cm-accept-info">💡 마음에 든 피드백을 <b>채택</b>하면 그 작성자에게 <b>광고 25점 + 활동 25점</b>을 지급해요 (하루 최대 100점).</div>':'')+
     '<div class="cm-write"><div class="d-ava serif" id="cmAva">'+avatarHTML("나",AUTH.profile&&AUTH.profile.avatar_url)+'</div><div class="box"><textarea id="cmInput" placeholder="따뜻한 피드백을 남겨주세요. 사람보다 그림을 이야기해요."></textarea>'+
     '<div class="row"><span class="hint">인신공격·조롱은 삭제될 수 있어요</span><button class="send" onclick="addComment('+p.id+')">등록</button></div></div></div>'+
-    '<div class="ad d-ad" role="complementary" aria-label="광고"><span class="ad-label">AD</span><div class="ad-ph"><svg viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"1.6\\" style=\\"width:22px;height:22px\\"><rect x=\\"3\\" y=\\"4\\" width=\\"18\\" height=\\"16\\" rx=\\"2\\"/><circle cx=\\"8.5\\" cy=\\"9.5\\" r=\\"1.6\\"/><path d=\\"m4 18 5-5 4 3 3-2 4 4\\"/></svg></div><div class="ad-body"><div class="ad-t">광고 문의 환영</div><div class="ad-d">이 자리에 광고가 노출됩니다</div></div></div>'+'<div class="cm-list" id="cmList">'+renderComments(p)+'</div></div></div>';
+    '<div class="ad d-ad" role="complementary" aria-label="광고"><span class="ad-label">AD</span><div class="ad-ph"><svg viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"1.6\\" style=\\"width:22px;height:22px\\"><rect x=\\"3\\" y=\\"4\\" width=\\"18\\" height=\\"16\\" rx=\\"2\\"/><circle cx=\\"8.5\\" cy=\\"9.5\\" r=\\"1.6\\"/><path d=\\"m4 18 5-5 4 3 3-2 4 4\\"/></svg></div><div class="ad-body"><div class="ad-t">열심히 활동해서 포인트를 모아보세요!</div><div class="ad-d">포인트를 사용하여 이 자리에 광고를 집행할 수 있어요!</div></div></div>'+'<div class="cm-list" id="cmList">'+renderComments(p)+'</div></div></div>';
   main.innerHTML=h;
   renderDetailAd();
 }

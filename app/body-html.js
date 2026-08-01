@@ -63,8 +63,8 @@ export const BODY_HTML = `
     <div class="widget ad-widget" role="complementary" aria-label="광고">
       <span class="ad-label">AD</span>
       <div class="ad-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" style="width:26px;height:26px"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 18 5-5 4 3 3-2 4 4"/></svg></div>
-      <div class="ad-t">광고 문의 환영</div>
-      <div class="ad-d">그림·창작 관련 브랜드를<br>이 자리에서 만나보세요</div>
+      <div class="ad-t">열심히 활동해서 포인트를 모아보세요!</div>
+      <div class="ad-d">포인트를 사용하여 이 자리에 광고를 집행할 수 있어요!</div>
     </div>
   </aside>
 </div>
