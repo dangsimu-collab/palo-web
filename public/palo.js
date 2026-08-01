@@ -27,6 +27,7 @@ var postsLoaded=false; // loadRealPosts()가 실제 글을 POSTS에 합친 뒤 t
 var userLeftHome=false; // 초기 로딩이 끝나기 전에 사용자가 피드(홈) 밖 화면(커미션/채팅/글쓰기/프로필/글·유저 상세)으로 이동했으면 true — loadRealPosts() 완료 시 홈으로 강제 복귀시키지 않기 위함
 var feedRefreshing=false; // refreshFeed() 중복 실행 방지(홈/로고 연타 대비)
 var profileRefreshing=false; // refreshProfile() 중복 실행 방지
+var notifDeeplinkPending=false; // "알림 설정" 딥링크(?notif=settings)로 진입 시, 렌더 후 알림 설정 섹션으로 스크롤
 var POSTS=[]; // 실제 글은 loadRealPosts()가 DB에서 채움
 var TREND=[
   {name:"비 오는 창가",tag:"챌린지 1위",thumb:"t1",sub:"참여 38명"},
@@ -3223,7 +3224,7 @@ async function enablePushNotifications(){
     var ok=await subscribeToPush(); // 실제 푸시 구독을 서버에 저장
     try{
       var reg=await navigator.serviceWorker.ready;
-      reg.showNotification("Palo",{body:"알림이 켜졌어요! 🔔 받고 싶은 알림 종류를 골라주세요.",icon:"/icon-192.png",badge:"/icon-192.png"});
+      reg.showNotification("Palo",{body:"알림이 켜졌어요! 🔔 받고 싶은 알림 종류를 골라주세요.",icon:"/icon-192.png",badge:"/icon-192.png",data:{url:"/?notif=settings"}});
     }catch(e){}
     toast(ok?"알림을 켰어요 🔔":"알림 권한을 켰어요 (발송 준비 중)");
   }else if(perm==="denied"){
@@ -3766,7 +3767,7 @@ function openProfile(){
   }
   // 이미 내 정보 화면이면 캐시로 다시 안 그림(스크롤만) → refreshProfile이 내용 바뀐 경우에만 한 번 그림.
   // 다른 화면에서 왔으면 캐시로 즉시 렌더.
-  if(document.getElementById("myProfileView")){syncTabs("me");window.scrollTo({top:0,behavior:"smooth"});}
+  if(document.getElementById("myProfileView")){syncTabs("me");pfScrollAfterRender();}
   else renderMyProfile();
   refreshProfile();
 }
@@ -3837,7 +3838,7 @@ function renderMyProfile(){
   else if(pfTab==="cm")h+=listOrEmpty(commented,'댓글을 단 글이 아직 없어요.<br>마음에 드는 글에 훈수를 남겨보세요!');
   else if(pfTab==="liked")h+=listOrEmpty(likedArr,'좋아요한 글이 아직 없어요.<br>마음에 드는 그림에 하트를 눌러보세요!');
   else h+=listOrEmpty(recent,'최근 본 글이 없어요.');
-  h+='<div class="pf-sec">알림 설정</div>';
+  h+='<div class="pf-sec" id="notifSettingsSec">알림 설정</div>';
   h+=notifEnableHTML();
   h+='<div class="pf-set">'+
      '<label class="pf-toggle"><span>내 글에 댓글이 달리면 알림</span><input type="checkbox" '+(SETTINGS.cm?'checked':'')+' onchange="toggleNotifPref(\'cm\',this.checked,\'댓글\')"></label>'+
@@ -3847,7 +3848,7 @@ function renderMyProfile(){
      '<label class="pf-toggle"><span>커미션 문의 알림</span><input type="checkbox" '+(SETTINGS.cminquiry?'checked':'')+' onchange="toggleNotifPref(\'cminquiry\',this.checked,\'커미션 문의\')"></label></div>';
   h+='</div>';
   document.getElementById("main").innerHTML=h;
-  syncTabs("me");window.scrollTo({top:0,behavior:"smooth"});
+  syncTabs("me");pfScrollAfterRender();
   pfBookmarkCount(AUTH.user.id).then(function(n){
     var el=document.getElementById("pfhBmCount");
     if(el)el.textContent=n;
@@ -3868,6 +3869,25 @@ async function refreshProfile(){
   try{await refreshMyProfile();await loadRealPosts(true);}catch(e){} // loadRealPosts(true)=피드는 안 그림
   profileRefreshing=false;
   if(document.getElementById("myProfileView")&&profileSignature()!==before)renderMyProfile();
+}
+// "알림 설정" 딥링크(시스템 알림 클릭 → /?notif=settings) 처리: 내 정보를 열고 알림 설정 섹션으로 스크롤
+function handleNotifSettingsDeeplink(){
+  var params;
+  try{params=new URLSearchParams(location.search);}catch(e){return;}
+  if(params.get("notif")!=="settings")return;
+  history.replaceState({},"","/");        // 파라미터 정리(새로고침·공유 시 재실행 방지)
+  if(!AUTH.user)return;                     // 비로그인이면 스킵(로그인 후 내 정보에서 설정 가능)
+  notifDeeplinkPending=true;
+  openProfile();
+  setTimeout(function(){notifDeeplinkPending=false;},2200); // 이 시간 동안의 렌더는 알림 설정으로 스크롤
+}
+// 프로필 렌더 직후 스크롤: 알림 설정 딥링크 중이면 그 섹션으로, 아니면 맨 위로
+function pfScrollAfterRender(){
+  if(notifDeeplinkPending){
+    var ns=document.getElementById("notifSettingsSec");
+    if(ns){ns.scrollIntoView({behavior:"smooth",block:"start"});return;}
+  }
+  window.scrollTo({top:0,behavior:"smooth"});
 }
 function unfollowFromProfile(n){FOLLOW.delete(n);toast(dispName(n)+"님 팔로우를 취소했어요");openProfile();}
 async function openAdminReports(){
@@ -4625,5 +4645,5 @@ syncNotifBadge();
     try{renderChips();renderHot();renderTrend();renderList();}catch(e){}
   }
 })();
-initAuth().then(loadRealPosts);
+initAuth().then(function(){loadRealPosts();handleNotifSettingsDeeplink();});
 
