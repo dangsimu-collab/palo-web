@@ -773,6 +773,7 @@ function renderPostDetail(id){
     '<button class="d-act" onclick="openCreateAd('+p.id+')">📢 이 글 광고하기</button>'+
     '<button class="d-act'+((AUTH.profile&&AUTH.profile.pinned_post_id===p.dbId)?' liked':'')+'" onclick="togglePinnedPost('+p.id+')">📌 '+((AUTH.profile&&AUTH.profile.pinned_post_id===p.dbId)?"대표 글 해제":"대표 글로 고정하기")+'</button>'):'')+
     ((p.dbId&&AUTH.profile&&AUTH.profile.is_admin)?('<button class="d-act'+(p.isManagerPick?' liked':'')+'" onclick="toggleManagerPick('+p.id+')">📌 '+(p.isManagerPick?"매니저 픽 해제":"매니저 픽 지정")+'</button>'):'')+
+    ((p.dbId&&AUTH.profile&&AUTH.profile.is_admin)?('<button class="d-act d-act-admindel" onclick="adminDeletePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>관리자 삭제</button>'):'')+
     '</div>'+
     '<div class="comments"><div class="cm-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>훈수 · 크리틱 '+p.comments.length+'</div>'+
     (p.board==='crit'?'<div class="cm-accept-info">💡 마음에 든 피드백을 <b>채택</b>하면 그 작성자에게 <b>광고 25점 + 활동 25점</b>을 지급해요 (하루 최대 100점).</div>':'')+
@@ -797,6 +798,50 @@ async function deletePost(id){
   }
   POSTS=POSTS.filter(function(x){return x.id!==id});
   toast("글을 삭제했어요");
+  renderList();
+}
+/* 관리자 삭제: 관리자에게만 보이는 버튼 → 사유 입력 → 확인 → 서버 RPC(admin_delete_post)로 삭제+작성자 알림.
+   보안: 서버(RPC 내 is_admin())에서 관리자 여부를 확인하므로 버튼을 숨기는 것과 무관하게 일반 유저는 차단됨. */
+var _adminDelState=null;
+function adminDeleteReasonDialog(){
+  return new Promise(function(resolve){
+    var modal=document.getElementById("adminDelModal");
+    var ok=document.getElementById("adminDelOkBtn");
+    var ta=document.getElementById("adminDelReason");
+    var silent=document.getElementById("adminDelSilent");
+    if(!modal||!ok||!ta){resolve(null);return;}
+    ta.value="";if(silent)silent.checked=false;
+    modal.classList.add("open");
+    setTimeout(function(){try{ta.focus();}catch(e){}},60);
+    function cleanup(val){
+      modal.classList.remove("open");
+      ok.removeEventListener("click",onOk);
+      _adminDelState=null;
+      resolve(val);
+    }
+    // 사유는 선택(비워도 삭제 가능). 확인 시 {reason, notify} 반환, 취소 시 null.
+    function onOk(){cleanup({reason:(ta.value||"").trim(),notify:!(silent&&silent.checked)});}
+    ok.addEventListener("click",onOk);
+    _adminDelState={cancel:function(){cleanup(null);}};
+  });
+}
+function closeAdminDel(){if(_adminDelState)_adminDelState.cancel();}
+function adminDelPick(t){var ta=document.getElementById("adminDelReason");if(ta){ta.value=t;ta.focus();}}
+async function adminDeletePost(id){
+  if(!(AUTH.profile&&AUTH.profile.is_admin)){toast("관리자만 사용할 수 있어요");return;}
+  var p=POSTS.find(function(x){return x.id===id});if(!p||!p.dbId||!window.supabase)return;
+  var r=await adminDeleteReasonDialog();
+  if(!r)return; // 취소
+  var confirmMsg=r.notify
+    ?"이 글을 삭제할까요? 되돌릴 수 없고, 작성자에게 알림이 전송돼요."
+    :"이 글을 삭제할까요? 되돌릴 수 없어요. (작성자에게 알림을 보내지 않습니다)";
+  if(!(await confirmDialog(confirmMsg)))return;
+  var res=await window.supabase.rpc("admin_delete_post",{p_post_id:p.dbId,p_reason:r.reason,p_notify:r.notify});
+  if(res.error){toast("삭제 실패: "+res.error.message);return;}
+  var data=res.data||{};
+  if(!data.ok){toast(data.error==="not_admin"?"관리자만 사용할 수 있어요":("삭제할 수 없어요 ("+(data.error||"오류")+")"));return;}
+  POSTS=POSTS.filter(function(x){return x.id!==id});
+  toast(r.notify?"관리자 권한으로 글을 삭제했어요":"관리자 권한으로 글을 삭제했어요 (알림 미발송)");
   renderList();
 }
 async function toggleManagerPick(id){

@@ -850,6 +850,15 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **클라이언트**(`public/palo.js`): `renderComments`가 crit이면 채택된 댓글을 맨 위로 정렬 + "채택된 피드백" 뱃지(`.cm.accepted`/`.cm-accepted-badge`), 작성자에게만 댓글별 "✅ 채택"/"채택 취소"(`acceptFeedback`→RPC, 다른 댓글 채택 시 RPC가 회수+지급 처리). `loadRealPosts`가 `accepted_comment_id` 매핑. 토스트에 실제 지급액 표시.
 - **[3] 안내 문구**: 작성 폼은 crit 선택 시 `#edAcceptNotice`(`refreshBoardLabel`에서 토글, `.ed-accept-notice`), 글 상세는 crit이면 댓글 헤더 아래 `.cm-accept-info`(둘 다 "채택하면 광고 25 + 활동 25 지급, 하루 최대 100" 안내). body-html에 `#edAcceptNotice` 추가.
 
+### 관리자 게시글 삭제 (2026-08-01 추가, Phase 1 = 기본 흐름+보안)
+관리자가 신고 없이도 임의의 글을 바로 삭제하고 작성자에게 사유를 통보하는 기능.
+- **버튼**: 글 상세 관리자 영역(매니저 픽 옆)에 `is_admin`일 때만 "🗑️ 관리자 삭제"(`.d-act-admindel`, 붉은색). 잠금 게시판(ask/vote/crit, 댓글 달린 글) 글에도 노출 — 작성자용 "🔒 수정·삭제 불가"와 별개 블록이라 잠금과 무관.
+- **흐름**(`public/palo.js`): `adminDeletePost` → `adminDeleteReasonDialog`(모달 `#adminDelModal`: 자주 쓰는 사유 칩 `.admin-del-chip` + `#adminDelReason` textarea + `#adminDelSilent` 체크박스, `{reason, notify}` 반환/취소 시 null) → `confirmDialog` 확인 → RPC `admin_delete_post`. **사유는 선택**(비워도 삭제), **알림 미발송 옵션**(체크 시 `p_notify=false`).
+- **RPC `admin_delete_post(p_post_id, p_reason, p_notify default true)`**(security definer): 맨 앞에서 `is_admin()`로 **서버단 관리자 확인**(#6 — 버튼 숨김과 무관하게 일반 유저는 `not_admin` 거부) → (`p_notify`면) 작성자에게 `type='admin_delete'` 알림(사유 있으면 "…사유: X", 없으면 사유 문구 생략; `link_post_id`는 안 넣음=삭제될 글이므로) → `delete from posts`. **security definer라 RLS(작성자·잠금 정책)를 우회** → 관리자는 잠금 글도 삭제(#3). 반환 `{ok}` 또는 `{ok:false,error}`.
+- **알림 타입**: `notifications_type_check`에 `admin_delete` 추가(union 보존). 클라 렌더/실시간/푸시는 새 타입 자동 처리(feedback 때와 동일).
+- **⚠️ 잠복 FK 버그 동시 수정**: `notifications.link_post_id → posts(id)` FK에 on-delete 규칙이 없어(RESTRICT), **글을 가리키는 알림이 하나라도 있으면 그 글 삭제가 실패**했음(관리자 삭제뿐 아니라 일반 유저의 자기 글 삭제도 잠복 위험). `on delete set null`로 변경 — 글 삭제 시 옛 알림의 링크만 끊고 알림 기록은 보존.
+- **TODO(Phase 2)**: 삭제 기록(어떤 글·어느 관리자·언제·사유)을 관리자만 볼 수 있는 감사 로그 테이블에 저장(패턴은 `chat_admin_access_logs` 참고).
+
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:
 1. **1차(채팅만, 이후 폐기된 설계)**: `messages` 테이블을 직접 실시간 구독해서 클라이언트가 알림을 만드는 방식으로 시작 — 그런데 이러면 "지금 내가 참여 중인 대화방 id 목록"을 클라이언트가 직접 관리해야 하고, 새로 생긴 대화방을 놓치는 등 허점이 많았음.

@@ -222,6 +222,26 @@ export const BODY_HTML = `
   </div>
 </div>
 
+<div class="rules-scrim" id="adminDelModal" onclick="if(event.target===this)closeAdminDel()">
+  <div class="rules">
+    <h3>🗑️ 관리자 삭제</h3>
+    <p style="font-size:13px;color:var(--ink-2);line-height:1.6;margin-bottom:12px">삭제 사유는 선택이에요(입력하면 작성자 알림에 함께 표시). 자주 쓰는 사유를 눌러 채운 뒤 수정할 수 있어요.</p>
+    <div class="admin-del-chips">
+      <button type="button" class="admin-del-chip" onclick="adminDelPick('규칙 위반')">규칙 위반</button>
+      <button type="button" class="admin-del-chip" onclick="adminDelPick('스팸·도배')">스팸·도배</button>
+      <button type="button" class="admin-del-chip" onclick="adminDelPick('욕설·비방')">욕설·비방</button>
+      <button type="button" class="admin-del-chip" onclick="adminDelPick('선정적·부적절한 내용')">선정적·부적절</button>
+      <button type="button" class="admin-del-chip" onclick="adminDelPick('저작권 침해')">저작권 침해</button>
+    </div>
+    <textarea id="adminDelReason" class="nick-in" style="height:84px;resize:vertical" placeholder="삭제 사유 (선택 · 예: 규칙 위반, 스팸)"></textarea>
+    <label class="admin-del-silent"><input type="checkbox" id="adminDelSilent"> 작성자에게 삭제 알림을 보내지 않음</label>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button id="adminDelCancelBtn" class="r-ok" style="background:var(--surface-2);color:var(--ink)" onclick="closeAdminDel()">취소</button>
+      <button id="adminDelOkBtn" class="r-ok" style="background:linear-gradient(120deg,#e0607a,#c0392b)">삭제하기</button>
+    </div>
+  </div>
+</div>
+
 <div class="rules-scrim" id="reportModal" onclick="if(event.target===this)closeReport()">
   <div class="rules">
     <h3>🚩 신고하기</h3>
