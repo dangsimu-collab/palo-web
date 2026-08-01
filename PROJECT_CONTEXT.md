@@ -817,6 +817,13 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **날짜 입력란 디자인 통일 (2026-08-01, 2단계로 진행)**: (1차) `input[type="date"]`에 `appearance:none` 등으로 바깥 박스는 맞췄으나, 사용자가 진짜 원한 건 **연·월·일을 고르는 부분**의 디자인이었음 — 그 부분은 **네이티브 date 픽커라 OS가 그려 CSS로 못 꾸밈**. (2차, 최종) 그래서 네이티브 `input[type=date]`를 버리고 **Palo 스타일 드롭다운 3개(연/월/일 `<select>`, `.cm-date-sel`)로 대체**: 기존 `.cm-reg-input` 테두리·반경·배경 재사용 + `appearance:none` + data-URI SVG 화살표. `cmDateSelectsHTML()`(연도 최근 11개년·월 12·일)·`cmWsSyncDays()`(연/월 변경 시 그 달 실제 일수로 '일' 재생성 → 2월 30일 등 무효 날짜 방지)·`cmDaysInMonth()`. 제출(`cmSubmitWorksample`)은 세 값으로 `YYYY-MM-DD` 조립(빈 값이면 null). dev 확인: 테두리·반경 텍스트 입력란과 일치, 윤년 2월 29일/평년 28일 보정, `2026-07-30` 조립 정상.
 - **남은 것(2단계)**: 목록 '더보기'(현재는 가로 스크롤로 전부 노출), 필요 시 리치 텍스트 설명(`description_html` 자리 있음)·수정/삭제 UI.
 
+### 커미션 삭제 (2026-08-01 추가)
+커미션 상세 + 내 커미션 목록(`cmMyListHTML`)에서 **작가 본인만**(`isOwner=AUTH.user.id===d.authorId`, 내 커미션은 전부 본인 것) 🗑 삭제 버튼 노출 → `confirmDialog("삭제하면 되돌릴 수 없어요")` 확인창 → `cmDeleteCommission(id)`.
+- **보안**: `supabase.from('commissions').delete().eq('id',id)` + 기존 **`commissions_delete_own` RLS**(`auth.uid()=author_id`)로 서버에서도 본인만 삭제됨(버튼 숨김은 UX, RLS가 진짜 방어선).
+- **연결 데이터**: FK `on delete cascade`로 `commission_images`·`commission_worksamples`(+그 이미지)·`commission_applications`·`user_ads`(linked_commission) '행'이 자동 삭제. **후기(`posts.commission_id`)·알림·메시지는 `on delete set null`로 유지** — 후기는 고객 평판이라 작가가 커미션 삭제로 나쁜 후기를 지우지 못하게(사용자가 "유지" 선택). **작업 사례는 커미션 전용이라 cascade로 함께 삭제**.
+- **스토리지 정리**: DB 삭제 전에 `commission_images`+작업사례 이미지 URL을 모아, 삭제 후 `commission-images` 버킷에서 실제 파일도 `storage.remove()`. `cmStoragePathFromUrl()`이 공개 URL→버킷 경로 추출(쿼리·퍼센트 인코딩 처리). 본인 uid 폴더 파일만 대상(버킷 RLS가 그렇게 허용), 신청자 참고이미지는 그들 폴더라 대상 아님. 실패해도 삭제엔 지장 없게 try/catch.
+- **후처리**: 상세에서 삭제 시 `screenBack()`으로 목록 복귀, 내 커미션/전체 목록이면 그 자리 그리드 갱신. dev 검증: 작가만 버튼 노출·경로 추출·플로우 확인(실제 삭제는 본인 계정 필요).
+
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:
 1. **1차(채팅만, 이후 폐기된 설계)**: `messages` 테이블을 직접 실시간 구독해서 클라이언트가 알림을 만드는 방식으로 시작 — 그런데 이러면 "지금 내가 참여 중인 대화방 id 목록"을 클라이언트가 직접 관리해야 하고, 새로 생긴 대화방을 놓치는 등 허점이 많았음.
