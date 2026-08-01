@@ -3641,6 +3641,7 @@ function openProfile(){
     true,myReviewStats,null);
   h+='<div class="pf-actions">'+
        '<button class="pf-edit" onclick="openUserProfile(\''+AUTH.user.id+'\')">👤 내 공개 프로필 보기</button>'+
+       '<button class="pf-edit" onclick="cmOpenMy()">🎨 내 커미션</button>'+
        '<button class="pf-edit" onclick="openNickModal()">닉네임 변경</button>'+
        '<button class="pf-edit" onclick="openChatList()">💬 채팅 목록</button>'+
        '<button class="pf-edit" onclick="openScoreLog()">포인트 내역</button>'+
