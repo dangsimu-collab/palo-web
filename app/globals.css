@@ -255,6 +255,7 @@
   .ed-bm-a:hover{background:var(--surface-2)}
   .ed-bm-a.on{background:linear-gradient(120deg,var(--brand),var(--grape));color:#fff;font-weight:800}
   .ed-tags{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+  .ed-lock-notice{margin:2px 0 16px;padding:11px 13px;background:#fff6e5;border:1px solid #f0d79a;border-radius:10px;color:#9a6a00;font-size:12.5px;font-weight:600;line-height:1.55}
   .ed-tag{font-size:13px;font-weight:800;color:var(--muted);background:var(--surface);border:1.5px solid var(--line-2);border-radius:11px;padding:9px 15px;cursor:pointer;transition:.14s}
   .ed-tag:hover{border-color:var(--brand);color:var(--brand)}
   .ed-tag.on{background:linear-gradient(120deg,var(--brand),var(--grape));color:#fff;border-color:transparent}

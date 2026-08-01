@@ -766,9 +766,10 @@ function renderPostDetail(id){
     ((p.dbId&&p.board==="trade"&&p.category==="구직")?'<button class="d-act" onclick="openCommissionReviews('+p.id+')">📝 후기 보기 ('+POSTS.filter(function(r){return r.board==="review"&&r.commissionPostId===p.dbId}).length+')</button>':'')+
     ((p.dbId&&p.board==="trade"&&p.category==="구직"&&AUTH.user&&AUTH.user.id!==p.authorId)?'<button class="d-act" onclick="openReviewFor('+p.id+')">✍️ 이 커미션 후기 쓰기</button>':'')+
     ((p.dbId&&AUTH.user&&p.authorId===AUTH.user.id)?(
-    (p.adLocked?'<span class="d-act" style="opacity:.55;cursor:default" title="광고를 집행 중인 글은 수정할 수 없어요">🔒 수정 불가(광고 집행 중)</span>':
+    (postEditLocked(p)?'<span class="d-act" style="opacity:.55;cursor:default" title="다른 분의 댓글이 달려 수정·삭제할 수 없어요">🔒 수정·삭제 불가</span>':
+    ((p.adLocked?'<span class="d-act" style="opacity:.55;cursor:default" title="광고를 집행 중인 글은 수정할 수 없어요">🔒 수정 불가(광고 집행 중)</span>':
     '<button class="d-act" onclick="openEditPost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L20 8l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>수정</button>')+
-    '<button class="d-act" onclick="deletePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>삭제</button>'+
+    '<button class="d-act" onclick="deletePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>삭제</button>'))+
     '<button class="d-act" onclick="openCreateAd('+p.id+')">📢 이 글 광고하기</button>'+
     '<button class="d-act'+((AUTH.profile&&AUTH.profile.pinned_post_id===p.dbId)?' liked':'')+'" onclick="togglePinnedPost('+p.id+')">📌 '+((AUTH.profile&&AUTH.profile.pinned_post_id===p.dbId)?"대표 글 해제":"대표 글로 고정하기")+'</button>'):'')+
     ((p.dbId&&AUTH.profile&&AUTH.profile.is_admin)?('<button class="d-act'+(p.isManagerPick?' liked':'')+'" onclick="toggleManagerPick('+p.id+')">📌 '+(p.isManagerPick?"매니저 픽 해제":"매니저 픽 지정")+'</button>'):'')+
@@ -780,8 +781,14 @@ function renderPostDetail(id){
   main.innerHTML=h;
   renderDetailAd();
 }
+// 이 게시판들은 '다른 사람(작성자 아닌)의 댓글'이 하나라도 달리면 작성자가 수정·삭제 불가(관리자 삭제는 예외).
+var POST_EDIT_LOCK_BOARDS=['ask','vote','crit']; // 질문/시세문의 · 투표·수요조사 · 피드백 요청
+function postEditLocked(p){
+  return !!(p&&POST_EDIT_LOCK_BOARDS.indexOf(p.board)>=0&&(p.comments||[]).some(function(c){return c.authorId!==p.authorId;}));
+}
 async function deletePost(id){
   var p=POSTS.find(function(x){return x.id===id});if(!p)return;
+  if(postEditLocked(p)&&!(AUTH.profile&&AUTH.profile.is_admin)){toast("다른 분의 댓글이 달려 삭제할 수 없어요");return;}
   if(!(await confirmDialog("이 글을 삭제할까요? 되돌릴 수 없어요.")))return;
   if(p.dbId&&window.supabase){
     var res=await window.supabase.from("posts").delete().eq("id",p.dbId);
@@ -2704,6 +2711,7 @@ function openEditPost(id){
   var p=POSTS.find(function(x){return x.id===id});if(!p)return;
   if(!p.dbId||!AUTH.user||p.authorId!==AUTH.user.id){toast("수정 권한이 없어요");return;}
   if(p.adLocked){toast("광고를 집행 중인 글은 수정할 수 없어요");return;}
+  if(postEditLocked(p)){toast("다른 분의 댓글이 달려 수정할 수 없어요");return;}
   editingPostId=id;
   edState={board:p.board,tag:p.category||null,img:!!(p.images&&p.images.length),images:p.images?p.images.slice():[],commissionPostId:p.commissionPostId||null,reviewedNick:p.reviewedNickname||null,reviewedUserId:p.reviewedUserId||null,sentiment:p.commissionSentiment||null};
   buildBoardMenu();refreshBoardLabel();renderEdTags();
@@ -2785,6 +2793,13 @@ function pickBoard(id){
   updateReviewNickField();}
 function refreshBoardLabel(){
   document.getElementById("edBoardLabel").textContent=edState.board?boardName(edState.board):"게시판 선택";
+  var ln=document.getElementById("edLockNotice");
+  if(ln){
+    if(POST_EDIT_LOCK_BOARDS.indexOf(edState.board)>=0){
+      ln.style.display="";
+      ln.textContent="⚠️ 다른 분의 댓글이 달리면 이 글을 수정·삭제할 수 없어요. 신중하게 작성해주세요.";
+    }else{ln.style.display="none";ln.textContent="";}
+  }
 }
 function renderEdTags(){
   var el=document.getElementById("edTags");
