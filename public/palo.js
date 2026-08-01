@@ -1384,7 +1384,8 @@ async function cmLoadRecScores(){
 }
 function cmComputeTopTags(){
   var counts={};
-  cmData.forEach(function(d){(d.tags||[]).forEach(function(t){counts[t]=(counts[t]||0)+1;});});
+  // 접수중 커미션의 태그만 집계(마감만 달린 태그가 칩에 떠서 눌러도 빈 결과 나오는 것 방지)
+  cmData.forEach(function(d){if(d.status!=='open')return;(d.tags||[]).forEach(function(t){counts[t]=(counts[t]||0)+1;});});
   var tags=Object.keys(counts);
   tags.sort(function(a,b){return counts[b]-counts[a];});
   return tags.slice(0,10);
@@ -1514,7 +1515,8 @@ function cmCardHTML(d,idx){
 }
 function cmFilteredIdx(){
   var q=(cmState.query||'').trim().toLowerCase();
-  var idxs=cmData.map(function(d,i){return i;});
+  // 접수중(open)만 노출 — 마감 커미션은 홈·신규·인기·검색·추천 어디에도 안 보이게(작가는 '내 커미션'에서 관리).
+  var idxs=cmData.map(function(d,i){return i;}).filter(function(i){return cmData[i].status==='open';});
   if(cmState.activeTag){
     idxs=idxs.filter(function(i){return (cmData[i].tags||[]).indexOf(cmState.activeTag)>=0;});
   }
@@ -1532,8 +1534,7 @@ function cmSortedFilteredIdx(){
   }else if(cmState.sort==='hot'){
     idxs=idxs.slice().sort(function(a,b){return (cmData[b].reviewCount||0)-(cmData[a].reviewCount||0);});
   }else if(cmState.sort==='recommend'){
-    // 추천 탭: '접수중(open)'만 노출(마감 제외) + 서버가 계산한 추천 점수 높은 순
-    idxs=idxs.filter(function(i){return cmData[i].status==='open';});
+    // 접수중 필터는 cmFilteredIdx에서 공통 적용됨. 여기선 서버 추천 점수 높은 순으로만 정렬.
     idxs=idxs.slice().sort(function(a,b){
       var sa=cmRecScores[cmData[a].id],sb=cmRecScores[cmData[b].id];
       sa=(sa==null?-1:sa);sb=(sb==null?-1:sb);
@@ -1547,7 +1548,7 @@ function cmGridHTML(){
   if(!cmDataLoaded)return '<div class="cm-my-empty">불러오는 중...</div>';
   if(cmData.length===0)return '<div class="cm-my-empty">아직 등록된 커미션이 없어요.</div>';
   var idxs=cmSortedFilteredIdx();
-  if(idxs.length===0)return '<div class="cm-my-empty">'+(cmState.query?'검색 결과가 없어요.<br>다른 제목이나 태그로 찾아보세요.':'이 태그의 커미션이 아직 없어요.')+'</div>';
+  if(idxs.length===0)return '<div class="cm-my-empty">'+(cmState.query?'검색 결과가 없어요.<br>다른 제목이나 태그로 찾아보세요.':(cmState.activeTag?'이 태그의 접수중 커미션이 없어요.':'접수중인 커미션이 없어요.'))+'</div>';
   return idxs.map(function(i){return cmCardHTML(cmData[i],i);}).join('');
 }
 function cmSetSort(key){

@@ -668,7 +668,8 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **[1단계 완료] 품질 3요소 + 접수중 필터**
   - **DB**: `commissions.views`(int, default 0) 추가 + `increment_commission_views(p_id)`(security definer — 작가 전용 update RLS 우회해 누구나 조회수만 +1, `increment_post_views`와 같은 패턴). **좋아요는 커미션에 기능이 없어** 목록/상세의 ♥ 표시를 **조회수(👁)로 교체**(장식뿐이던 `d.likes` 대신 `d.views`).
   - **점수 RPC `get_commission_rec_scores()`**(security definer, `returns table(commission_id,score)`): `status='open'`만 대상. 점수 = 호후기율(호/전체×100)×0.35 + 후기개수(`min(cnt,10)/10×100`, 상한 10)×0.15 + 인기(`조회×1+북마크×3`을 접수중 최고값 대비 0~100)×0.12. **가중치·기준값은 함수 최상단 `cfg` CTE 한 곳**에서 관리. 북마크 카운트는 `commission_bookmarks`(select-own RLS)를 definer로 우회해 집계. 후기는 `posts`(board='review', `commission_id`, `commission_sentiment` good/bad). 반환은 점수뿐(요소별 분해는 4단계에서 관리자 전용).
-  - **클라이언트**: `cmLoadCommissions`가 `cmLoadRecScores()`로 `{cid:score}`(`cmRecScores`) 로드(RPC 없거나 오류면 빈 맵→후기순 폴백). `cmSortedFilteredIdx`의 `recommend` 분기가 **마감 제외(open만) + `cmRecScores` 높은 순**(동점 후기수). `cmOpenDetail`이 상세 열 때 `increment_commission_views` 호출 + 로컬 `d.views` 증가.
+  - **클라이언트**: `cmLoadCommissions`가 `cmLoadRecScores()`로 `{cid:score}`(`cmRecScores`) 로드(RPC 없거나 오류면 빈 맵→후기순 폴백). `cmSortedFilteredIdx`의 `recommend` 분기가 `cmRecScores` 높은 순 정렬(동점 후기수). `cmOpenDetail`이 상세 열 때 `increment_commission_views` 호출 + 로컬 `d.views` 증가.
+  - **마감 커미션 전체 숨김(2026-08-02 수정)**: 처음엔 마감 제외를 '추천' 탭에만 넣었는데, 홈·신규·인기·검색에선 마감이 보여 사용자가 버그로 지적 → **`cmFilteredIdx`(모든 탭·검색 공통 기저 필터)에서 `status==='open'`만 통과**시키도록 이동(추천 분기의 중복 필터는 제거). 마감 커미션은 공개 목록 어디에도 안 뜨고 작가의 '내 커미션'(`cmMyList`, 별도 렌더)에서만 관리. `cmComputeTopTags`도 접수중 태그만 집계(마감만 달린 태그가 칩에 뜨는 것 방지), 빈 목록 문구도 "접수중인 커미션이 없어요"로.
 
 ### 프로필 재디자인 — 크레페 시안 2단계: 커미션 타입 목록 (2026-07-30 추가)
 1단계(헤어) 확인 후 "다음으로 넘어가줘"로 진행. 시작 전 AskUserQuestion으로 배치 범위를 확인 — "**남의 프로필(`openUserProfile`)에만 추가**, 내 프로필(`openProfile`)의 기존 활동 대시보드(통계·팔로잉·쓴글/댓글/좋아요/최근본 탭·알림설정)는 그대로 유지"로 결정(사용자가 추천 옵션을 선택). DB 변경 없음 — `commissions`/`commission_images`를 그대로 재사용.
