@@ -266,7 +266,32 @@ function sharePost(id){
     toast("이 브라우저에서는 복사를 지원하지 않아요");
   }
 }
+/* ---------- 스와이프/뒤로가기로 앱 내부 화면 닫기 (커미션·채팅) ----------
+   게시글·프로필은 실제 URL(/post, /user)이 있어 브라우저 기본 뒤로가기(iOS 가장자리 스와이프
+   포함)가 그대로 작동함. 반면 커미션·채팅은 URL을 안 바꾸고 화면(#main/오버레이)만 교체해서
+   히스토리에 흔적이 없어 뒤로가기가 안 먹혔음.
+   → 화면을 열 때 history.pushState로 히스토리 항목을 하나 쌓아두고, 뒤로가기(popstate)가 오면
+     그 화면의 '뒤로' 동작(부모 화면 복귀)을 대신 실행. iOS 스와이프도 결국 이 히스토리를
+     따라가므로 게시글과 완전히 동일한 방식으로 일관되게 작동함. */
+var screenStack=[];        // [{key, back}] — 열려 있는 앱 내부 화면들의 '뒤로' 함수
+var navigatingBack=false;  // popstate로 뒤로 가는 중이면 true(중복 push 방지)
+function enterScreen(key,back){
+  if(navigatingBack)return;                      // 뒤로 가는 중엔 새 항목을 쌓지 않음
+  var top=screenStack[screenStack.length-1];
+  if(top&&top.key===key){top.back=back;return;}  // 같은 화면 재렌더/내부 탭 전환은 갱신만
+  screenStack.push({key:key,back:back});
+  history.pushState({paloDepth:screenStack.length},"");
+}
+function screenBack(){if(screenStack.length)history.back();} // 화면 안 '‹' 버튼용
+function resetScreens(){screenStack=[];}                     // 최상위(탭)로 나갈 때 스택 비우기
 window.addEventListener("popstate",function(){
+  if(screenStack.length){                        // 커미션·채팅 등 앱 내부 화면이 열려 있으면
+    var item=screenStack.pop();
+    navigatingBack=true;
+    try{item.back();}catch(e){}
+    navigatingBack=false;
+    return;                                       // 한 단계 뒤로 가고 끝(아래 URL 라우팅 안 함)
+  }
   var dbId=getPostIdFromPath();
   var post=dbId?POSTS.find(function(x){return x.dbId===dbId}):null;
   var userId=getUserIdFromPath();
@@ -666,6 +691,7 @@ function renderList(){
   observeAdBanners();
 }
 function openPost(id){
+  resetScreens();
   leaveChat();
   var p=POSTS.find(function(x){return x.id===id});if(!p)return;p.views++;READ.add(id);
   if(p.dbId&&window.supabase)window.supabase.rpc("increment_post_views",{p_id:p.dbId}).then(function(){});
@@ -1219,6 +1245,8 @@ async function cmToggleBookmark(commissionId,el){
   }
 }
 async function openCommissionList(){
+  if(!navigatingBack)resetScreens();
+  enterScreen("cmList",goHome);
   closeDrawer();closeSheet();syncTabs("commission");
   document.getElementById("main").innerHTML=cmListHTML();
   window.scrollTo({top:0,behavior:"smooth"});
@@ -1363,10 +1391,11 @@ function cmApplyImgsHTML(){
   return imgsHTML;
 }
 function cmRenderApplyForm(commission){
+  enterScreen("cmApply",function(){cmOpenCommissionById(commission.id);});
   var form=commission.form||[];
   var policyHTML=commission.policy?esc(commission.policy).replace(/\n/g,'<br>'):CM_DEFAULT_POLICY_HTML;
   document.getElementById("main").innerHTML='<div class="cm-root">'+
-    '<div class="cm-sub-top"><svg onclick="cmOpenCommissionById('+commission.id+')" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>커미션 신청서</b></div>'+
+    '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>커미션 신청서</b></div>'+
     '<div class="cm-reg">'+
       '<div class="cm-reg-label">참고 이미지 <span class="cm-reg-sub">선택 · 최대 5장</span></div>'+
       '<input type="file" id="cmAppFileInput" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="cmOnApplyFileChange(event)">'+
@@ -1469,6 +1498,7 @@ async function cmEnsureCommissionInData(commissionId){
 async function cmOpenCommissionById(commissionId){
   var idx=await cmEnsureCommissionInData(commissionId);
   if(idx<0){toast('커미션을 찾을 수 없어요(삭제되었을 수 있어요)');return;}
+  enterScreen("cmDetail",cmDetailBack);
   closeDrawer();closeSheet();syncTabs("commission");
   cmDetailCtx={from:'list',idx:idx};
   document.getElementById("main").innerHTML=cmDetailHTML(cmData[idx],idx);
@@ -1504,7 +1534,7 @@ function cmDetailHTML(d,idx){
     :'';
   var channel=d.channel||(artist==='나'?'내 커미션':(artist+' 커미션'));
   return '<div class="cm-root">'+
-    '<div class="cm-d-top"><div class="cm-left"><svg onclick="cmDetailBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></div>'+
+    '<div class="cm-d-top"><div class="cm-left"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></div>'+
       '<div class="cm-right">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6 6l1.5 1.5M18 6l-1.5 1.5M6 18l1.5-1.5M18 18l-1.5-1.5"/></svg>'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V4M8 8l4-4 4 4"/><path d="M4 15v5h16v-5"/></svg>'+
@@ -1544,6 +1574,7 @@ function cmDetailHTML(d,idx){
   '</div>';
 }
 function cmOpenDetail(idx){
+  enterScreen("cmDetail",cmDetailBack);
   cmDetailCtx={from:'list',idx:idx};
   document.getElementById("main").innerHTML=cmDetailHTML(cmData[idx],idx);
   window.scrollTo({top:0,behavior:"smooth"});
@@ -1561,8 +1592,9 @@ function cmBackToDetail(){
   }
 }
 function cmOpenArtistProfile(name){
+  enterScreen("cmArtist",cmBackToDetail);
   document.getElementById("main").innerHTML='<div class="cm-root">'+
-    '<div class="cm-pf-top"><svg onclick="cmBackToDetail()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>작가 프로필</b></div>'+
+    '<div class="cm-pf-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>작가 프로필</b></div>'+
     '<div class="cm-pf-head"><div class="cm-pf-ava"></div><div class="cm-pf-name">'+esc(name)+'</div><div class="cm-pf-grade">🎨 채색반</div>'+
       '<div class="cm-pf-stats"><div><div class="cm-n">'+cmReviews.length+'</div><div class="cm-l">후기</div></div>'+
         '<div><div class="cm-n">'+cmReviews.filter(function(r){return r.type==="호"}).length+'</div><div class="cm-l">만족 후기</div></div>'+
@@ -1576,6 +1608,7 @@ function cmCommissionReviews(commissionId){
 }
 var cmReviewCommissionId=null;
 function cmOpenReviews(commissionId){
+  enterScreen("cmReviews",cmBackToDetail);
   cmReviewCommissionId=commissionId;
   var reviews=(commissionId!=null)?cmCommissionReviews(commissionId):[];
   var goodCnt=reviews.filter(function(r){return r.commissionSentiment==='good'}).length;
@@ -1583,7 +1616,7 @@ function cmOpenReviews(commissionId){
   var commission=(commissionId!=null)?cmData.find(function(c){return c.id===commissionId;}):null;
   var canReview=AUTH.user&&commission&&commission.authorId&&AUTH.user.id!==commission.authorId;
   document.getElementById("main").innerHTML='<div class="cm-root">'+
-    '<div class="cm-sub-top"><svg onclick="cmBackToDetail()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>'+
+    '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>'+
       '<b>커미션 후기</b>'+(canReview?'<button class="cm-write-btn" onclick="cmOpenWrite('+commissionId+')">후기 쓰기</button>':'')+'</div>'+
     '<div class="cm-rv-all"><div class="cm-rv-summary">'+
       '<div class="cm-rv-box good"><div class="cm-ic">😊</div><div class="cm-n">'+goodCnt+'</div><div class="cm-l">만족 후기</div></div>'+
@@ -1643,13 +1676,14 @@ function cmOpenWrite(commissionId){
     loginWithGoogle();
     return;
   }
+  enterScreen("cmWrite",function(){cmOpenReviews(commissionId);});
   cmReviewCommissionId=commissionId;
   cmState.wrType=null;cmState.wrCtype=null;cmState.wrBadReason=null;
   cmWr={images:[]};
   var commission=cmData.find(function(c){return c.id===commissionId;});
   var typeOptions=(commission&&commission.tags&&commission.tags.length)?commission.tags:CM_TYPES;
   document.getElementById("main").innerHTML='<div class="cm-root">'+
-    '<div class="cm-sub-top"><svg onclick="cmOpenReviews('+commissionId+')" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>후기 작성</b></div>'+
+    '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>후기 작성</b></div>'+
     '<div class="cm-wr">'+
       '<div class="cm-wr-label">이 커미션 어떠셨나요?</div>'+
       '<div class="cm-hb">'+
@@ -1771,6 +1805,7 @@ function cmSyncReg(){
   cmReg.policy=document.getElementById('cmRegPolicy').value;
 }
 function cmRenderRegisterScreen(){
+  enterScreen("cmRegister",function(){if(cmReg.editingId)cmOpenMy();else openCommissionList();});
   var editing=!!cmReg.editingId;
   var imgsHTML=cmReg.images.map(function(url,i){
     return '<div class="cm-reg-img" style="background-image:url(\''+cmQ(url)+'\');background-size:cover;background-position:center"><div class="cm-del" onclick="cmDelSampleImg('+i+')">×</div></div>';
@@ -1778,7 +1813,7 @@ function cmRenderRegisterScreen(){
   imgsHTML+='<div class="cm-reg-addimg" onclick="cmPickSampleImg()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 8v8M8 12h8"/></svg><span class="cm-cnt" id="cmRegImgCnt">'+cmReg.images.length+'/10</span></div>';
   var tagsHTML=cmReg.tags.map(function(t){return '<div class="cm-reg-tagchip">#'+esc(t)+'<span class="cm-x" onclick="cmRemoveTag(\''+cmQ(t)+'\')">×</span></div>';}).join('');
   document.getElementById("main").innerHTML='<div class="cm-root">'+
-    '<div class="cm-sub-top"><svg onclick="'+(editing?'cmOpenMy()':'openCommissionList()')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg><b>'+(editing?'커미션 수정':'커미션 등록')+'</b></div>'+
+    '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg><b>'+(editing?'커미션 수정':'커미션 등록')+'</b></div>'+
     '<div class="cm-reg">'+
       '<div class="cm-reg-label">샘플 이미지 <span class="cm-reg-req">*</span> <span class="cm-reg-sub">최대 10장</span></div>'+
       '<input type="file" id="cmRegFileInput" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="cmOnRegFileChange(event)">'+
@@ -2088,10 +2123,11 @@ async function cmOpenMy(tab){
     loginWithGoogle();
     return;
   }
+  enterScreen("cmMy",openCommissionList);
   var activeTab=(tab==='bookmarks')?'bookmarks':(tab==='applications')?'applications':'mine';
   var containerClass=activeTab==='bookmarks'?'cm-grid':'cm-my-list';
   document.getElementById("main").innerHTML='<div class="cm-root">'+
-    '<div class="cm-sub-top"><svg onclick="openCommissionList()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>내 커미션</b>'+
+    '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>내 커미션</b>'+
       (activeTab==='mine'?'<button class="cm-write-btn" onclick="cmOpenRegister()">+ 새 커미션</button>':'')+
     '</div>'+
     '<div class="cm-tabs" style="padding:14px 18px 0">'+
@@ -2251,7 +2287,7 @@ function postAlbumHTML(posts){
   return '<div class="post-album">'+posts.map(postCardHTML).join("")+'</div>';
 }
 function showMore(){state.shown+=6;renderList()}
-function goHome(){selectBoard("all")}
+function goHome(){resetScreens();selectBoard("all")}
 var _searchT;
 function liveSearch(v){clearTimeout(_searchT);_searchT=setTimeout(function(){doSearch(v)},180);}
 function doSearch(v){state.query=v.trim();page=1;if(state.query)state.board="all";
@@ -2335,6 +2371,7 @@ function renderCommissionSelected(){
   el.style.display="flex";
 }
 function openWrite(){
+  resetScreens();
   editingPostId=null;
   edState={board:(state.board!=="all"&&state.board!=="sketch")?state.board:null,tag:null,img:false,images:[],commissionPostId:null,reviewedNick:null,reviewedUserId:null,sentiment:null};
   buildBoardMenu();refreshBoardLabel();renderEdTags();
@@ -2949,6 +2986,7 @@ function listOrEmpty(arr,emptyMsg,cta){
 }
 async function openUserProfile(userId){
   if(!userId||!window.supabase)return;
+  resetScreens();
   leaveChat();
   closeNotif();
   var res=await window.supabase.from("profiles").select("*").eq("id",userId).single();
@@ -3392,6 +3430,7 @@ function renderLeaderboard(rows,period){
   window.scrollTo({top:0,behavior:"smooth"});
 }
 function openProfile(){
+  resetScreens();
   leaveChat();
   closeNotif();
   if(!AUTH.user){
