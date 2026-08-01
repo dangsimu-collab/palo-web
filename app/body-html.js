@@ -126,6 +126,7 @@ export const BODY_HTML = `
       </div>
       <div class="ed-tags" id="edTags"></div>
       <div class="ed-lock-notice" id="edLockNotice" style="display:none"></div>
+      <div class="ed-accept-notice" id="edAcceptNotice" style="display:none"></div>
 
       <!-- 제목 -->
       <input type="text" id="wTitle" class="ed-title-input" placeholder="제목을 입력해 주세요">

@@ -775,6 +775,7 @@ function renderPostDetail(id){
     ((p.dbId&&AUTH.profile&&AUTH.profile.is_admin)?('<button class="d-act'+(p.isManagerPick?' liked':'')+'" onclick="toggleManagerPick('+p.id+')">📌 '+(p.isManagerPick?"매니저 픽 해제":"매니저 픽 지정")+'</button>'):'')+
     '</div>'+
     '<div class="comments"><div class="cm-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>훈수 · 크리틱 '+p.comments.length+'</div>'+
+    (p.board==='crit'?'<div class="cm-accept-info">💡 마음에 든 피드백을 <b>채택</b>하면 그 작성자에게 <b>광고 25점 + 활동 25점</b>을 지급해요 (하루 최대 100점).</div>':'')+
     '<div class="cm-write"><div class="d-ava serif" id="cmAva">'+avatarHTML("나",AUTH.profile&&AUTH.profile.avatar_url)+'</div><div class="box"><textarea id="cmInput" placeholder="따뜻한 피드백을 남겨주세요. 사람보다 그림을 이야기해요."></textarea>'+
     '<div class="row"><span class="hint">인신공격·조롱은 삭제될 수 있어요</span><button class="send" onclick="addComment('+p.id+')">등록</button></div></div></div>'+
     '<div class="ad d-ad" role="complementary" aria-label="광고"><span class="ad-label">AD</span><div class="ad-ph"><svg viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"1.6\\" style=\\"width:22px;height:22px\\"><rect x=\\"3\\" y=\\"4\\" width=\\"18\\" height=\\"16\\" rx=\\"2\\"/><circle cx=\\"8.5\\" cy=\\"9.5\\" r=\\"1.6\\"/><path d=\\"m4 18 5-5 4 3 3-2 4 4\\"/></svg></div><div class="ad-body"><div class="ad-t">광고 문의 환영</div><div class="ad-d">이 자리에 광고가 노출됩니다</div></div></div>'+'<div class="cm-list" id="cmList">'+renderComments(p)+'</div></div></div>';
@@ -2827,6 +2828,13 @@ function refreshBoardLabel(){
       ln.style.display="";
       ln.textContent="⚠️ 다른 분의 댓글이 달리면 이 글을 수정·삭제할 수 없어요. 신중하게 작성해주세요.";
     }else{ln.style.display="none";ln.textContent="";}
+  }
+  var an=document.getElementById("edAcceptNotice");
+  if(an){
+    if(edState.board==="crit"){
+      an.style.display="";
+      an.textContent="💡 답변을 채택하면 그 작성자에게 포인트를 지급해요 — 광고 25점 + 활동 25점 (하루 최대 100점).";
+    }else{an.style.display="none";an.textContent="";}
   }
 }
 function renderEdTags(){

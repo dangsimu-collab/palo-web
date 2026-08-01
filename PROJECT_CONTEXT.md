@@ -837,11 +837,18 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **서버(진짜 방어선)**: `post_edit_locked(p_id)`(security definer — board가 셋 중 하나 & `comments.author_id is distinct from posts.author_id`인 댓글 존재 여부) 함수 신설. `posts_update_own`/`posts_delete_own` 정책을 `auth.uid()=author_id and not post_edit_locked(id)`로 재작성(둘 다 `drop`+`create`). `posts_delete_admin`(is_admin)은 그대로 → **잠긴 글도 관리자는 삭제 가능**. RLS라 버튼 우회해도 서버가 거부.
 - **클라이언트**(`public/palo.js`): `POST_EDIT_LOCK_BOARDS=['ask','vote','crit']` + `postEditLocked(p)`(`p.comments.some(c=>c.authorId!==p.authorId)`). 글 상세에서 잠기면 수정·삭제 버튼을 "🔒 수정·삭제 불가"로 대체, `openEditPost`/`deletePost`에 가드(관리자는 통과). 작성 화면(`refreshBoardLabel`)에서 이 세 게시판 선택 시 주황 안내(`#edLockNotice`, `.ed-lock-notice`): "다른 분의 댓글이 달리면 수정·삭제할 수 없어요".
 
-### 피드백 요청 '답변 채택' (2026-08-01 추가, 지식인식)
+### 피드백 요청 '답변 채택' (2026-08-01 추가, 지식인식 / 같은 날 [1][2][3] 보완)
 `crit`(피드백 요청) 게시판 전용. 글 작성자가 피드백 댓글 하나를 '채택'하면 그 댓글 작성자에게 **광고 25 + 활동 25** 지급.
-- **DB**: `posts.accepted_comment_id`(FK→comments, `on delete set null`) + `feedback_accept_rewards`(PK `comment_id` → **댓글당 1회 = 중복 지급 방지**, `rewarded_user`/`ad_points`/`activity_points`/`created_at`; RLS select는 본인 것만, 쓰기는 RPC만).
-- **RPC `set_accepted_feedback(p_post_id, p_comment_id)`**(security definer): 채택은 **crit + 글 작성자만**(서버 확인). `p_comment_id=null`이면 채택 해제. 보상은 **남의 댓글(자기 자신 제외 #6) + 아직 그 댓글로 미지급(#7)**일 때만 — `app.trusted_score_update` 신호 켜고 `profiles.ad_points` +지급 & `award_score()`로 활동점수, 실제 지급액을 `feedback_accept_rewards`에 기록. **일일 상한 각 100점(#5)**: 오늘(한국시간 `at time zone 'Asia/Seoul'`) 그 사람의 채택보상 합계를 세서 남은 만큼만 지급(넘으면 0). 반환 `{ok,accepted,rewarded,ad,activity}`.
-- **클라이언트**(`public/palo.js`): `renderComments`가 crit이면 채택된 댓글을 맨 위로 정렬 + "채택된 피드백" 뱃지(`.cm.accepted`/`.cm-accepted-badge`), 작성자에게만 댓글별 "✅ 채택"/"채택 취소"(`acceptFeedback`→RPC). `loadRealPosts`가 `accepted_comment_id` 매핑. 토스트에 실제 지급액 표시.
+- **DB(보완 후)**: `posts.accepted_comment_id`(FK→comments, `on delete set null`) + `feedback_accept_rewards`를 **글당 1행**(PK `post_id`, `on delete cascade`)으로 재설계 — `comment_id`/`rewarded_user`/`points`(광고=활동 동일 단일값)/`created_at`. **"이 글의 현재 활성 보상"**을 추적해 채택 변경 시 회수할 수 있게 함(기존 PK `comment_id`·`ad_points`/`activity_points` 구조에서 교체). RLS select는 본인 것만, 쓰기는 RPC만.
+- **RPC `set_accepted_feedback(p_post_id, p_comment_id)`**(security definer): 채택은 **crit + 글 작성자만**(서버 확인). `p_comment_id=null`이면 채택 해제. 흐름:
+  1. **[2] 기존 채택 회수**: 이 글에 활성 보상이 있고 다른 댓글로 바꾸거나(A→B) 해제하면 — `score/ad_points`를 `greatest(0, …-points)`로 **안전 회수**(0 밑으로 안 감) + `recalc_level` + 행 삭제 + **회수 알림**(`↩️`, 지급분>0일 때만).
+  2. **자기 자신 댓글이면(#6) 지급 없음**, 같은 댓글 재채택이면 아무 변화 없이 반환.
+  3. **지급**: 남의 댓글이면 오늘(한국시간 `at time zone 'Asia/Seoul'`) 그 사람 채택보상 합계로 **일일 상한 100(#5)** 남은 만큼만 계산 → **`award_score()` 한 번만** 호출(이게 `score`+`ad_points`를 함께 +지급하므로 광고포인트 이중지급 없음). `feedback_accept_rewards`에 기록 + **[1] 채택 알림**(`🎉`, 상한 도달 0점이면 안내 문구).
+  - 반환 `{ok,accepted,rewarded,ad,activity,unchanged?}`.
+- **⚠️ [B]→보완 중 고친 버그**: 초판 RPC가 `award_score()`(이미 `ad_points`도 올림)에 더해 `ad_points`를 **직접 한 번 더** 올려 채택 시 **광고포인트가 +50**(원함 +25)으로 들어갔음. 보완판은 `award_score` 단일 호출로 정정. (초판 테스트로 잘못 들어간 포인트는 표 재설계로 추적이 끊겨 자동 회수 불가 — 필요하면 테스트 계정만 수동 정정.)
+- **알림 타입**: `notifications_type_check`에 `feedback` 추가(기존 타입 union 보존). 클라이언트는 `dbRowToNotif`가 타입 무관 렌더 + 실시간 핸들러가 미지정 타입은 토글 필터 없이 항상 표시 → 클라 변경 불필요. 푸시도 미매핑 타입은 게이팅 없이 발송.
+- **클라이언트**(`public/palo.js`): `renderComments`가 crit이면 채택된 댓글을 맨 위로 정렬 + "채택된 피드백" 뱃지(`.cm.accepted`/`.cm-accepted-badge`), 작성자에게만 댓글별 "✅ 채택"/"채택 취소"(`acceptFeedback`→RPC, 다른 댓글 채택 시 RPC가 회수+지급 처리). `loadRealPosts`가 `accepted_comment_id` 매핑. 토스트에 실제 지급액 표시.
+- **[3] 안내 문구**: 작성 폼은 crit 선택 시 `#edAcceptNotice`(`refreshBoardLabel`에서 토글, `.ed-accept-notice`), 글 상세는 crit이면 댓글 헤더 아래 `.cm-accept-info`(둘 다 "채택하면 광고 25 + 활동 25 지급, 하루 최대 100" 안내). body-html에 `#edAcceptNotice` 추가.
 
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:

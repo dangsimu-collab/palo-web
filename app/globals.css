@@ -237,6 +237,8 @@
   .cm-accepted-badge{display:inline-flex;align-items:center;gap:4px;background:#2f9e58;color:#fff;font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px;margin-bottom:7px}
   .cm .cfoot .cm-accept-btn{color:var(--brand);font-weight:800}
   .cm .cfoot .cm-accept-btn.on{color:var(--muted)}
+  .cm-accept-info{margin:10px 0 4px;padding:10px 13px;background:#eef6ff;border:1px solid #bcd9f5;border-radius:10px;color:#1c5b9c;font-size:12.5px;font-weight:600;line-height:1.55}
+  .cm-accept-info b{font-weight:800}
 
   .editor{position:fixed;inset:0;z-index:110;background:var(--bg);display:flex;flex-direction:column;opacity:0;visibility:hidden;transform:translateY(12px);transition:.2s}
   .editor.open{opacity:1;visibility:visible;transform:none}
@@ -261,6 +263,7 @@
   .ed-bm-a.on{background:linear-gradient(120deg,var(--brand),var(--grape));color:#fff;font-weight:800}
   .ed-tags{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
   .ed-lock-notice{margin:2px 0 16px;padding:11px 13px;background:#fff6e5;border:1px solid #f0d79a;border-radius:10px;color:#9a6a00;font-size:12.5px;font-weight:600;line-height:1.55}
+  .ed-accept-notice{margin:2px 0 16px;padding:11px 13px;background:#eef6ff;border:1px solid #bcd9f5;border-radius:10px;color:#1c5b9c;font-size:12.5px;font-weight:600;line-height:1.55}
   .ed-tag{font-size:13px;font-weight:800;color:var(--muted);background:var(--surface);border:1.5px solid var(--line-2);border-radius:11px;padding:9px 15px;cursor:pointer;transition:.14s}
   .ed-tag:hover{border-color:var(--brand);color:var(--brand)}
   .ed-tag.on{background:linear-gradient(120deg,var(--brand),var(--grape));color:#fff;border-color:transparent}
