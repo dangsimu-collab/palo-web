@@ -1307,7 +1307,7 @@ var cmDataLoaded=false;
 var cmRefreshing=false; // refreshCommissions() 중복 실행 방지
 // 커미션 목록이 실제로 바뀌었는지 판단용 서명(새 커미션·상태/제목/가격 변경 감지)
 function cmListSignature(){
-  return cmData.map(function(c){return c.id+"."+c.status+"."+(c.title||"")+"."+(c.price||"");}).join(",");
+  return cmData.map(function(c){return c.id+"."+c.status+"."+(c.title||"")+"."+(c.price||"")+"."+(c.reviewEventOn?"1":"0");}).join(",");
 }
 // 커미션 목록을 DB에서 다시 불러와, '리스트 화면을 보고 있고 & 내용이 바뀐' 경우에만 그리드/칩을 한 번 갱신.
 async function refreshCommissions(){
@@ -1352,6 +1352,7 @@ function cmRowToData(row,artistNickname){
     title:row.title,price:row.price,status:row.status,tags:row.tags||[],
     period:row.period,slots:row.slots,desc:row.description,descHtml:row.description_html||null,usage:row.usage_rights,policy:row.trade_policy,
     images:imgs,likes:0,createdAt:row.created_at,form:row.application_form||[],
+    reviewEventOn:!!row.review_event_on,reviewEventBenefit:row.review_event_benefit||'',
     reviewCount:revs.length,satisfaction:revs.length?(goodCount/revs.length):0,
     adLocked:!!AD_LOCKED_COMMISSION_IDS[row.id]
   };
@@ -1489,10 +1490,11 @@ async function openCommissionList(){
 function cmCardHTML(d,idx){
   var thumb=(d.images&&d.images[0])?("background-image:url('"+cmQ(d.images[0])+"');background-size:cover;background-position:center"):('background:'+cmGrads[idx%cmGrads.length]);
   var status=d.status==='open'?'<div class="cm-status open">오픈중</div>':'';
+  var revBadge=d.reviewEventOn?'<div class="cm-revevent-badge">🎁 리뷰 이벤트</div>':'';
   var tagsLine=(d.tags&&d.tags.length)?d.tags.map(function(t){return '#'+t;}).join(' '):'';
   var bookmarked=cmBookmarkIds&&cmBookmarkIds.has(d.id);
   return '<div class="cm-card" onclick="cmOpenDetail('+idx+')">'+
-    '<div class="cm-thumb" style="'+thumb+'">'+status+
+    '<div class="cm-thumb" style="'+thumb+'">'+status+revBadge+
       '<div class="cm-bookmark'+(bookmarked?' on':'')+'" onclick="event.stopPropagation();cmToggleBookmark('+d.id+',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4z"/></svg></div></div>'+
     '<div class="cm-c-artist">'+esc(d.artist)+'</div>'+
     '<div class="cm-c-title">'+esc(d.title)+'</div>'+
@@ -1756,6 +1758,8 @@ function cmDetailHTML(d,idx){
   var badCnt=realReviews.filter(function(r){return r.commissionSentiment==='bad'}).length;
   var canReview=AUTH.user&&d.authorId&&AUTH.user.id!==d.authorId;
   var isOwner=AUTH.user&&d.authorId&&AUTH.user.id===d.authorId; // 이 커미션의 작가 본인
+  var revBenefit=(d.reviewEventBenefit||'').trim();
+  var showRevEvent=!!(d.reviewEventOn&&revBenefit); // 리뷰 이벤트 표시 여부
   var bookmarked=(d.id!=null)&&cmBookmarkIds&&cmBookmarkIds.has(d.id);
   var satisfactionHTML=realReviews.length>0
     ?('<div class="cm-verify"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>만족율 '+Math.round(goodCnt/realReviews.length*100)+'%</div>')
@@ -1771,7 +1775,7 @@ function cmDetailHTML(d,idx){
     '<div class="cm-slider" style="background:'+sliderBg+'"><div class="cm-dots"><i class="on"></i><i></i><i></i><i></i><i></i></div></div>'+
     '<div class="cm-d-body">'+
       satisfactionHTML+
-      '<div class="cm-d-title">'+esc(title)+'</div>'+
+      '<div class="cm-d-title">'+esc(title)+(showRevEvent?' <span class="cm-revevent-tag">🎁 리뷰 이벤트 중</span>':'')+'</div>'+
       (d.hidePrice?'':'<div class="cm-d-price">'+esc(price)+'원</div>')+
       '<div class="cm-artist-row" onclick="'+(d.authorId?('cmOpenAuthorProfile(\''+cmQ(d.authorId)+'\')'):('cmOpenArtistProfile(\''+cmQ(artist)+'\')'))+'">'+
         '<div class="cm-l"><div class="cm-ava"></div><div><span class="cm-nm">'+esc(artist)+'</span> <span class="cm-rv">'+realReviews.length+'개 후기</span></div></div>'+
@@ -1782,6 +1786,12 @@ function cmDetailHTML(d,idx){
         '<div class="cm-stat"><span class="cm-k">작업 기간</span><span class="cm-v">'+esc(period)+'</span></div></div>'+
       ((isOwner&&d.id!=null)?'<div class="cm-owner-bar"><button class="cm-owner-del" onclick="cmDeleteCommission('+d.id+')">🗑 이 커미션 삭제</button></div>':'')+
       '<div class="cm-desc">'+(descHTML?descHTML:esc(desc))+'</div>'+
+      (showRevEvent?('<div class="cm-revevent">'+
+        '<div class="cm-revevent-h">🎁 리뷰 이벤트 진행 중</div>'+
+        '<div class="cm-revevent-benefit">'+esc(revBenefit).replace(/\n/g,'<br>')+'</div>'+
+        ((canReview&&d.id!=null)?'<button class="cm-revevent-cta" onclick="cmOpenWrite('+d.id+')">✍️ 후기 쓰고 혜택 받기</button>':'')+
+        '<div class="cm-revevent-note">💡 이 혜택은 작가님이 직접 제공하며, Palo는 중개하지 않아요.</div>'+
+      '</div>'):'')+
       '<div class="cm-rv-sec"><div class="cm-rv-head"><b>커미션 후기 '+realReviews.length+'</b><span class="cm-rv-more" onclick="cmOpenReviews('+(d.id!=null?d.id:'null')+')">더보기 ></span></div>'+
         '<div class="cm-rv-summary"><div class="cm-rv-box good"><div class="cm-ic">😊</div><div class="cm-n">'+goodCnt+'</div><div class="cm-l">만족 후기</div></div>'+
           '<div class="cm-rv-box bad"><div class="cm-ic">😐</div><div class="cm-n">'+badCnt+'</div><div class="cm-l">불호 후기</div></div></div>'+
@@ -2195,7 +2205,7 @@ function cmOpenRegister(editId){
     loginWithGoogle();
     return;
   }
-  cmReg={images:[],tags:[],status:'open',editingId:editId||null,title:'',price:'',period:'',slots:'',desc:'',descHtml:'',usage:'',policy:'',form:[]};
+  cmReg={images:[],tags:[],status:'open',editingId:editId||null,title:'',price:'',period:'',slots:'',desc:'',descHtml:'',usage:'',policy:'',form:[],reviewEventOn:false,reviewEventBenefit:''};
   if(editId){
     var c=cmMyList.find(function(x){return x.id===editId});
     if(c&&c.adLocked){toast('광고를 집행 중인 커미션은 수정할 수 없어요');return;}
@@ -2203,6 +2213,7 @@ function cmOpenRegister(editId){
       cmReg.images=c.images.slice();cmReg.tags=c.tags.slice();cmReg.status=c.status;
       cmReg.title=c.title;cmReg.price=c.price;cmReg.period=c.period;cmReg.slots=c.slots;
       cmReg.desc=c.desc;cmReg.descHtml=c.descHtml||'';cmReg.usage=c.usage||'';cmReg.policy=c.policy||'';
+      cmReg.reviewEventOn=!!c.reviewEventOn;cmReg.reviewEventBenefit=c.reviewEventBenefit||'';
       cmReg.form=(c.form||[]).map(function(f){return{id:f.id,type:f.type,label:f.label,required:!!f.required};});
     }
   }
@@ -2217,6 +2228,8 @@ function cmSyncReg(){
   if(descEl){cmReg.descHtml=sanitizePostHtml(descEl.innerHTML.trim());cmReg.desc=descEl.textContent.trim();}
   cmReg.usage=document.getElementById('cmRegUsage').value;
   cmReg.policy=document.getElementById('cmRegPolicy').value;
+  var rb=document.getElementById('cmRegRevBenefit');
+  if(rb)cmReg.reviewEventBenefit=rb.value;
 }
 function cmRenderRegisterScreen(){
   enterScreen("cmRegister",function(){if(cmReg.editingId)cmOpenMy();else openCommissionList();});
@@ -2267,6 +2280,14 @@ function cmRenderRegisterScreen(){
       '<textarea class="cm-reg-textarea" id="cmRegUsage" placeholder="예: 비상업적 굿즈/SNS 게시 가능, 출처 표기 부탁" oninput="cmCheckReg()">'+esc(cmReg.usage)+'</textarea>'+
       '<div class="cm-reg-label">거래 안내 / 정책 <span class="cm-reg-sub">선택</span></div>'+
       '<textarea class="cm-reg-textarea" id="cmRegPolicy" placeholder="예: 작업 시작 후 단순 변심 환불 불가, 저작권은 작가 귀속 등" oninput="cmCheckReg()">'+esc(cmReg.policy)+'</textarea>'+
+      '<div class="cm-reg-label">🎁 리뷰 이벤트 <span class="cm-reg-sub">후기를 남기면 혜택을 주는 이벤트 (선택)</span></div>'+
+      '<div class="cm-reg-toggle"><div class="cm-reg-tg'+(cmReg.reviewEventOn?' sel':'')+'" id="cmTgRevOn" onclick="cmSetReviewEvent(true)">🎁 진행</div>'+
+        '<div class="cm-reg-tg'+(!cmReg.reviewEventOn?' sel':'')+'" id="cmTgRevOff" onclick="cmSetReviewEvent(false)">안 함</div></div>'+
+      '<div id="cmRegRevWrap" style="'+(cmReg.reviewEventOn?'':'display:none')+'">'+
+        '<div class="cm-reg-label">혜택 내용 <span class="cm-reg-req">*</span> <span class="cm-reg-sub">후기 작성자에게 줄 혜택</span></div>'+
+        '<textarea class="cm-reg-textarea" id="cmRegRevBenefit" placeholder="예: 후기 남겨주시면 다음 커미션 10% 할인 / 추가 컷 1장 무료" oninput="cmCheckReg()">'+esc(cmReg.reviewEventBenefit)+'</textarea>'+
+        '<div class="cm-reg-note">이 혜택은 작가님이 직접 제공하며, Palo는 중개하지 않아요.</div>'+
+      '</div>'+
       '<div class="cm-reg-label">신청서 커스텀 항목 <span class="cm-reg-sub">참고 이미지·추가 요청사항은 신청서에 기본으로 포함돼요</span></div>'+
       '<div class="cm-reg-formlist" id="cmRegFormList">'+cmFormListHTML()+'</div>'+
       '<div class="cm-reg-formadd">'+
@@ -2453,13 +2474,22 @@ function cmSetStatus(v){
   document.getElementById('cmTgOpen').classList.toggle('sel',v==='open');
   document.getElementById('cmTgClose').classList.toggle('sel',v==='close');
 }
+function cmSetReviewEvent(on){
+  cmReg.reviewEventOn=!!on;
+  document.getElementById('cmTgRevOn').classList.toggle('sel',cmReg.reviewEventOn);
+  document.getElementById('cmTgRevOff').classList.toggle('sel',!cmReg.reviewEventOn);
+  var wrap=document.getElementById('cmRegRevWrap');
+  if(wrap)wrap.style.display=cmReg.reviewEventOn?'':'none';
+  cmCheckReg();
+}
 function cmCheckReg(){
   cmSyncReg();
   var ok=cmReg.images.length>0&&
     cmReg.title.trim()&&
     cmReg.price&&
     cmReg.tags.length>0&&
-    cmReg.desc.trim();
+    cmReg.desc.trim()&&
+    (!cmReg.reviewEventOn||cmReg.reviewEventBenefit.trim()); // 리뷰 이벤트 켰으면 혜택 내용 필수
   document.getElementById('cmRegSubmit').disabled=!ok;
 }
 function cmPreviewReg(){
@@ -2472,7 +2502,8 @@ function cmPreviewReg(){
   var usage=cmReg.usage.trim();
   var policy=cmReg.policy.trim();
   cmPreviewObj={artist:'나',channel:'내 커미션',title:title,price:price,hidePrice:true,period:period,slots:slots,
-    desc:desc,descHtml:cmReg.descHtml,usage:usage,policy:policy,tags:cmReg.tags.slice(),images:cmReg.images.slice(),likes:0};
+    desc:desc,descHtml:cmReg.descHtml,usage:usage,policy:policy,tags:cmReg.tags.slice(),images:cmReg.images.slice(),likes:0,
+    reviewEventOn:cmReg.reviewEventOn,reviewEventBenefit:cmReg.reviewEventBenefit.trim()};
   cmDetailCtx={from:'register',idx:0};
   document.getElementById('main').innerHTML=cmDetailHTML(cmPreviewObj,0);
   window.scrollTo({top:0,behavior:'smooth'});
@@ -2491,7 +2522,9 @@ async function cmSubmitReg(){
     description_html:cmReg.descHtml||null,
     usage_rights:cmReg.usage.trim(),
     trade_policy:cmReg.policy.trim(),
-    application_form:cmReg.form
+    application_form:cmReg.form,
+    review_event_on:!!cmReg.reviewEventOn,
+    review_event_benefit:cmReg.reviewEventOn?(cmReg.reviewEventBenefit.trim()||null):null
   };
   var commissionId;
   if(cmReg.editingId){
@@ -2609,6 +2642,7 @@ async function cmOpenMy(tab){
       var imgs=(row.commission_images||[]).slice().sort(function(a,b){return a.sort-b.sort;}).map(function(x){return x.url;});
       return{id:row.id,title:row.title,price:row.price,tags:row.tags||[],status:row.status,period:row.period,
         slots:row.slots,desc:row.description,descHtml:row.description_html||null,usage:row.usage_rights,policy:row.trade_policy,images:imgs,
+        reviewEventOn:!!row.review_event_on,reviewEventBenefit:row.review_event_benefit||'',
         form:row.application_form||[],adLocked:!!AD_LOCKED_COMMISSION_IDS[row.id]};
     });
     var listEl=document.getElementById('cmMyList');

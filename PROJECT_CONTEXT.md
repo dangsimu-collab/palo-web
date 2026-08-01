@@ -657,6 +657,12 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **편집 UI**: 커버(🖼)·아바타(📷) 아이콘은 기존 아바타 업로드와 완전히 같은 패턴(`compressImage()`+`post-images` 버킷, 경로만 `cover-{timestamp}-...`로 구분) — `onCoverFile()`. 소개글·SNS 3개는 각각 아이콘 대신 "✏️ 소개글 · 링크 편집" 텍스트 버튼 하나로 묶어서 `pfEditModal`(기존 `nickModal`과 같은 `.rules-scrim`/`.rules`/`.nick-in`/`.r-ok` 패턴 재사용)을 열고, 4개 필드를 한 번에 저장(`savePfEdit()`).
 - **아직 안 함**: 후기 목록(③) 재구성은 다음 단계에서 이어갈 것.
 
+### 커미션 리뷰 이벤트 (2026-08-02 추가, 기본 흐름)
+작가가 "후기를 남기면 혜택을 준다"는 이벤트를 커미션별로 자율 설정. **Palo는 표시만 하고 혜택 지급·중개는 하지 않음**(게시판 방식).
+- **DB**: `commissions.review_event_on`(boolean, default false) + `review_event_benefit`(text). 새 RLS 불필요 — 기존 `commissions_insert_own`/`commissions_update_own`(`auth.uid()=author_id`)이 행 단위로 막아 **작가 본인만 설정 가능**(#6, RLS는 컬럼이 아니라 행 단위라 새 컬럼도 자동 보호).
+- **등록/수정 폼**(`public/palo.js`): 거래 정책 아래 `cmSetReviewEvent(on)` 토글(🎁 진행/안 함, `.cm-reg-toggle` 재사용). 켜면 `#cmRegRevWrap`(혜택 textarea `#cmRegRevBenefit` + `.cm-reg-note` "작가 직접 제공, Palo 미중개" 안내) 표시. `cmCheckReg`가 **이벤트 on이면 혜택 필수**로 등록 버튼 게이트. `cmReg`/`cmSyncReg`/`cmOpenRegister`(수정 로드)/`cmSubmitReg`(row에 `review_event_on`/`review_event_benefit`)/`cmPreviewReg`에 반영.
+- **표시**: 목록 카드 썸네일에 `.cm-revevent-badge`(🎁 리뷰 이벤트), 상세는 제목 옆 `.cm-revevent-tag`(🎁 리뷰 이벤트 중) + 설명 아래 `.cm-revevent` 카드(혜택 내용 + `canReview`일 때 "✍️ 후기 쓰고 혜택 받기"→`cmOpenWrite` + `.cm-revevent-note` 중개 안내). 매핑(cmData/cmMyList) + `cmListSignature`에 `reviewEventOn` 포함.
+
 ### 프로필 재디자인 — 크레페 시안 2단계: 커미션 타입 목록 (2026-07-30 추가)
 1단계(헤어) 확인 후 "다음으로 넘어가줘"로 진행. 시작 전 AskUserQuestion으로 배치 범위를 확인 — "**남의 프로필(`openUserProfile`)에만 추가**, 내 프로필(`openProfile`)의 기존 활동 대시보드(통계·팔로잉·쓴글/댓글/좋아요/최근본 탭·알림설정)는 그대로 유지"로 결정(사용자가 추천 옵션을 선택). DB 변경 없음 — `commissions`/`commission_images`를 그대로 재사용.
 - **데이터**: `pfArtistCommissions(userId,nickname)`이 그 유저가 등록한 `commissions`를 `commission_images`와 함께 조회(`cmOpenMy()`의 "내가 등록한 커미션" 쿼리와 동일 패턴, 대상 유저만 다름) → 기존 `cmRowToData()`로 매핑해서 재사용. 조회 결과는 전역 `cmData`에 병합(`if(!cmData.some(...))cmData.push(...)`)해서, 항목 클릭 시 `cmOpenCommissionById()`가 재조회 없이 바로 상세로 이동.
