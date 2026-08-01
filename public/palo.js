@@ -4507,23 +4507,14 @@ syncNotifBadge();
   document.addEventListener("focusout",function(e){if(isTextInput(e.target))document.body.classList.remove("kb-open");});
 })();
 
-// ===== 피드 pull-to-refresh: 목록 최상단에서 아래로 당기면 새로고침(인스타/트위터식) =====
+// ===== 피드 pull-to-refresh: 목록 최상단에서 아래로 당기면 새로고침 =====
+// iOS 자체 고무줄(rubber-band) 스크롤이 '당기는 움직임'을 담당하므로 콘텐츠(#main)는 직접 안 옮김
+// (안 그러면 네이티브 바운스 + 내 이동이 겹쳐 이중으로 움직여 부자연스러움). 당김 정도에 반응하는
+// 스피너만 보여주고, 당기는 동안은 transition을 꺼서 손가락을 즉시 따라오게 함.
 (function(){
-  var startY=0, dist=0, active=false, refreshing=false, THRESH=70;
-  function onFeed(){ // 지금 홈/게시판 피드(목록)를 보고 있나 — 글 상세·커미션·프로필 화면은 제외
-    var m=document.getElementById("main");
-    return !!(m && m.querySelector(".board-head") && !m.querySelector(".detail,.cm-root,.profile"));
-  }
-  function ind(){
-    var el=document.getElementById("ptrSpin");
-    if(!el){el=document.createElement("div");el.id="ptrSpin";el.className="ptr";el.innerHTML='<div class="ptr-spin"></div>';document.body.appendChild(el);}
-    return el;
-  }
-  function reset(){
-    var el=document.getElementById("ptrSpin"), m=document.getElementById("main");
-    if(el){el.classList.remove("spinning","ready");el.style.opacity="0";el.style.transform="translateY(0)";}
-    if(m){m.style.transition="transform .2s";m.style.transform="";setTimeout(function(){m.style.transition="";},220);}
-  }
+  var startY=0, dist=0, active=false, refreshing=false, THRESH=72;
+  function onFeed(){var m=document.getElementById("main");return !!(m&&m.querySelector(".board-head")&&!m.querySelector(".detail,.cm-root,.profile"));}
+  function ind(){var el=document.getElementById("ptrSpin");if(!el){el=document.createElement("div");el.id="ptrSpin";el.className="ptr";el.innerHTML='<div class="ptr-spin"></div>';document.body.appendChild(el);}return el;}
   document.addEventListener("touchstart",function(e){
     if(refreshing||window.scrollY>4||!onFeed())return;
     startY=e.touches[0].clientY; active=true; dist=0;
@@ -4531,25 +4522,27 @@ syncNotifBadge();
   document.addEventListener("touchmove",function(e){
     if(!active)return;
     dist=e.touches[0].clientY-startY;
-    var el=ind(), m=document.getElementById("main");
-    if(dist<=0){el.style.opacity="0";el.style.transform="translateY(0)";if(m)m.style.transform="";return;}
-    var pull=Math.min(dist*0.5,90);
+    var el=ind();
+    if(dist<=0){el.style.transition="";el.style.opacity="0";el.style.transform="translateY(0)";return;}
+    el.style.transition="none"; // 당기는 동안 지연 없이 손가락 따라오게
     el.style.opacity=String(Math.min(1,dist/THRESH));
-    el.style.transform="translateY("+pull+"px)";
+    el.style.transform="translateY("+Math.min(dist*0.4,48)+"px)";
     el.classList.toggle("ready",dist>THRESH);
-    if(m)m.style.transform="translateY("+(pull*0.6)+"px)";
   },{passive:true});
   document.addEventListener("touchend",function(){
     if(!active)return; active=false;
+    var el=ind();
+    el.style.transition="opacity .22s,transform .22s"; // 놓는 순간부터는 부드럽게
     if(dist>THRESH){
       refreshing=true;
-      var el=ind(), m=document.getElementById("main");
-      el.classList.remove("ready");el.classList.add("spinning");el.style.opacity="1";el.style.transform="translateY(28px)";
-      if(m){m.style.transition="transform .2s";m.style.transform="translateY(30px)";}
+      el.classList.remove("ready"); el.classList.add("spinning");
+      el.style.opacity="1"; el.style.transform="translateY(34px)";
       Promise.resolve(typeof refreshFeed==="function"?refreshFeed():null).then(function(){
-        setTimeout(function(){reset();refreshing=false;},350);
+        setTimeout(function(){el.classList.remove("spinning");el.style.opacity="0";el.style.transform="translateY(0)";refreshing=false;},450);
       });
-    }else reset();
+    }else{
+      el.classList.remove("ready"); el.style.opacity="0"; el.style.transform="translateY(0)";
+    }
     dist=0;
   });
 })();
