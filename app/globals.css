@@ -1207,6 +1207,12 @@
   .cm-my-badge.close{background:var(--surface-2);color:var(--muted)}
   .cm-my-edit{background:var(--brand-soft);color:var(--brand-2);border:none;font-size:13.5px;font-weight:700;padding:9px 15px;border-radius:10px;cursor:pointer;flex-shrink:0}
   .cm-my-del{background:#fdeaea;color:#d64545}
+  /* 피드 pull-to-refresh 스피너 */
+  .ptr{position:fixed;top:56px;left:50%;margin-left:-18px;z-index:60;width:36px;height:36px;border-radius:50%;background:var(--surface);box-shadow:0 2px 12px rgba(0,0,0,.16);display:flex;align-items:center;justify-content:center;opacity:0;transform:translateY(0);pointer-events:none;transition:opacity .18s,transform .12s}
+  .ptr-spin{width:18px;height:18px;border-radius:50%;border:2.5px solid var(--line);border-top-color:var(--brand)}
+  .ptr.ready .ptr-spin{border-top-color:var(--brand-2)}
+  .ptr.spinning .ptr-spin{animation:ptrspin .7s linear infinite}
+  @keyframes ptrspin{to{transform:rotate(360deg)}}
   /* 커미션 상세: 작가 본인 전용 삭제 바 */
   .cm-owner-bar{margin:4px 0 2px;text-align:right}
   .cm-owner-del{background:#fdeaea;color:#d64545;border:1px solid #f3caca;font-size:13px;font-weight:700;padding:8px 14px;border-radius:10px;cursor:pointer}
