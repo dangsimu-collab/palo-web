@@ -4423,6 +4423,7 @@ function renderMyProfile(){
      '<label class="pf-toggle"><span>공지·챌린지 알림</span><input type="checkbox" '+(SETTINGS.notice?'checked':'')+' onchange="toggleNotifPref(\'notice\',this.checked,\'공지\')"></label>'+
      '<label class="pf-toggle"><span>채팅 알림</span><input type="checkbox" '+(SETTINGS.chat?'checked':'')+' onchange="toggleNotifPref(\'chat\',this.checked,\'채팅\')"></label>'+
      '<label class="pf-toggle"><span>커미션 문의 알림</span><input type="checkbox" '+(SETTINGS.cminquiry?'checked':'')+' onchange="toggleNotifPref(\'cminquiry\',this.checked,\'커미션 문의\')"></label></div>';
+  h+='<div class="pf-danger"><button class="pf-withdraw" onclick="openWithdraw()">회원 탈퇴</button></div>';
   h+='</div>';
   document.getElementById("main").innerHTML=h;
   syncTabs("me");pfScrollAfterRender();
@@ -5086,6 +5087,41 @@ async function saveNick(){
   }
   ME.nick=v;closeNick();toast("닉네임을 \'"+v+"\'(으)로 바꿨어요","✓");
   openProfile();
+}
+// ===== 회원 탈퇴 (계정 삭제) =====
+// 서버 RPC delete_my_account()가 처리: 글·댓글은 익명화(내용 유지), 프로필·커미션·채팅·팔로우·투표·알림·좋아요 등은 삭제, 로그인 계정 삭제.
+function openWithdraw(){
+  if(!AUTH.user){toast("로그인 후 이용할 수 있어요");return;}
+  var i=document.getElementById("withdrawConfirm");if(i)i.value="";
+  withdrawCheck();
+  document.getElementById("withdrawModal").classList.add("open");
+  setTimeout(function(){try{i.focus();}catch(e){}},60);
+}
+function closeWithdraw(){document.getElementById("withdrawModal").classList.remove("open");}
+function withdrawCheck(){ // 실수 방지: '회원탈퇴'를 정확히 입력해야 버튼 활성화
+  var i=document.getElementById("withdrawConfirm");var b=document.getElementById("withdrawGoBtn");
+  if(!i||!b)return;
+  b.disabled=((i.value||"").trim()!=="회원탈퇴");
+}
+async function doWithdraw(){
+  var i=document.getElementById("withdrawConfirm");var b=document.getElementById("withdrawGoBtn");
+  if(!i||(i.value||"").trim()!=="회원탈퇴")return;
+  if(!AUTH.user||!window.supabase){toast("로그인 상태를 확인해주세요");return;}
+  if(b){b.disabled=true;b.textContent="처리 중…";}
+  try{
+    var res=await window.supabase.rpc("delete_my_account");
+    if(res.error){toast("탈퇴 실패: "+res.error.message);if(b){b.disabled=false;b.textContent="탈퇴하기";}return;}
+    var d=res.data||{};
+    if(d.ok===false){toast("탈퇴 실패: "+(d.error==="not_authenticated"?"로그인 상태가 아니에요":(d.error||"알 수 없는 오류")));if(b){b.disabled=false;b.textContent="탈퇴하기";}return;}
+    // 성공 → 세션 정리 후 홈으로
+    try{await window.supabase.auth.signOut();}catch(e){}
+    closeWithdraw();
+    toast("회원 탈퇴가 완료되었어요. 그동안 감사했습니다.","👋");
+    setTimeout(function(){location.href="/";},1400);
+  }catch(e){
+    toast("탈퇴 처리 중 오류: "+((e&&e.message)||e));
+    if(b){b.disabled=false;b.textContent="탈퇴하기";}
+  }
 }
 // ===== 이용규칙 =====
 function openRules(){document.getElementById("rulesModal").classList.add("open");document.body.style.overflow="hidden";}

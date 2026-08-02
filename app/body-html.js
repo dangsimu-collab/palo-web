@@ -309,6 +309,24 @@ export const BODY_HTML = `
     <button class="r-ok" onclick="saveNick()">저장</button>
   </div>
 </div>
+<div class="rules-scrim" id="withdrawModal" onclick="if(event.target===this)closeWithdraw()">
+  <div class="rules">
+    <h3>⚠️ 회원 탈퇴</h3>
+    <p class="wd-desc">탈퇴하면 아래 내용이 <b>즉시·영구적으로</b> 처리되며 <b>되돌릴 수 없어요.</b></p>
+    <ul class="wd-list">
+      <li>프로필·닉네임·소개 등 <b>개인정보가 삭제</b>돼요</li>
+      <li>내 커미션·채팅·팔로우·투표·알림·좋아요가 <b>삭제</b>돼요</li>
+      <li>보유한 포인트·등급·광고포인트가 <b>사라져요</b></li>
+      <li>내가 쓴 글·댓글은 내용은 남고 <b>작성자만 "익명"</b>으로 바뀌어요</li>
+    </ul>
+    <p class="nick-hint">확인을 위해 아래 칸에 <b>회원탈퇴</b> 를 입력해주세요.</p>
+    <input id="withdrawConfirm" class="nick-in" placeholder="회원탈퇴" oninput="withdrawCheck()" autocomplete="off">
+    <div class="wd-actions">
+      <button class="wd-cancel" onclick="closeWithdraw()">취소</button>
+      <button class="wd-go" id="withdrawGoBtn" onclick="doWithdraw()" disabled>탈퇴하기</button>
+    </div>
+  </div>
+</div>
 <div class="rules-scrim" id="pfEditModal" onclick="if(event.target===this)closePfEdit()">
   <div class="rules">
     <h3>✏️ 소개글 · 링크 편집</h3>

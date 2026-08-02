@@ -922,6 +922,17 @@
   .nick-in{width:100%;border:1.5px solid var(--line-2);border-radius:12px;background:var(--surface-2);padding:13px 15px;font-family:inherit;font-size:15px;font-weight:700;color:var(--ink);margin-bottom:8px}
   .nick-in:focus{outline:none;border-color:var(--brand);background:var(--surface)}
   .nick-hint{font-size:12px;color:var(--muted);margin-bottom:16px}
+  /* 회원 탈퇴 */
+  .pf-danger{margin-top:26px;padding-top:16px;border-top:1px solid var(--line);text-align:center}
+  .pf-withdraw{background:none;border:none;color:var(--muted);font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;padding:8px 12px;text-decoration:underline;text-underline-offset:3px}
+  .pf-withdraw:hover{color:#c0392b}
+  .wd-desc{font-size:14px;color:var(--ink);line-height:1.55;margin-bottom:12px}
+  .wd-list{margin:0 0 14px;padding-left:18px;font-size:13px;color:var(--ink-2);line-height:1.75}
+  .wd-list b{color:var(--ink)}
+  .wd-actions{display:flex;gap:10px;margin-top:6px}
+  .wd-cancel{flex:1;background:var(--surface-2);border:1.5px solid var(--line-2);color:var(--ink);border-radius:13px;padding:13px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer}
+  .wd-go{flex:1;background:linear-gradient(120deg,#e0607a,#c0392b);border:none;color:#fff;border-radius:13px;padding:13px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer}
+  .wd-go:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.3)}
   /* ===== 멘션 ===== */
   .mention{color:var(--brand);font-weight:800}
 
