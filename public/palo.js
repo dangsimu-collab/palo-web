@@ -388,6 +388,7 @@ async function applySession(session){
     // 이미 알림 권한을 켠 유저면 로그인 시 이 계정으로 구독을 확실히 저장(기기별 1회)
     if(typeof subscribeToPush==="function"&&notifPermState()==="granted")subscribeToPush();
     loadMyFollows(); // 내 팔로우 목록 로드
+    maybeShowConsent(); // 신규 가입자면 약관·개인정보 동의 창 표시
   }else{
     ME.nick="나";
     globalChatNotifUserId=null;
@@ -400,6 +401,55 @@ async function applySession(session){
 }
 function loginWithGoogle(){
   window.supabase.auth.signInWithOAuth({provider:"google",options:{redirectTo:window.location.origin}});
+}
+// ===== 이용약관·개인정보 처리방침 동의 (신규 가입 시 필수) =====
+// agreed_at이 비어있는 신규 가입자만 표시. 동의하면 서버(agree_to_terms)에 시각 기록.
+function maybeShowConsent(){
+  if(!AUTH.user||!AUTH.profile)return;
+  if(AUTH.profile.agreed_at)return;           // 이미 동의함
+  var m=document.getElementById("consentModal");if(!m)return;
+  var t=document.getElementById("consentTerms"),p=document.getElementById("consentPrivacy"),a=document.getElementById("consentAll");
+  if(t)t.checked=false;if(p)p.checked=false;if(a)a.checked=false;
+  consentCheck();
+  m.classList.add("open");
+  document.body.style.overflow="hidden";
+}
+function consentToggleAll(on){
+  var t=document.getElementById("consentTerms"),p=document.getElementById("consentPrivacy");
+  if(t)t.checked=on;if(p)p.checked=on;
+  consentCheck();
+}
+function consentCheck(){
+  var t=document.getElementById("consentTerms"),p=document.getElementById("consentPrivacy");
+  var a=document.getElementById("consentAll"),b=document.getElementById("consentOkBtn");
+  var both=!!(t&&t.checked&&p&&p.checked);
+  if(a)a.checked=both;
+  if(b)b.disabled=!both;
+}
+function closeConsent(){
+  var m=document.getElementById("consentModal");if(m)m.classList.remove("open");
+  document.body.style.overflow="";
+}
+async function submitConsent(){
+  var t=document.getElementById("consentTerms"),p=document.getElementById("consentPrivacy");
+  if(!(t&&t.checked&&p&&p.checked))return;
+  if(!AUTH.user||!window.supabase){toast("로그인 상태를 확인해주세요");return;}
+  var b=document.getElementById("consentOkBtn");
+  if(b){b.disabled=true;b.textContent="처리 중…";}
+  try{
+    var res=await window.supabase.rpc("agree_to_terms");
+    if(res.error){toast("동의 처리 실패: "+res.error.message);if(b){b.disabled=false;b.textContent="동의하고 시작하기";}return;}
+    if(AUTH.profile)AUTH.profile.agreed_at=new Date().toISOString();
+    closeConsent();
+    toast("환영해요! commi에 오신 걸 축하해요","🎉");
+  }catch(e){
+    toast("동의 처리 중 오류: "+((e&&e.message)||e));
+    if(b){b.disabled=false;b.textContent="동의하고 시작하기";}
+  }
+}
+async function declineConsent(){
+  closeConsent();
+  await logout(); // 동의 안 하면 로그아웃 → 서비스 미사용
 }
 async function logout(){
   await window.supabase.auth.signOut();

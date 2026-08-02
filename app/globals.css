@@ -943,6 +943,16 @@
   .nick-in{width:100%;border:1.5px solid var(--line-2);border-radius:12px;background:var(--surface-2);padding:13px 15px;font-family:inherit;font-size:15px;font-weight:700;color:var(--ink);margin-bottom:8px}
   .nick-in:focus{outline:none;border-color:var(--brand);background:var(--surface)}
   .nick-hint{font-size:12px;color:var(--muted);margin-bottom:16px}
+  /* 이용약관·개인정보 동의 모달 */
+  .consent-desc{font-size:14px;color:var(--ink-2);margin-bottom:14px}
+  .consent-all{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1.5px solid var(--line-2);border-radius:12px;font-weight:800;font-size:14px;cursor:pointer;margin-bottom:8px}
+  .consent-row{display:flex;align-items:center;gap:10px;padding:8px 12px;font-size:14px;color:var(--ink);cursor:pointer}
+  .consent-row a{color:var(--brand-2);font-weight:800;text-decoration:underline;text-underline-offset:2px}
+  .consent-all input,.consent-row input{width:18px;height:18px;accent-color:var(--brand);flex:none;cursor:pointer}
+  #consentOkBtn{margin-top:12px}
+  .r-ok:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.3)}
+  .consent-decline{width:100%;background:none;border:none;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;padding:10px;margin-top:6px;font-family:inherit}
+  .consent-decline:hover{color:var(--ink-2)}
   /* 회원 탈퇴 */
   .pf-danger{margin-top:26px;padding-top:16px;border-top:1px solid var(--line);text-align:center}
   .pf-withdraw{background:none;border:none;color:var(--muted);font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;padding:8px 12px;text-decoration:underline;text-underline-offset:3px}

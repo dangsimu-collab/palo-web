@@ -327,6 +327,17 @@ export const BODY_HTML = `
     </div>
   </div>
 </div>
+<div class="rules-scrim" id="consentModal">
+  <div class="rules">
+    <h3>commi 시작하기</h3>
+    <p class="consent-desc">commi 이용을 위해 아래 약관에 동의해주세요.</p>
+    <label class="consent-all"><input type="checkbox" id="consentAll" onchange="consentToggleAll(this.checked)"><span>전체 동의</span></label>
+    <label class="consent-row"><input type="checkbox" id="consentTerms" onchange="consentCheck()"><span>[필수] <a href="/terms" target="_blank" rel="noopener">이용약관</a>에 동의합니다</span></label>
+    <label class="consent-row"><input type="checkbox" id="consentPrivacy" onchange="consentCheck()"><span>[필수] <a href="/privacy" target="_blank" rel="noopener">개인정보 처리방침</a>에 동의합니다</span></label>
+    <button class="r-ok" id="consentOkBtn" onclick="submitConsent()" disabled>동의하고 시작하기</button>
+    <button class="consent-decline" onclick="declineConsent()">동의하지 않고 로그아웃</button>
+  </div>
+</div>
 <div class="rules-scrim" id="pfEditModal" onclick="if(event.target===this)closePfEdit()">
   <div class="rules">
     <h3>✏️ 소개글 · 링크 편집</h3>
