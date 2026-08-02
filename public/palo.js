@@ -4403,12 +4403,13 @@ function renderMyProfile(){
      '<div class="pf-st"><b>'+(AUTH.profile?(AUTH.profile.ad_points||0):0)+'</b><span>광고 포인트</span></div>'+
      '<div class="pf-st"><b>'+mine.length+'</b><span>쓴 글</span></div>'+
      '<div class="pf-st"><b>'+likeSum+'</b><span>받은 추천</span></div>'+
-     '<div class="pf-st"><b>'+cmSum+'</b><span>받은 댓글</span></div></div>';
+     '<div class="pf-st"><b>'+cmSum+'</b><span>받은 댓글</span></div>'+
+     '<div class="pf-st pf-st-link"'+(FOLLOW.size?' onclick="pfScrollToFollowing()"':'')+'><b>'+FOLLOW.size+'</b><span>팔로잉</span></div></div>';
   if(FOLLOW.size){
-    h+='<div class="pf-sec">팔로잉</div><div class="pf-follow">';
+    h+='<div class="pf-sec" id="pfFollowingSec">팔로잉 '+FOLLOW.size+'</div><div class="pf-follow">';
     Array.from(FOLLOW).forEach(function(uid){
       var nm=FOLLOW_NAME[uid]||"회원";
-      h+='<span class="pf-fl">'+esc(nm)+'<button onclick="unfollowFromProfile(\''+esc(uid)+'\')">언팔로우</button></span>';
+      h+='<span class="pf-fl"><span class="pf-fl-name" onclick="openUserProfile(\''+esc(uid)+'\')">'+esc(nm)+'</span><button onclick="unfollowFromProfile(\''+esc(uid)+'\')">언팔로우</button></span>';
     });
     h+='</div>';
   }
@@ -4471,6 +4472,7 @@ function pfScrollAfterRender(){
   }
   window.scrollTo({top:0,behavior:"smooth"});
 }
+function pfScrollToFollowing(){var el=document.getElementById("pfFollowingSec");if(el)el.scrollIntoView({behavior:"smooth",block:"start"});}
 async function unfollowFromProfile(uid){
   if(!AUTH.user||!window.supabase)return;
   var del=await window.supabase.from("follows").delete().eq("follower_id",AUTH.user.id).eq("followee_id",uid);

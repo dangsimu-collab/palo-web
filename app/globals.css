@@ -724,6 +724,8 @@
   .pf-edit:hover{border-color:var(--brand);color:var(--brand)}
   .pf-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
   .pf-st{background:var(--surface);border:1.5px solid var(--line-2);border-radius:var(--r);padding:14px 8px;text-align:center}
+  .pf-st-link{cursor:pointer;transition:.14s}
+  .pf-st-link:hover{border-color:var(--brand)}
   .pf-st b{display:block;font-size:19px;font-weight:900;color:var(--ink)}
   .pf-st span{font-size:11px;color:var(--muted);font-weight:700;margin-top:3px;display:block}
   .pf-sec{font-size:14px;font-weight:900;padding:4px 2px 0}
@@ -877,6 +879,8 @@
   .pf-tab.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
   .pf-follow{display:flex;flex-wrap:wrap;gap:8px}
   .pf-fl{display:flex;align-items:center;gap:8px;background:var(--surface);border:1.5px solid var(--line-2);border-radius:12px;padding:8px 8px 8px 13px;font-size:13px;font-weight:800}
+  .pf-fl-name{cursor:pointer}
+  .pf-fl-name:hover{color:var(--brand);text-decoration:underline}
   .pf-fl button{background:var(--surface-2);border:none;border-radius:8px;padding:5px 9px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit}
   .pf-fl button:hover{color:var(--brand)}
   .pf-set{display:flex;flex-direction:column;gap:8px}
