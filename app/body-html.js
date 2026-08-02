@@ -68,7 +68,7 @@ export const BODY_HTML = `
   </aside>
 </div>
 
-<footer><div class="wrap">commi · 그림 그리는 사람들의 커뮤니티 · 잘 그린 그림보다 그리는 이야기가 먼저인 곳</div></footer>
+<footer><div class="wrap">commi · 그림 그리는 사람들의 커뮤니티 · 잘 그린 그림보다 그리는 이야기가 먼저인 곳<div class="foot-links"><a href="/terms">이용약관</a> · <a href="/privacy">개인정보 처리방침</a></div></div></footer>
 
 <!-- drawer -->
 <div class="scrim" id="scrim"></div>

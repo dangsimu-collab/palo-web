@@ -184,6 +184,27 @@
 
   footer{border-top:1.5px solid var(--line);padding:30px 0 100px;text-align:center;font-size:12px;color:var(--muted)}
   @media(min-width:861px){footer{padding-bottom:30px}}
+  .foot-links{margin-top:8px}
+  .foot-links a{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
+  .foot-links a:hover{color:var(--brand-2)}
+  /* 이용약관·개인정보 처리방침 등 정적 법적 페이지 */
+  .legal-wrap{max-width:760px;margin:0 auto;padding:32px 20px 90px;color:var(--ink);font-size:15px;line-height:1.78}
+  .legal-home{display:inline-flex;align-items:center;gap:5px;color:var(--brand-2);font-weight:800;text-decoration:none;font-size:14px}
+  .legal-title{font-size:24px;font-weight:900;margin:16px 0 4px;color:var(--ink)}
+  .legal-sub{font-size:13px;color:var(--muted);margin-bottom:6px}
+  .legal-doc h2{font-size:17px;font-weight:800;margin:30px 0 10px;padding-top:20px;border-top:1px solid var(--line);color:var(--ink)}
+  .legal-doc h2:first-of-type{border-top:none;padding-top:6px}
+  .legal-doc h3{font-size:15px;font-weight:800;margin:16px 0 6px}
+  .legal-doc p{margin:8px 0}
+  .legal-doc ul,.legal-doc ol{margin:8px 0;padding-left:22px}
+  .legal-doc li{margin:5px 0}
+  .legal-doc b{color:var(--ink)}
+  .legal-blank{background:#fff3b0;color:#7a5b00;border-radius:5px;padding:0 6px;font-weight:800;font-size:13px}
+  .legal-tablewrap{overflow-x:auto;margin:12px 0}
+  .legal-table{border-collapse:collapse;font-size:12px;min-width:640px}
+  .legal-table th,.legal-table td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+  .legal-table th{background:var(--surface-2);font-weight:800;white-space:nowrap}
+  .legal-foot{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
 
   .detail{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--sh)}
   .d-back{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:800;color:var(--muted);padding:17px 22px;cursor:pointer;border:none;border-bottom:1.5px solid var(--line);width:100%;background:none;text-align:left;transition:.13s}
