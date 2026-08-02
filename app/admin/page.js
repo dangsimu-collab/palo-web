@@ -461,7 +461,7 @@ const BOARD_LABELS = {
   doodle: '낙서',
   crit: '피드백 요청',
   sketch: '그림공부',
-  collab: '협업.팀원모집',
+  collab: '협업/팀원모집',
   challenge: '챌린지',
   tip: '자료/TIP',
   request: '리퀘스트',
