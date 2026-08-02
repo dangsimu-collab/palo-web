@@ -689,7 +689,7 @@ if(typeof document!=="undefined"){
 }
 function renderList(){
   leaveChat();
-  if(location.pathname!=="/"){history.pushState({},"","/");document.title="Palo · 그림 그리는 사람들의 커뮤니티";}
+  if(location.pathname!=="/"){history.pushState({},"","/");document.title="commi · 그림 그리는 사람들의 커뮤니티";}
   var main=document.getElementById("main");var arr=filteredPosts();
   var sub=state.query?('"'+esc(state.query)+'" 검색 결과 '+arr.length+'건'):(state.sort==="new"?"방금 올라온 이야기부터":"반응 많은 순으로");
   var h='<div class="board-head">'+
@@ -702,7 +702,7 @@ function renderList(){
   h+=tagFilterBarHTML();
   if(state.board==="all"&&!state.query){
     if(LATEST_NOTICE)h+='<div class="notice" onclick="showNotice()"><span class="pin">공지</span><span class="nt">📢 '+esc(LATEST_NOTICE.title)+'</span></div>';
-    h+='<div class="notice" onclick="openRules()"><span class="pin">공지</span><span class="nt">📌 Palo 이용 규칙 & 크리틱 매너 안내 (처음 오셨다면 꼭!)</span></div>';
+    h+='<div class="notice" onclick="openRules()"><span class="pin">공지</span><span class="nt">📌 commi 이용 규칙 & 크리틱 매너 안내 (처음 오셨다면 꼭!)</span></div>';
   }
   if(arr.length===0){
     h+='<div class="empty"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg><h3>아직 글이 없어요</h3><p>이 게시판의 첫 글을 남겨보세요.</p><button onclick="openWrite()">글쓰기</button></div>';
@@ -766,7 +766,7 @@ function openPost(id){
   if(p.dbId){
     var targetPath="/post/"+p.dbId;
     if(location.pathname!==targetPath)history.pushState({},"",targetPath);
-    document.title=p.title+" · Palo";
+    document.title=p.title+" · commi";
   }
   renderPostDetail(id);
   window.scrollTo({top:0,behavior:"smooth"});
@@ -1483,7 +1483,7 @@ var CM_IMAGE_BUCKET='commission-images';
 var CM_TYPES=['두상','흉상','반신','전신','SD','이모티콘','배경','기타'];
 var CM_BAD_REASONS=['퀄리티 불만족','마감 기한 미준수','소통이 어려웠어요','스타일이 요청과 달랐어요','기타'];
 // 작가가 거래 정책을 직접 안 적었을 때 뜨는 기본 면책 문구(신청서·상세 공용)
-var CM_DEFAULT_POLICY_HTML='Palo는 결제를 중개하지 않고 소통 공간만 제공하는 서비스로, 거래의 당사자가 아니에요.<br>작업 범위·기한·환불 등은 작가님과 신청자님이 직접 정하며, 거래 중 사기·분쟁 등 어떤 문제가 생겨도 Palo는 대금을 보증·환불하거나 법적 책임을 지지 않아요.<br>미성년자 거래는 보호자 동의가 없으면 취소될 수 있어요.';
+var CM_DEFAULT_POLICY_HTML='commi는 결제를 중개하지 않고 소통 공간만 제공하는 서비스로, 거래의 당사자가 아니에요.<br>작업 범위·기한·환불 등은 작가님과 신청자님이 직접 정하며, 거래 중 사기·분쟁 등 어떤 문제가 생겨도 commi는 대금을 보증·환불하거나 법적 책임을 지지 않아요.<br>미성년자 거래는 보호자 동의가 없으면 취소될 수 있어요.';
 var cmTopTags=[]; // cmLoadCommissions()가 실제 사용 빈도순으로 채움
 var cmBookmarkIds=null; // 로그인 후 Set으로 채워짐(북마크한 커미션 id들)
 var cmState={activeTag:null,wrType:null,wrCtype:null,query:'',sort:'home'};
@@ -2075,7 +2075,7 @@ function cmDetailHTML(d,idx){
         '<div class="cm-revevent-h">🎁 리뷰 이벤트 진행 중</div>'+
         '<div class="cm-revevent-benefit">'+esc(revBenefit).replace(/\n/g,'<br>')+'</div>'+
         ((canReview&&d.id!=null)?'<button class="cm-revevent-cta" onclick="cmOpenWrite('+d.id+')">✍️ 후기 쓰고 혜택 받기</button>':'')+
-        '<div class="cm-revevent-note">💡 이 혜택은 작가님이 직접 제공하며, Palo는 중개하지 않아요.</div>'+
+        '<div class="cm-revevent-note">💡 이 혜택은 작가님이 직접 제공하며, commi는 중개하지 않아요.</div>'+
       '</div>'):'')+
       '<div class="cm-rv-sec"><div class="cm-rv-head"><b>커미션 후기 '+realReviews.length+'</b><span class="cm-rv-more" onclick="cmOpenReviews('+(d.id!=null?d.id:'null')+')">더보기 ></span></div>'+
         '<div class="cm-rv-summary"><div class="cm-rv-box good"><div class="cm-ic">😊</div><div class="cm-n">'+goodCnt+'</div><div class="cm-l">만족 후기</div></div>'+
@@ -2574,7 +2574,7 @@ function cmRenderRegisterScreen(){
       '<div id="cmRegRevWrap" style="'+(cmReg.reviewEventOn?'':'display:none')+'">'+
         '<div class="cm-reg-label">혜택 내용 <span class="cm-reg-req">*</span> <span class="cm-reg-sub">후기 작성자에게 줄 혜택</span></div>'+
         '<textarea class="cm-reg-textarea" id="cmRegRevBenefit" placeholder="예: 후기 남겨주시면 다음 커미션 10% 할인 / 추가 컷 1장 무료" oninput="cmCheckReg()">'+esc(cmReg.reviewEventBenefit)+'</textarea>'+
-        '<div class="cm-reg-note">이 혜택은 작가님이 직접 제공하며, Palo는 중개하지 않아요.</div>'+
+        '<div class="cm-reg-note">이 혜택은 작가님이 직접 제공하며, commi는 중개하지 않아요.</div>'+
       '</div>'+
       '<div class="cm-reg-label">신청서 커스텀 항목 <span class="cm-reg-sub">참고 이미지·추가 요청사항은 신청서에 기본으로 포함돼요</span></div>'+
       '<div class="cm-reg-formlist" id="cmRegFormList">'+cmFormListHTML()+'</div>'+
@@ -3796,7 +3796,7 @@ async function enablePushNotifications(){
     var ok=await subscribeToPush(); // 실제 푸시 구독을 서버에 저장
     try{
       var reg=await navigator.serviceWorker.ready;
-      reg.showNotification("Palo",{body:"알림이 켜졌어요! 🔔 받고 싶은 알림 종류를 골라주세요.",icon:"/icon-192.png",badge:"/icon-192.png",data:{url:"/?notif=settings"}});
+      reg.showNotification("commi",{body:"알림이 켜졌어요! 🔔 받고 싶은 알림 종류를 골라주세요.",icon:"/icon-192.png",badge:"/icon-192.png",data:{url:"/?notif=settings"}});
     }catch(e){}
     toast(ok?"알림을 켰어요 🔔":"알림 권한을 켰어요 (발송 준비 중)");
   }else if(perm==="denied"){
@@ -3812,7 +3812,7 @@ function notifEnableHTML(){
       '<b>📲 iPhone에서 알림 받기</b>'+
       '<ol><li>Safari 하단 <b>공유</b> 버튼(<span aria-hidden="true">⎋</span>)을 탭</li>'+
       '<li><b>"홈 화면에 추가"</b> 선택</li>'+
-      '<li>홈 화면의 <b>Palo 아이콘</b>으로 다시 열기</li>'+
+      '<li>홈 화면의 <b>commi 아이콘</b>으로 다시 열기</li>'+
       '<li>그 화면에서 <b>알림 켜기</b> 누르기</li></ol>'+
       '<span class="pf-notif-sub">아이폰은 홈 화면에 추가해야만 알림이 와요 (iOS 16.4 이상).</span></div>';
   }
@@ -3888,7 +3888,7 @@ async function openUserProfile(userId,keepStack){
     var targetPath="/user/"+userId;
     if(location.pathname!==targetPath)history.pushState({},"",targetPath);
   }
-  document.title=profile.nickname+"님의 프로필 · Palo";
+  document.title=profile.nickname+"님의 프로필 · commi";
   var theirPosts=POSTS.filter(function(p){return p.authorId===userId});
   var likeSum=theirPosts.reduce(function(a,p){return a+p.likes},0);
   var canChat=AUTH.user&&AUTH.user.id!==userId;

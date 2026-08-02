@@ -5,7 +5,7 @@ export const BODY_HTML = `
     <button class="menu-btn" id="menuBtn" aria-label="메뉴 열기"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
     <div class="brand" onclick="goHome()">
       <span class="logo"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.5-.8 1-1.5-.5-.8 0-1.5 1-1.5h1a4 4 0 0 0 4-4c0-5-3-9-8-9z"/><circle cx="7.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="10.5" r="1" fill="currentColor" stroke="none"/></svg></span>
-      <span class="mark">Palo</span>
+      <span class="mark">commi</span>
       <span class="tag">PALO</span>
     </div>
     <div class="search desktop">
@@ -44,7 +44,7 @@ export const BODY_HTML = `
     <div class="widget join">
       <h4>같이 그리실래요?</h4>
       <p>스케치북을 열고, 남의 러프에 피드백 남기고, 오늘 그린 한 장을 공유해요.</p>
-      <button onclick="openWrite()">Palo 시작하기</button>
+      <button onclick="openWrite()">commi 시작하기</button>
     </div>
     <div class="widget">
       <div class="w-title"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v18"/><path d="M5 4h13l-2 4 2 4H5"/></svg>이번 주 챌린지</div>
@@ -69,12 +69,12 @@ export const BODY_HTML = `
   </aside>
 </div>
 
-<footer><div class="wrap">Palo · 그림 그리는 사람들의 커뮤니티 · 잘 그린 그림보다 그리는 이야기가 먼저인 곳</div></footer>
+<footer><div class="wrap">commi · 그림 그리는 사람들의 커뮤니티 · 잘 그린 그림보다 그리는 이야기가 먼저인 곳</div></footer>
 
 <!-- drawer -->
 <div class="scrim" id="scrim"></div>
 <nav class="drawer" id="drawer" aria-label="게시판 메뉴">
-  <div class="dh"><span class="brand"><span class="logo"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.5-.8 1-1.5-.5-.8 0-1.5 1-1.5h1a4 4 0 0 0 4-4c0-5-3-9-8-9z"/><circle cx="7.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="10.5" r="1" fill="currentColor" stroke="none"/></svg></span><span class="mark">Palo</span></span>
+  <div class="dh"><span class="brand"><span class="logo"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.5-.8 1-1.5-.5-.8 0-1.5 1-1.5h1a4 4 0 0 0 4-4c0-5-3-9-8-9z"/><circle cx="7.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="10.5" r="1" fill="currentColor" stroke="none"/></svg></span><span class="mark">commi</span></span>
     <button class="dclose" id="drawerClose" aria-label="닫기"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
   <div class="search" style="max-width:none;margin:0 0 16px">
     <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
@@ -257,7 +257,7 @@ export const BODY_HTML = `
 <div class="rules-scrim" id="adNoticeModal" onclick="if(event.target===this)closeAdNoticeModal()">
   <div class="rules">
     <h3>📢 광고 집행 전 꼭 확인해주세요</h3>
-    <p style="font-size:13.5px;line-height:1.7;color:var(--ink-2);margin-bottom:14px">Palo의 유저 광고는 회원님이 활동으로 모은 광고 포인트로 배너를 노출하는 기능이에요!<br>집행 전에 아래 내용을 확인해주세요.</p>
+    <p style="font-size:13.5px;line-height:1.7;color:var(--ink-2);margin-bottom:14px">commi의 유저 광고는 회원님이 활동으로 모은 광고 포인트로 배너를 노출하는 기능이에요!<br>집행 전에 아래 내용을 확인해주세요.</p>
     <ul class="ad-notice-list">
       <li><b>이미지 배너만 가능해요</b><br>직접 만든 배너 이미지 한 장을 올리고 내 글을 홍보할 수 있어요!</li>
       <li><b>포인트는 집행과 동시에 차감돼요</b><br>노출 기간·횟수에 따라 광고 포인트가 사용되며, 한 번 집행하면 환불되지 않아요. 포인트와 노출 설정을 다시 확인해주세요.</li>

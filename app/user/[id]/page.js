@@ -15,10 +15,10 @@ export async function generateMetadata({ params }) {
     .single();
 
   if (!profile) {
-    return { title: 'Palo · 그림 그리는 사람들의 커뮤니티' };
+    return { title: 'commi · 그림 그리는 사람들의 커뮤니티' };
   }
 
-  const title = `${profile.nickname}님의 프로필 · Palo`;
+  const title = `${profile.nickname}님의 프로필 · commi`;
   return {
     title,
     openGraph: { title },

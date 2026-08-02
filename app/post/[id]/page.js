@@ -15,10 +15,10 @@ export async function generateMetadata({ params }) {
     .single();
 
   if (!post) {
-    return { title: 'Palo · 그림 그리는 사람들의 커뮤니티' };
+    return { title: 'commi · 그림 그리는 사람들의 커뮤니티' };
   }
 
-  const title = `${post.title} · Palo`;
+  const title = `${post.title} · commi`;
   const description = (post.content || '').slice(0, 80);
 
   return {

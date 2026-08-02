@@ -49,7 +49,7 @@ export async function POST(request) {
   if (!subs || !subs.length) return Response.json({ sent: 0 });
 
   const payload = JSON.stringify({
-    title: "Palo",
+    title: "commi",
     body: row.content || "새 알림이 도착했어요",
     tag: (type || "notif") + "-" + row.user_id,
     url: targetUrl(row),

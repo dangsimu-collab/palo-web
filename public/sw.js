@@ -11,7 +11,7 @@ self.addEventListener("activate", function (event) {
 self.addEventListener("push", function (event) {
   var data = {};
   try { data = event.data ? event.data.json() : {}; } catch (e) { data = { body: event.data && event.data.text() }; }
-  var title = data.title || "Palo";
+  var title = data.title || "commi";
   var options = {
     body: data.body || "",
     icon: "/icon-192.png",

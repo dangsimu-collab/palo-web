@@ -2,9 +2,9 @@
 // 홈 화면 추가(PWA 설치)·아이콘·시작화면 색 등을 정의.
 export default function manifest() {
   return {
-    name: "Palo · 그림 그리는 사람들의 커뮤니티",
-    short_name: "Palo",
-    description: "그림 그리는 사람들을 위한 커뮤니티 Palo",
+    name: "commi · 그림 그리는 사람들의 커뮤니티",
+    short_name: "commi",
+    description: "그림 그리는 사람들을 위한 커뮤니티 commi",
     start_url: "/",
     scope: "/",
     display: "standalone",

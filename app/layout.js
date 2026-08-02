@@ -3,13 +3,13 @@ import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
 
 export const metadata = {
-  title: "Palo · 그림 그리는 사람들의 커뮤니티",
-  description: "그림 그리는 사람들을 위한 커뮤니티 Palo",
+  title: "commi · 그림 그리는 사람들의 커뮤니티",
+  description: "그림 그리는 사람들을 위한 커뮤니티 commi",
   icons: {
     icon: [{ url: "/favicon-32.png", sizes: "32x32", type: "image/png" }, { url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
     apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
   },
-  appleWebApp: { capable: true, title: "Palo", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "commi", statusBarStyle: "default" },
 };
 
 export const viewport = {

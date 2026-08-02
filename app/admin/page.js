@@ -849,7 +849,7 @@ function AdminDashboard({ profile }) {
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 20px' }}>
-      <h1 style={{ fontWeight: 900, fontSize: 24, marginBottom: 8 }}>Palo 관리자</h1>
+      <h1 style={{ fontWeight: 900, fontSize: 24, marginBottom: 8 }}>commi 관리자</h1>
       <p style={{ color: 'var(--muted)', marginBottom: 24 }}>{profile.nickname}님, 환영해요.</p>
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1.5px solid var(--line)' }}>
         <button
