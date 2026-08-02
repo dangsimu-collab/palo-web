@@ -1399,9 +1399,20 @@ async function cmLoadCommissions(){
     var prof=profById[row.author_id];
     return cmRowToData(row,prof?prof.nickname:null);
   });
+  await cmLoadBookmarkCounts();
   cmTopTags=cmComputeTopTags();
   await cmLoadRecScores();
   cmDataLoaded=true;
+}
+// 커미션별 전체 북마크 수(서버 집계). commission_bookmarks는 '본인 것만' RLS라 클라가 못 세므로
+// security definer RPC(개수만 반환)로 받아 각 커미션 d.bookmarkCount에 채움.
+async function cmLoadBookmarkCounts(){
+  var m={};
+  try{
+    var res=await window.supabase.rpc("get_commission_bookmark_counts");
+    if(!res.error&&res.data)res.data.forEach(function(r){m[r.commission_id]=r.cnt;});
+  }catch(e){}
+  cmData.forEach(function(d){d.bookmarkCount=m[d.id]||0;});
 }
 // 추천 점수(서버 계산)를 불러와 {커미션id: 점수} 맵으로 저장. 추천 탭 정렬에 사용.
 // RPC가 아직 없거나(실행 전) 오류면 빈 맵으로 두고, 정렬은 후기 순으로 자연 폴백.
@@ -1600,6 +1611,11 @@ function pfReviewListHTML(reviews,userId){
   if(reviews.length>showCount)h+='<div class="rv-more" onclick="pfReviewsExpanded=true;'+moreCall+'">더보기</div>';
   return h;
 }
+// 북마크 토글 시 로컬 카운트를 즉시 반영(다음 로드 때 서버 값으로 다시 맞춰짐)
+function cmBumpBookmarkCount(commissionId,delta){
+  var d=cmData.find(function(x){return x.id===commissionId;});
+  if(d)d.bookmarkCount=Math.max(0,(d.bookmarkCount||0)+delta);
+}
 async function cmToggleBookmark(commissionId,el){
   if(!AUTH.user){toast('로그인 후 북마크할 수 있어요','🔒');loginWithGoogle();return;}
   if(cmBookmarkIds===null)await cmLoadMyBookmarks();
@@ -1608,11 +1624,13 @@ async function cmToggleBookmark(commissionId,el){
     var del=await window.supabase.from('commission_bookmarks').delete().eq('user_id',AUTH.user.id).eq('commission_id',commissionId);
     if(del.error){toast('처리 실패: '+del.error.message);return;}
     cmBookmarkIds.delete(commissionId);
+    cmBumpBookmarkCount(commissionId,-1);
     toast('북마크를 해제했어요');
   }else{
     var ins=await window.supabase.from('commission_bookmarks').insert({user_id:AUTH.user.id,commission_id:commissionId});
     if(ins.error){toast('처리 실패: '+ins.error.message);return;}
     cmBookmarkIds.add(commissionId);
+    cmBumpBookmarkCount(commissionId,1);
     toast('북마크에 저장했어요','🔖');
   }
   if(el){
@@ -1645,7 +1663,7 @@ function cmCardHTML(d,idx){
     '<div class="cm-c-artist">'+esc(d.artist)+'</div>'+
     '<div class="cm-c-title">'+esc(d.title)+'</div>'+
     (tagsLine?'<div class="cm-c-tags">'+esc(tagsLine)+'</div>':'')+
-    '<div class="cm-c-meta"><span>👁 '+(d.views||0)+'</span><span>💬 '+(d.reviewCount||0)+'</span></div></div>';
+    '<div class="cm-c-meta"><span>👁 '+(d.views||0)+'</span><span>💬 '+(d.reviewCount||0)+'</span><span>🔖 '+(d.bookmarkCount||0)+'</span></div></div>';
 }
 function cmFilteredIdx(){
   var q=(cmState.query||'').trim().toLowerCase();
