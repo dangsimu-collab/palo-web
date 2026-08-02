@@ -315,6 +315,13 @@
   .poll-res.mine .poll-res-bar{background:rgba(224,96,122,.28)}
   .poll-res-txt{position:relative;z-index:1;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:14px;font-weight:700;color:var(--ink)}
   .poll-total{margin-top:6px;font-size:12.5px;color:var(--muted);font-weight:700}
+  .poll-anon{margin-top:10px;font-size:12px;color:var(--muted);font-weight:600;background:var(--surface);border-radius:9px;padding:8px 11px}
+  .poll-voters-btn{margin-top:10px;background:none;border:none;color:var(--brand);font-size:12.5px;font-weight:800;cursor:pointer;padding:2px 0}
+  .poll-voters{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+  .poll-voters-opt{font-size:12.5px;line-height:1.5;background:var(--surface);border-radius:9px;padding:8px 11px}
+  .poll-voters-opt b{color:var(--ink);font-weight:800;margin-right:6px}
+  .poll-voters-opt span{color:var(--ink-2)}
+  .poll-voters-loading{margin-top:8px;font-size:12px;color:var(--muted)}
   .ed-tag{font-size:13px;font-weight:800;color:var(--muted);background:var(--surface);border:1.5px solid var(--line-2);border-radius:11px;padding:9px 15px;cursor:pointer;transition:.14s}
   .ed-tag:hover{border-color:var(--brand);color:var(--brand)}
   .ed-tag.on{background:linear-gradient(120deg,var(--brand),var(--grape));color:#fff;border-color:transparent}
