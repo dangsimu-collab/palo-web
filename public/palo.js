@@ -847,10 +847,18 @@ async function refreshPollResults(pollId){
 function togglePollVoters(pollId){ _pollVotersOpen=!_pollVotersOpen; refreshPollResults(pollId); }
 function renderPollVotersHTML(opts){
   if(_pollVotersData==null)return '<div class="poll-voters-loading">불러오는 중…</div>';
-  var byOpt={}; _pollVotersData.forEach(function(v){(byOpt[v.option_id]=byOpt[v.option_id]||[]).push(v.nick||'익명');});
-  return '<div class="poll-voters">'+opts.map(function(o){
-    var list=byOpt[o.id]||[];
-    return '<div class="poll-voters-opt"><b>'+esc(o.body)+'</b><span>'+(list.length?list.map(esc).join(', '):'—')+'</span></div>';
+  if(!_pollVotersData.length)return '<div class="poll-voters-empty">아직 참여자가 없어요</div>';
+  var optBody={}; opts.forEach(function(o){optBody[o.id]=o.body;});
+  // 사람별로 묶기(user_id 우선, 없으면 nick). 복수 선택이면 한 사람이 여러 선택지.
+  var byUser={},order=[];
+  _pollVotersData.forEach(function(v){
+    var k=v.user_id||('nick:'+v.nick);
+    if(!byUser[k]){byUser[k]={nick:v.nick||'익명',opts:[]};order.push(k);}
+    byUser[k].opts.push(optBody[v.option_id]||'?');
+  });
+  return '<div class="poll-voters">'+order.map(function(k){
+    var u=byUser[k];
+    return '<div class="poll-voters-row"><b>'+esc(u.nick)+'</b><span>→ '+u.opts.map(esc).join(', ')+'</span></div>';
   }).join('')+'</div>';
 }
 function pollDeadlineText(iso){
