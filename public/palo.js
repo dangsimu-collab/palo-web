@@ -4475,8 +4475,10 @@ async function getFollowCounts(userId){
   return {following:(g.count||0), followers:(r.count||0)};
 }
 // 프로필의 '팔로잉 N · 팔로워 N' 바를 비동기로 채움(두 프로필 공용)
+var _followBarUserId=null; // 현재 보고 있는 프로필의 userId(모달에서 팔로우 토글 후 수 갱신용)
 async function loadFollowBar(userId){
   var bar=document.getElementById("pfFollowBar"); if(!bar||!window.supabase||!userId)return;
+  _followBarUserId=userId;
   var c=await getFollowCounts(userId);
   if(!document.getElementById("pfFollowBar"))return; // 그새 화면 이동
   bar.innerHTML=
@@ -4498,12 +4500,37 @@ async function openFollowList(userId,tab){
   if(res.error){listEl.innerHTML='<div class="follow-modal-msg">불러오지 못했어요</div>';return;}
   var users=(res.data||[]).map(function(r){return r.profiles;}).filter(Boolean);
   if(!users.length){listEl.innerHTML='<div class="follow-modal-msg">'+(tab==="followers"?"아직 팔로워가 없어요":"아직 팔로우한 사람이 없어요")+'</div>';return;}
+  var meId=AUTH.user?AUTH.user.id:null;
   listEl.innerHTML=users.map(function(u){
+    // 로그인 상태 + 내가 아닐 때만 팔로우/언팔로우 버튼(내 팔로우 상태 반영)
+    var btn=(meId&&u.id!==meId)
+      ? '<button class="follow-item-btn'+(FOLLOW.has(u.id)?' following':'')+'" onclick="event.stopPropagation();toggleFollowFromList(\''+esc(u.id)+'\',\''+esc(u.nickname)+'\',this)">'+(FOLLOW.has(u.id)?'팔로잉':'＋ 팔로우')+'</button>'
+      : '';
     return '<div class="follow-item" onclick="closeFollowList();openUserProfile(\''+esc(u.id)+'\')">'+
       '<div class="follow-item-ava">'+avatarHTML(u.nickname,u.avatar_url)+'</div>'+
       '<div class="follow-item-info"><span class="follow-item-nick">'+esc(u.nickname)+'</span>'+levelBadgeHtml(u.level,"lv-badge")+'</div>'+
+      btn+
     '</div>';
   }).join("");
+}
+// 목록에서 팔로우/언팔로우(로그인 필수, 서버 저장). 버튼 즉시 갱신 + 프로필 숫자 갱신.
+async function toggleFollowFromList(userId,nickname,btnEl){
+  if(!AUTH.user){toast("로그인 후 팔로우할 수 있어요","🔒");loginWithGoogle();return;}
+  if(userId===AUTH.user.id||!window.supabase)return;
+  var following=FOLLOW.has(userId);
+  if(btnEl)btnEl.disabled=true;
+  if(following){
+    var del=await window.supabase.from("follows").delete().eq("follower_id",AUTH.user.id).eq("followee_id",userId);
+    if(del.error){toast("처리 실패: "+del.error.message);if(btnEl)btnEl.disabled=false;return;}
+    FOLLOW.delete(userId);
+  }else{
+    var ins=await window.supabase.from("follows").insert({follower_id:AUTH.user.id,followee_id:userId});
+    if(ins.error){toast("처리 실패: "+ins.error.message);if(btnEl)btnEl.disabled=false;return;}
+    FOLLOW.add(userId);if(nickname)FOLLOW_NAME[userId]=nickname;
+  }
+  var nowF=FOLLOW.has(userId);
+  if(btnEl){btnEl.disabled=false;btnEl.classList.toggle("following",nowF);btnEl.textContent=nowF?"팔로잉":"＋ 팔로우";}
+  if(_followBarUserId)loadFollowBar(_followBarUserId); // 프로필의 팔로잉/팔로워 수 갱신
 }
 function closeFollowList(){var m=document.getElementById("followListModal");if(m)m.classList.remove("open");document.body.style.overflow="";}
 async function unfollowFromProfile(uid){
