@@ -226,6 +226,13 @@ export const BODY_HTML = `
   </div>
 </div>
 
+<div class="rules-scrim" id="followListModal" onclick="if(event.target===this)closeFollowList()">
+  <div class="follow-modal">
+    <div class="follow-modal-head"><b id="followModalTitle">팔로잉</b><button class="follow-modal-close" onclick="closeFollowList()" aria-label="닫기">✕</button></div>
+    <div class="follow-modal-list" id="followModalList"></div>
+  </div>
+</div>
+
 <div class="rules-scrim" id="adminDelModal" onclick="if(event.target===this)closeAdminDel()">
   <div class="rules">
     <h3>🗑️ 관리자 삭제</h3>

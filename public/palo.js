@@ -3911,11 +3911,13 @@ async function openUserProfile(userId,keepStack){
      '<div class="pf-st"><b>'+(profile.score||0)+'</b><span>활동 점수</span></div>'+
      '<div class="pf-st"><b>'+theirPosts.length+'</b><span>쓴 글</span></div>'+
      '<div class="pf-st"><b>'+likeSum+'</b><span>받은 추천</span></div></div>';
+  h+='<div class="pf-follow-bar" id="pfFollowBar"></div>';
   h+='<div class="pf-sec">쓴 글 ('+theirPosts.length+')</div>';
   h+=listOrEmpty(theirPosts,esc(profile.nickname)+'님이 쓴 글이 아직 없어요.');
   h+='<button class="pf-edit" style="margin-top:16px" onclick="renderList()">← 목록으로</button>';
   h+='</div>';
   document.getElementById("main").innerHTML=h;
+  loadFollowBar(userId);
   window.scrollTo({top:0,behavior:"smooth"});
 }
 function getUserIdFromPath(){
@@ -4403,16 +4405,8 @@ function renderMyProfile(){
      '<div class="pf-st"><b>'+(AUTH.profile?(AUTH.profile.ad_points||0):0)+'</b><span>광고 포인트</span></div>'+
      '<div class="pf-st"><b>'+mine.length+'</b><span>쓴 글</span></div>'+
      '<div class="pf-st"><b>'+likeSum+'</b><span>받은 추천</span></div>'+
-     '<div class="pf-st"><b>'+cmSum+'</b><span>받은 댓글</span></div>'+
-     '<div class="pf-st pf-st-link"'+(FOLLOW.size?' onclick="pfScrollToFollowing()"':'')+'><b>'+FOLLOW.size+'</b><span>팔로잉</span></div></div>';
-  if(FOLLOW.size){
-    h+='<div class="pf-sec" id="pfFollowingSec">팔로잉 '+FOLLOW.size+'</div><div class="pf-follow">';
-    Array.from(FOLLOW).forEach(function(uid){
-      var nm=FOLLOW_NAME[uid]||"회원";
-      h+='<span class="pf-fl"><span class="pf-fl-name" onclick="openUserProfile(\''+esc(uid)+'\')">'+esc(nm)+'</span><button onclick="unfollowFromProfile(\''+esc(uid)+'\')">언팔로우</button></span>';
-    });
-    h+='</div>';
-  }
+     '<div class="pf-st"><b>'+cmSum+'</b><span>받은 댓글</span></div></div>';
+  h+='<div class="pf-follow-bar" id="pfFollowBar"></div>'; // 팔로잉/팔로워 수(비동기 채움)
   var tabs=[["mine","쓴 글 "+mine.length],["cm","댓글 단 글 "+commented.length],["liked","좋아요 "+likedArr.length],["recent","최근 본 글 "+recent.length]];
   h+='<div class="pf-tabs">'+tabs.map(function(t){
     return '<button class="pf-tab'+(pfTab===t[0]?' on':'')+'" onclick="setPfTab(\''+t[0]+'\')">'+t[1]+'</button>';
@@ -4432,6 +4426,7 @@ function renderMyProfile(){
   h+='</div>';
   document.getElementById("main").innerHTML=h;
   syncTabs("me");pfScrollAfterRender();
+  loadFollowBar(AUTH.user.id);
   pfBookmarkCount(AUTH.user.id).then(function(n){
     var el=document.getElementById("pfhBmCount");
     if(el)el.textContent=n;
@@ -4473,6 +4468,44 @@ function pfScrollAfterRender(){
   window.scrollTo({top:0,behavior:"smooth"});
 }
 function pfScrollToFollowing(){var el=document.getElementById("pfFollowingSec");if(el)el.scrollIntoView({behavior:"smooth",block:"start"});}
+/* ===== SNS식 팔로잉/팔로워 수 + 목록 모달 ===== */
+async function getFollowCounts(userId){
+  var g=await window.supabase.from("follows").select("*",{count:"exact",head:true}).eq("follower_id",userId);
+  var r=await window.supabase.from("follows").select("*",{count:"exact",head:true}).eq("followee_id",userId);
+  return {following:(g.count||0), followers:(r.count||0)};
+}
+// 프로필의 '팔로잉 N · 팔로워 N' 바를 비동기로 채움(두 프로필 공용)
+async function loadFollowBar(userId){
+  var bar=document.getElementById("pfFollowBar"); if(!bar||!window.supabase||!userId)return;
+  var c=await getFollowCounts(userId);
+  if(!document.getElementById("pfFollowBar"))return; // 그새 화면 이동
+  bar.innerHTML=
+    '<div class="pf-fb" onclick="openFollowList(\''+esc(userId)+'\',\'following\')"><b>'+c.following+'</b><span>팔로잉</span></div>'+
+    '<div class="pf-fb" onclick="openFollowList(\''+esc(userId)+'\',\'followers\')"><b>'+c.followers+'</b><span>팔로워</span></div>';
+}
+// 목록 모달: tab='following'(그 사람이 팔로우한 사람들) / 'followers'(그 사람을 팔로우한 사람들)
+async function openFollowList(userId,tab){
+  var modal=document.getElementById("followListModal"); if(!modal||!window.supabase)return;
+  document.getElementById("followModalTitle").textContent=(tab==="followers"?"팔로워":"팔로잉");
+  document.getElementById("followModalList").innerHTML='<div class="follow-modal-msg">불러오는 중…</div>';
+  modal.classList.add("open");document.body.style.overflow="hidden";
+  var joinCol=(tab==="followers")?"follower_id":"followee_id";   // 화면에 보여줄 사람
+  var filterCol=(tab==="followers")?"followee_id":"follower_id"; // 기준 사용자
+  var res=await window.supabase.from("follows")
+    .select("profiles:"+joinCol+"(id,nickname,avatar_url,level)")
+    .eq(filterCol,userId).order("created_at",{ascending:false});
+  var listEl=document.getElementById("followModalList"); if(!listEl)return;
+  if(res.error){listEl.innerHTML='<div class="follow-modal-msg">불러오지 못했어요</div>';return;}
+  var users=(res.data||[]).map(function(r){return r.profiles;}).filter(Boolean);
+  if(!users.length){listEl.innerHTML='<div class="follow-modal-msg">'+(tab==="followers"?"아직 팔로워가 없어요":"아직 팔로우한 사람이 없어요")+'</div>';return;}
+  listEl.innerHTML=users.map(function(u){
+    return '<div class="follow-item" onclick="closeFollowList();openUserProfile(\''+esc(u.id)+'\')">'+
+      '<div class="follow-item-ava">'+avatarHTML(u.nickname,u.avatar_url)+'</div>'+
+      '<div class="follow-item-info"><span class="follow-item-nick">'+esc(u.nickname)+'</span>'+levelBadgeHtml(u.level,"lv-badge")+'</div>'+
+    '</div>';
+  }).join("");
+}
+function closeFollowList(){var m=document.getElementById("followListModal");if(m)m.classList.remove("open");document.body.style.overflow="";}
 async function unfollowFromProfile(uid){
   if(!AUTH.user||!window.supabase)return;
   var del=await window.supabase.from("follows").delete().eq("follower_id",AUTH.user.id).eq("followee_id",uid);

@@ -881,6 +881,27 @@
   .pf-fl{display:flex;align-items:center;gap:8px;background:var(--surface);border:1.5px solid var(--line-2);border-radius:12px;padding:8px 8px 8px 13px;font-size:13px;font-weight:800}
   .pf-fl-name{cursor:pointer}
   .pf-fl-name:hover{color:var(--brand);text-decoration:underline}
+  /* SNS식 팔로잉/팔로워 바 */
+  .pf-follow-bar{display:flex;gap:10px;margin-top:12px}
+  .pf-fb{flex:1;display:flex;align-items:baseline;justify-content:center;gap:6px;background:var(--surface);border:1.5px solid var(--line-2);border-radius:var(--r);padding:12px 8px;cursor:pointer;transition:.14s}
+  .pf-fb:hover{border-color:var(--brand);background:var(--brand-soft)}
+  .pf-fb b{font-size:17px;font-weight:900;color:var(--ink)}
+  .pf-fb span{font-size:12.5px;font-weight:700;color:var(--muted)}
+  /* 팔로우 목록 모달 */
+  .follow-modal{background:var(--surface);border-radius:20px;width:min(420px,92vw);max-height:72vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--sh-lg);transform:translateY(12px) scale(.98);opacity:0;transition:transform .26s cubic-bezier(.32,.72,0,1),opacity .2s}
+  .rules-scrim.open .follow-modal{transform:none;opacity:1}
+  .follow-modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line-2)}
+  .follow-modal-head b{font-size:16px;font-weight:900;color:var(--ink)}
+  .follow-modal-close{background:none;border:none;font-size:16px;color:var(--muted);cursor:pointer;width:32px;height:32px;border-radius:10px}
+  .follow-modal-close:hover{background:var(--surface-2)}
+  .follow-modal-list{overflow-y:auto;padding:8px 8px 12px;-webkit-overflow-scrolling:touch}
+  .follow-modal-msg{padding:34px 0;text-align:center;color:var(--muted);font-size:13.5px}
+  .follow-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;cursor:pointer;transition:.12s}
+  .follow-item:hover{background:var(--surface-2)}
+  .follow-item-ava{width:44px;height:44px;flex-shrink:0}
+  .follow-item-ava .d-ava,.follow-item-ava>*{width:44px;height:44px;border-radius:14px;font-size:16px}
+  .follow-item-info{display:flex;align-items:center;gap:7px;min-width:0}
+  .follow-item-nick{font-size:14.5px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .pf-fl button{background:var(--surface-2);border:none;border-radius:8px;padding:5px 9px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit}
   .pf-fl button:hover{color:var(--brand)}
   .pf-set{display:flex;flex-direction:column;gap:8px}
