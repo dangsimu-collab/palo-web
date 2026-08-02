@@ -286,6 +286,29 @@
   .ed-tags{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
   .ed-lock-notice{margin:2px 0 16px;padding:11px 13px;background:#fff6e5;border:1px solid #f0d79a;border-radius:10px;color:#9a6a00;font-size:12.5px;font-weight:600;line-height:1.55}
   .ed-accept-notice{margin:2px 0 16px;padding:11px 13px;background:#eef6ff;border:1px solid #bcd9f5;border-radius:10px;color:#1c5b9c;font-size:12.5px;font-weight:600;line-height:1.55}
+  /* 글쓰기 투표 편집기 */
+  .ed-poll-addbtn{margin-top:14px;background:var(--surface-2);border:1.5px dashed var(--line-2);border-radius:12px;padding:11px 16px;font-size:13.5px;font-weight:800;color:var(--ink-2);cursor:pointer;transition:.14s}
+  .ed-poll-addbtn:hover{border-color:var(--brand);color:var(--brand)}
+  .ed-poll-box{margin-top:14px;border:1.5px solid var(--line-2);border-radius:14px;padding:14px;background:var(--surface-2)}
+  .ed-poll-head{display:flex;justify-content:space-between;align-items:center;font-size:13.5px;font-weight:900;color:var(--ink);margin-bottom:10px}
+  .ed-poll-del{background:none;border:none;color:#c0392b;font-size:12.5px;font-weight:800;cursor:pointer}
+  .ed-poll-q,.ed-poll-opt-in{width:100%;border:1.5px solid var(--line-2);border-radius:10px;background:var(--surface);padding:11px 13px;font-family:inherit;font-size:14px;font-weight:600;color:var(--ink)}
+  .ed-poll-q{margin-bottom:10px;font-weight:700}
+  .ed-poll-optrow{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .ed-poll-optdel{flex-shrink:0;width:34px;height:34px;border:1.5px solid var(--line-2);background:var(--surface);border-radius:9px;font-size:16px;color:var(--muted);cursor:pointer}
+  .ed-poll-addopt{margin-top:2px;background:none;border:none;color:var(--brand);font-size:13px;font-weight:800;cursor:pointer}
+  /* 글 상세 투표 표시 */
+  .poll{margin:16px 0;border:1.5px solid var(--line-2);border-radius:14px;padding:16px}
+  .poll-loading{color:var(--muted);font-size:13px;text-align:center;padding:8px}
+  .poll-q{font-size:15.5px;font-weight:900;color:var(--ink);margin-bottom:12px;line-height:1.45}
+  .poll-opt{display:block;width:100%;text-align:left;margin-bottom:9px;border:1.5px solid var(--line-2);background:var(--surface);border-radius:12px;padding:13px 15px;font-size:14.5px;font-weight:700;color:var(--ink);cursor:pointer;transition:.14s}
+  .poll-opt:hover{border-color:var(--brand);background:var(--brand-soft)}
+  .poll-res{position:relative;margin-bottom:9px;border:1.5px solid var(--line-2);border-radius:12px;padding:13px 15px;overflow:hidden;background:var(--surface)}
+  .poll-res.mine{border-color:var(--brand)}
+  .poll-res-bar{position:absolute;left:0;top:0;bottom:0;background:var(--brand-soft);z-index:0;transition:width .4s cubic-bezier(.4,0,.2,1)}
+  .poll-res.mine .poll-res-bar{background:rgba(224,96,122,.28)}
+  .poll-res-txt{position:relative;z-index:1;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:14px;font-weight:700;color:var(--ink)}
+  .poll-total{margin-top:6px;font-size:12.5px;color:var(--muted);font-weight:700}
   .ed-tag{font-size:13px;font-weight:800;color:var(--muted);background:var(--surface);border:1.5px solid var(--line-2);border-radius:11px;padding:9px 15px;cursor:pointer;transition:.14s}
   .ed-tag:hover{border-color:var(--brand);color:var(--brand)}
   .ed-tag.on{background:linear-gradient(120deg,var(--brand),var(--grape));color:#fff;border-color:transparent}

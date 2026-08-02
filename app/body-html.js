@@ -164,6 +164,10 @@ export const BODY_HTML = `
       <input type="file" id="edFile" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="onImage(event)">
       <div id="edImages" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"></div>
 
+      <!-- 투표 첨부 -->
+      <div id="edPollBox" class="ed-poll-box" style="display:none"></div>
+      <button type="button" id="edPollAddBtn" class="ed-poll-addbtn" onclick="edPollAdd()">📊 투표 추가</button>
+
       <!-- 옵션 -->
       <div class="ed-options">
         <label class="ed-opt"><input type="checkbox" id="edCrit"><span>크리틱(피드백) 받고 싶어요</span></label>

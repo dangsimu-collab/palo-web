@@ -239,9 +239,12 @@ async function loadRealPosts(skipRender){
   var wave2=await Promise.all([
     dbIds.length?sb.from("comments").select("*").in("post_id",dbIds).order("created_at"):Promise.resolve({data:[]}),
     dbIds.length?sb.from("likes").select("post_id,user_id").in("post_id",dbIds):Promise.resolve({data:[]}),
-    dbIds.length?sb.from("post_images").select("post_id,url,sort").in("post_id",dbIds).order("sort"):Promise.resolve({data:[]})
+    dbIds.length?sb.from("post_images").select("post_id,url,sort").in("post_id",dbIds).order("sort"):Promise.resolve({data:[]}),
+    dbIds.length?sb.from("polls").select("id,post_id").in("post_id",dbIds):Promise.resolve({data:[]})
   ]);
-  var cmRes=wave2[0],likeRes=wave2[1],imgRes=wave2[2];
+  var cmRes=wave2[0],likeRes=wave2[1],imgRes=wave2[2],pollRes=wave2[3];
+  var pollByPost={};
+  (pollRes.data||[]).forEach(function(pl){pollByPost[pl.post_id]=pl.id;});
   var commentIds=(cmRes.data||[]).map(function(c){return c.id});
   // ── 3차: 댓글에 의존하는 도움돼요(comment_helpful) ──
   var helpfulRes=commentIds.length?await sb.from("comment_helpful").select("comment_id,user_id").in("comment_id",commentIds):{data:[]};
@@ -267,7 +270,7 @@ async function loadRealPosts(skipRender){
     var likers=likesByPost[row.id]||[];
     return {id:100000+row.id,dbId:row.id,authorId:row.author_id,board:row.board,title:row.title,category:row.category,author:nameFor(row.author_id),authorLevel:levelFor(row.author_id),authorAvatar:avatarFor(row.author_id),
       time:timeAgo(row.created_at),createdAt:row.created_at,likes:likers.length,_liked:likers.indexOf(myLikeId())>-1,
-      views:row.views,thumb:"none",stage:row.stage,images:imagesByPost[row.id],
+      views:row.views,thumb:"none",stage:row.stage,images:imagesByPost[row.id],pollId:pollByPost[row.id]||null,
       isManagerPick:!!row.is_manager_pick,pickPosition:row.pick_position,pickedAt:row.picked_at,adLocked:!!adLockedIds[row.id],
       reviewedNickname:row.reviewed_nickname||null,reviewedUserId:row.reviewed_user_id||null,commissionPostId:row.commission_post_id||null,commissionSentiment:row.commission_sentiment||null,
       commissionId:row.commission_id||null,commissionCtype:row.commission_ctype||null,commissionBadReason:row.commission_bad_reason||null,acceptedCommentId:row.accepted_comment_id||null,
@@ -785,6 +788,7 @@ function renderPostDetail(id){
     '<div class="d-author"><div class="d-ava serif">'+avatarHTML(p.author,p.authorAvatar)+'</div><div class="d-au-info"><div class="n"'+(p.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+levelBadgeHtml(p.authorLevel,"lv-badge")+'</div><div class="meta">'+p.time+' · 조회 '+fmtViews(p.views)+'</div></div>'+
     '<button class="d-follow'+(FOLLOW.has(p.author)?' following':'')+'" id="followBtn" onclick="toggleFollow(\''+esc(p.author)+'\','+p.id+')">'+(FOLLOW.has(p.author)?'팔로잉 ✓':'＋ 팔로우')+'</button></div></div>'+
     canvas+'<div class="d-content">'+(safeHtml?safeHtml:p.content.map(function(x){return'<p>'+esc(x)+'</p>'}).join(""))+'</div>'+
+    (p.pollId?'<div class="poll" id="pollBox"></div>':'')+
     '<div class="d-actions"><button class="d-act'+liked+'" id="likeBtn" onclick="toggleLike('+p.id+')">'+likeIconSvg(p._liked)+'좋아요 '+p.likes+'</button>'+
     '<button class="d-act" onclick="sharePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6"/><path d="M10 6l1-1a4 4 0 0 1 6 6l-1 1M14 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg>공유</button>'+
     '<button class="d-act" onclick="reportPost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>신고</button>'+
@@ -807,6 +811,49 @@ function renderPostDetail(id){
     '<div class="ad d-ad" role="complementary" aria-label="광고"><span class="ad-label">AD</span><div class="ad-ph"><svg viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"1.6\\" style=\\"width:22px;height:22px\\"><rect x=\\"3\\" y=\\"4\\" width=\\"18\\" height=\\"16\\" rx=\\"2\\"/><circle cx=\\"8.5\\" cy=\\"9.5\\" r=\\"1.6\\"/><path d=\\"m4 18 5-5 4 3 3-2 4 4\\"/></svg></div><div class="ad-body"><div class="ad-t">열심히 활동해서 포인트를 모아보세요!</div><div class="ad-d">포인트를 사용하여 이 자리에 광고를 집행할 수 있어요!</div></div></div>'+'<div class="cm-list" id="cmList">'+renderComments(p)+'</div></div></div>';
   main.innerHTML=h;
   renderDetailAd();
+  if(p.pollId)loadPoll(p.pollId);
+}
+/* ===== 글 상세 투표 표시/투표하기 ===== */
+var POLL_CACHE={}; // pollId -> question (결과 RPC엔 질문이 없어 캐시)
+async function loadPoll(pollId){
+  var box=document.getElementById('pollBox'); if(!box||!window.supabase)return;
+  box.innerHTML='<div class="poll-loading">투표 불러오는 중…</div>';
+  var qres=await window.supabase.from('polls').select('question').eq('id',pollId).single();
+  if(!qres.error&&qres.data)POLL_CACHE[pollId]=qres.data.question;
+  var res=await window.supabase.rpc('get_poll_results',{p_poll_id:pollId});
+  if(res.error){box.innerHTML='<div class="poll-loading">투표를 불러오지 못했어요</div>';return;}
+  renderPoll(pollId,res.data);
+}
+function renderPoll(pollId,data){
+  var box=document.getElementById('pollBox'); if(!box)return;
+  var opts=data.options||[], total=data.total||0, my=data.my_option, voted=(my!=null);
+  var h='<div class="poll-q">📊 '+esc(POLL_CACHE[pollId]||'투표')+'</div>';
+  if(voted){ // 투표했으면 결과(막대+비율) 표시
+    h+=opts.map(function(o){
+      var pct=total?Math.round(o.count/total*100):0, mine=(o.id===my);
+      return '<div class="poll-res'+(mine?' mine':'')+'"><div class="poll-res-bar" style="width:'+pct+'%"></div>'+
+        '<div class="poll-res-txt"><span>'+(mine?'✓ ':'')+esc(o.body)+'</span><span>'+pct+'% · '+o.count+'표</span></div></div>';
+    }).join('');
+    h+='<div class="poll-total">총 '+total+'표 · 참여 완료</div>';
+  }else{ // 아직 안 했으면 선택 버튼
+    h+=opts.map(function(o){ return '<button class="poll-opt" onclick="votePoll('+pollId+','+o.id+')">'+esc(o.body)+'</button>'; }).join('');
+    h+='<div class="poll-total">'+(AUTH.user?'선택지를 눌러 투표하세요':'로그인 후 투표할 수 있어요')+' · 총 '+total+'표</div>';
+  }
+  box.innerHTML=h;
+}
+async function votePoll(pollId,optionId){
+  if(!AUTH.user){toast('로그인 후 투표할 수 있어요','🔒');loginWithGoogle();return;}
+  if(!window.supabase)return;
+  var res=await window.supabase.rpc('cast_vote',{p_poll_id:pollId,p_option_id:optionId});
+  if(res.error){toast('투표 실패: '+res.error.message);return;}
+  var data=res.data||{};
+  if(!data.ok){
+    if(data.error==='login_required'){toast('로그인 후 투표할 수 있어요','🔒');loginWithGoogle();return;}
+    if(data.error==='already_voted'){toast('이미 투표했어요');renderPoll(pollId,data);return;}
+    toast('투표할 수 없어요 ('+(data.error||'오류')+')');return;
+  }
+  toast('투표 완료! 🗳️');
+  renderPoll(pollId,data); // cast_vote가 최신 결과를 함께 반환
 }
 // 이 게시판들은 '다른 사람(작성자 아닌)의 댓글'이 하나라도 달리면 작성자가 수정·삭제 불가(관리자 삭제는 예외).
 var POST_EDIT_LOCK_BOARDS=['ask','vote','crit']; // 질문/시세문의 · 투표·수요조사 · 피드백 요청
@@ -3072,6 +3119,7 @@ function openWrite(){
   updateReviewNickField();
   document.getElementById("wContent").innerHTML="";
   document.getElementById("edImages").innerHTML="";
+  edState.poll=null;edPollRender();
   document.getElementById("edCrit").checked=(edState.board==="crit");
   document.getElementById("edTitleLabel").textContent="글쓰기";
   document.getElementById("edSubmitBtn").textContent="등록";
@@ -3092,6 +3140,7 @@ function openEditPost(id){
   updateReviewNickField();
   document.getElementById("wContent").innerHTML=p.html?sanitizePostHtml(p.html):p.content.map(function(x){return"<p>"+esc(x)+"</p>"}).join("");
   renderEdImages();
+  edState.poll=null;edPollRender(); // 수정 시엔 투표 편집 미지원(1단계) — 버튼도 숨김
   document.getElementById("edCrit").checked=(edState.board==="crit");
   document.getElementById("edTitleLabel").textContent="글 수정";
   document.getElementById("edSubmitBtn").textContent="수정 완료";
@@ -3355,6 +3404,30 @@ function sanitizePostHtml(html){
     ALLOWED_ATTR:["style","color","src","controls","alt"]
   });
 }
+/* ===== 글쓰기 투표 편집기 ===== edState.poll = null 또는 {question, options:[...]} */
+function edPollSync(){ // 화면(DOM) → edState.poll (재렌더 전에 입력값 보존)
+  if(!edState.poll)return;
+  var q=document.getElementById('edPollQ'); if(q)edState.poll.question=q.value;
+  var opts=[]; document.querySelectorAll('#edPollOpts .ed-poll-opt-in').forEach(function(inp){opts.push(inp.value);});
+  if(opts.length)edState.poll.options=opts;
+}
+function edPollAdd(){ edState.poll={question:'',options:['','']}; edPollRender(); }
+function edPollRemove(){ edState.poll=null; edPollRender(); }
+function edPollAddOption(){ edPollSync(); if(edState.poll.options.length>=8){toast('선택지는 최대 8개예요');return;} edState.poll.options.push(''); edPollRender(); }
+function edPollRemoveOption(i){ edPollSync(); if(edState.poll.options.length<=2){toast('선택지는 최소 2개가 필요해요');return;} edState.poll.options.splice(i,1); edPollRender(); }
+function edPollRender(){
+  var box=document.getElementById('edPollBox'), btn=document.getElementById('edPollAddBtn');
+  if(!box)return;
+  if(!edState.poll){ box.style.display='none'; box.innerHTML=''; if(btn)btn.style.display=(editingPostId?'none':''); return; }
+  if(btn)btn.style.display='none';
+  box.style.display='';
+  box.innerHTML='<div class="ed-poll-head"><span>📊 투표</span><button type="button" class="ed-poll-del" onclick="edPollRemove()">삭제</button></div>'+
+    '<input class="ed-poll-q" id="edPollQ" placeholder="투표 질문 (예: 다음 그림 주제는?)" value="'+esc(edState.poll.question||'')+'">'+
+    '<div id="edPollOpts">'+edState.poll.options.map(function(o,i){
+      return '<div class="ed-poll-optrow"><input class="ed-poll-opt-in" placeholder="선택지 '+(i+1)+'" value="'+esc(o||'')+'"><button type="button" class="ed-poll-optdel" onclick="edPollRemoveOption('+i+')" title="선택지 삭제">×</button></div>';
+    }).join('')+'</div>'+
+    '<button type="button" class="ed-poll-addopt" onclick="edPollAddOption()">+ 선택지 추가</button>';
+}
 async function submitPost(){
   var t=document.getElementById("wTitle").value.trim();
   var cEl=document.getElementById("wContent");
@@ -3373,6 +3446,14 @@ async function submitPost(){
   var reviewedNick=isReview?edState.reviewedNick:null;
   var reviewedUserId=isReview?edState.reviewedUserId:null;
   var commissionPostId=isReview?edState.commissionPostId:null;
+
+  if(edState.poll){ // 투표를 넣었다면 질문 + 선택지 2개 이상 필수
+    edPollSync();
+    var _pq=(edState.poll.question||'').trim();
+    var _pos=edState.poll.options.map(function(o){return (o||'').trim();}).filter(Boolean);
+    if(!_pq){toast('투표 질문을 입력해주세요');return;}
+    if(_pos.length<2){toast('투표 선택지를 2개 이상 입력해주세요');return;}
+  }
 
   if(editingPostId){
     var ep=POSTS.find(function(x){return x.id===editingPostId});
@@ -3431,6 +3512,21 @@ async function submitPost(){
       var savedImgs=await window.supabase.from("post_images").insert(imgRows);
       if(savedImgs.error)console.error(savedImgs.error);
     }
+    // 투표 저장 (있으면): polls 1행 + poll_options 여러 행. RLS가 서버에서 '이 글 작성자만'을 확인.
+    var _newPollId=null;
+    if(edState.poll){
+      var _q=(edState.poll.question||'').trim();
+      var _opts=edState.poll.options.map(function(o){return (o||'').trim();}).filter(Boolean);
+      if(_q&&_opts.length>=2){
+        var pollRes=await window.supabase.from("polls").insert({post_id:saved.data.id,question:_q}).select().single();
+        if(pollRes.error){console.error(pollRes.error);toast("투표 저장 실패: "+pollRes.error.message);}
+        else{
+          var optRows=_opts.map(function(b,i){return {poll_id:pollRes.data.id,body:b,sort:i};});
+          var optIns=await window.supabase.from("poll_options").insert(optRows);
+          if(optIns.error)console.error(optIns.error); else _newPollId=pollRes.data.id;
+        }
+      }
+    }
     refreshMyProfile();
   }
 
@@ -3439,6 +3535,7 @@ async function submitPost(){
     images:edState.images.length?edState.images.slice():undefined,
     dbId:saved&&saved.data?saved.data.id:undefined,authorId:saved&&saved.data?saved.data.author_id:undefined,
     reviewedNickname:reviewedNick,reviewedUserId:reviewedUserId,commissionPostId:commissionPostId,commissionSentiment:sentiment,
+    pollId:(typeof _newPollId!=="undefined"?_newPollId:null),
     html:html,content:text.split("\n").filter(Boolean),comments:[]};
   justAddedId=np.id;setTimeout(function(){justAddedId=null},1800);POSTS.unshift(np);
   closeWrite();state.board=edState.board;state.query="";state.sort="new";state.shown=8;
