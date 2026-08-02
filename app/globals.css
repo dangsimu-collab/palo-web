@@ -297,13 +297,19 @@
   .ed-poll-optrow{display:flex;gap:8px;align-items:center;margin-bottom:8px}
   .ed-poll-optdel{flex-shrink:0;width:34px;height:34px;border:1.5px solid var(--line-2);background:var(--surface);border-radius:9px;font-size:16px;color:var(--muted);cursor:pointer}
   .ed-poll-addopt{margin-top:2px;background:none;border:none;color:var(--brand);font-size:13px;font-weight:800;cursor:pointer}
+  .ed-poll-settings{margin-top:12px;padding-top:12px;border-top:1px solid var(--line-2);display:flex;flex-wrap:wrap;gap:12px 18px}
+  .ed-poll-set{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--ink-2);cursor:pointer}
+  .ed-poll-set input[type=checkbox]{width:16px;height:16px;accent-color:var(--brand)}
+  .ed-poll-close{border:1.5px solid var(--line-2);border-radius:8px;padding:6px 8px;font-family:inherit;font-size:13px;font-weight:700;background:var(--surface);color:var(--ink)}
   /* 글 상세 투표 표시 */
   .poll{margin:16px 0;border:1.5px solid var(--line-2);border-radius:14px;padding:16px}
   .poll-loading{color:var(--muted);font-size:13px;text-align:center;padding:8px}
   .poll-q{font-size:15.5px;font-weight:900;color:var(--ink);margin-bottom:12px;line-height:1.45}
-  .poll-opt{display:block;width:100%;text-align:left;margin-bottom:9px;border:1.5px solid var(--line-2);background:var(--surface);border-radius:12px;padding:13px 15px;font-size:14.5px;font-weight:700;color:var(--ink);cursor:pointer;transition:.14s}
-  .poll-opt:hover{border-color:var(--brand);background:var(--brand-soft)}
+  .poll-tag{font-size:11px;font-weight:800;color:var(--brand);background:var(--brand-soft);border-radius:20px;padding:2px 8px;vertical-align:middle}
+  .poll-tag.closed{color:var(--muted);background:var(--surface-2)}
   .poll-res{position:relative;margin-bottom:9px;border:1.5px solid var(--line-2);border-radius:12px;padding:13px 15px;overflow:hidden;background:var(--surface)}
+  .poll-res.clickable{cursor:pointer;transition:.14s}
+  .poll-res.clickable:hover{border-color:var(--brand);background:var(--brand-soft)}
   .poll-res.mine{border-color:var(--brand)}
   .poll-res-bar{position:absolute;left:0;top:0;bottom:0;background:var(--brand-soft);z-index:0;transition:width .4s cubic-bezier(.4,0,.2,1)}
   .poll-res.mine .poll-res-bar{background:rgba(224,96,122,.28)}

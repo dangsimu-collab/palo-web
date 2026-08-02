@@ -814,31 +814,47 @@ function renderPostDetail(id){
   if(p.pollId)loadPoll(p.pollId);
 }
 /* ===== 글 상세 투표 표시/투표하기 ===== */
-var POLL_CACHE={}; // pollId -> question (결과 RPC엔 질문이 없어 캐시)
 async function loadPoll(pollId){
   var box=document.getElementById('pollBox'); if(!box||!window.supabase)return;
   box.innerHTML='<div class="poll-loading">투표 불러오는 중…</div>';
-  var qres=await window.supabase.from('polls').select('question').eq('id',pollId).single();
-  if(!qres.error&&qres.data)POLL_CACHE[pollId]=qres.data.question;
   var res=await window.supabase.rpc('get_poll_results',{p_poll_id:pollId});
-  if(res.error){box.innerHTML='<div class="poll-loading">투표를 불러오지 못했어요</div>';return;}
+  if(res.error||!res.data){box.innerHTML='<div class="poll-loading">투표를 불러오지 못했어요</div>';return;}
   renderPoll(pollId,res.data);
 }
+function pollDeadlineText(iso){
+  var ms=new Date(iso)-Date.now();
+  if(ms<=0)return '마감됨';
+  var d=Math.floor(ms/86400000), hh=Math.floor(ms/3600000);
+  if(d>=1)return d+'일 남음';
+  if(hh>=1)return hh+'시간 남음';
+  return '곧 마감';
+}
 function renderPoll(pollId,data){
-  var box=document.getElementById('pollBox'); if(!box)return;
-  var opts=data.options||[], total=data.total||0, my=data.my_option, voted=(my!=null);
-  var h='<div class="poll-q">📊 '+esc(POLL_CACHE[pollId]||'투표')+'</div>';
-  if(voted){ // 투표했으면 결과(막대+비율) 표시
-    h+=opts.map(function(o){
-      var pct=total?Math.round(o.count/total*100):0, mine=(o.id===my);
-      return '<div class="poll-res'+(mine?' mine':'')+'"><div class="poll-res-bar" style="width:'+pct+'%"></div>'+
-        '<div class="poll-res-txt"><span>'+(mine?'✓ ':'')+esc(o.body)+'</span><span>'+pct+'% · '+o.count+'표</span></div></div>';
-    }).join('');
-    h+='<div class="poll-total">총 '+total+'표 · 참여 완료</div>';
-  }else{ // 아직 안 했으면 선택 버튼
-    h+=opts.map(function(o){ return '<button class="poll-opt" onclick="votePoll('+pollId+','+o.id+')">'+esc(o.body)+'</button>'; }).join('');
-    h+='<div class="poll-total">'+(AUTH.user?'선택지를 눌러 투표하세요':'로그인 후 투표할 수 있어요')+' · 총 '+total+'표</div>';
-  }
+  var box=document.getElementById('pollBox'); if(!box||!data)return;
+  var opts=data.options||[], total=data.total||0;
+  var mine=data.my_options||[], voted=mine.length>0;
+  var multi=!!data.allow_multiple, closed=!!data.closed;
+  var showBars=voted||closed;                       // 결과 막대를 보일지
+  var h='<div class="poll-q">📊 '+esc(data.question||'투표')+
+    (multi?' <span class="poll-tag">복수 선택</span>':'')+
+    (data.is_anonymous?' <span class="poll-tag">익명</span>':'')+
+    (closed?' <span class="poll-tag closed">마감</span>':'')+'</div>';
+  h+=opts.map(function(o){
+    var isMine=mine.indexOf(o.id)>=0;
+    var pct=total?Math.round(o.count/total*100):0;
+    // 단일: 미투표일 때만 클릭 / 복수: 마감 아니면 항상 토글 가능
+    var clickable=!closed && (multi || !voted);
+    var inner=showBars
+      ? '<div class="poll-res-bar" style="width:'+pct+'%"></div><div class="poll-res-txt"><span>'+(isMine?'✓ ':'')+esc(o.body)+'</span><span>'+pct+'% · '+o.count+'표</span></div>'
+      : '<div class="poll-res-txt"><span>'+(isMine?'✓ ':'')+esc(o.body)+'</span></div>';
+    return '<div class="poll-res'+(isMine?' mine':'')+(clickable?' clickable':'')+'"'+(clickable?' onclick="votePoll('+pollId+','+o.id+')"':'')+'>'+inner+'</div>';
+  }).join('');
+  var foot=['총 '+total+'명 참여'];
+  if(closed)foot.push('마감된 투표');
+  else if(data.closes_at)foot.push(pollDeadlineText(data.closes_at));
+  if(multi&&!closed)foot.push('여러 개 선택 가능(다시 누르면 취소)');
+  if(!voted&&!closed&&!AUTH.user)foot.push('로그인 후 투표');
+  h+='<div class="poll-total">'+foot.join(' · ')+'</div>';
   box.innerHTML=h;
 }
 async function votePoll(pollId,optionId){
@@ -850,9 +866,9 @@ async function votePoll(pollId,optionId){
   if(!data.ok){
     if(data.error==='login_required'){toast('로그인 후 투표할 수 있어요','🔒');loginWithGoogle();return;}
     if(data.error==='already_voted'){toast('이미 투표했어요');renderPoll(pollId,data);return;}
+    if(data.error==='closed'){toast('마감된 투표예요');renderPoll(pollId,data);return;}
     toast('투표할 수 없어요 ('+(data.error||'오류')+')');return;
   }
-  toast('투표 완료! 🗳️');
   renderPoll(pollId,data); // cast_vote가 최신 결과를 함께 반환
 }
 // 이 게시판들은 '다른 사람(작성자 아닌)의 댓글'이 하나라도 달리면 작성자가 수정·삭제 불가(관리자 삭제는 예외).
@@ -3410,8 +3426,11 @@ function edPollSync(){ // 화면(DOM) → edState.poll (재렌더 전에 입력�
   var q=document.getElementById('edPollQ'); if(q)edState.poll.question=q.value;
   var opts=[]; document.querySelectorAll('#edPollOpts .ed-poll-opt-in').forEach(function(inp){opts.push(inp.value);});
   if(opts.length)edState.poll.options=opts;
+  var m=document.getElementById('edPollMulti'); if(m)edState.poll.allowMultiple=m.checked;
+  var a=document.getElementById('edPollAnon'); if(a)edState.poll.anonymous=a.checked;
+  var c=document.getElementById('edPollClose'); if(c)edState.poll.closesDays=c.value?parseInt(c.value,10):null;
 }
-function edPollAdd(){ edState.poll={question:'',options:['','']}; edPollRender(); }
+function edPollAdd(){ edState.poll={question:'',options:['',''],allowMultiple:false,anonymous:false,closesDays:null}; edPollRender(); }
 function edPollRemove(){ edState.poll=null; edPollRender(); }
 function edPollAddOption(){ edPollSync(); if(edState.poll.options.length>=8){toast('선택지는 최대 8개예요');return;} edState.poll.options.push(''); edPollRender(); }
 function edPollRemoveOption(i){ edPollSync(); if(edState.poll.options.length<=2){toast('선택지는 최소 2개가 필요해요');return;} edState.poll.options.splice(i,1); edPollRender(); }
@@ -3426,7 +3445,16 @@ function edPollRender(){
     '<div id="edPollOpts">'+edState.poll.options.map(function(o,i){
       return '<div class="ed-poll-optrow"><input class="ed-poll-opt-in" placeholder="선택지 '+(i+1)+'" value="'+esc(o||'')+'"><button type="button" class="ed-poll-optdel" onclick="edPollRemoveOption('+i+')" title="선택지 삭제">×</button></div>';
     }).join('')+'</div>'+
-    '<button type="button" class="ed-poll-addopt" onclick="edPollAddOption()">+ 선택지 추가</button>';
+    '<button type="button" class="ed-poll-addopt" onclick="edPollAddOption()">+ 선택지 추가</button>'+
+    '<div class="ed-poll-settings">'+
+      '<label class="ed-poll-set"><input type="checkbox" id="edPollMulti"'+(edState.poll.allowMultiple?' checked':'')+'> 복수 선택 허용</label>'+
+      '<label class="ed-poll-set"><input type="checkbox" id="edPollAnon"'+(edState.poll.anonymous?' checked':'')+'> 익명 투표</label>'+
+      '<label class="ed-poll-set"><span>마감</span><select id="edPollClose" class="ed-poll-close">'+
+        [['','없음'],['1','1일 후'],['3','3일 후'],['7','7일 후'],['14','14일 후']].map(function(o){
+          return '<option value="'+o[0]+'"'+((String(edState.poll.closesDays||'')===o[0])?' selected':'')+'>'+o[1]+'</option>';
+        }).join('')+
+      '</select></label>'+
+    '</div>';
 }
 async function submitPost(){
   var t=document.getElementById("wTitle").value.trim();
@@ -3518,7 +3546,9 @@ async function submitPost(){
       var _q=(edState.poll.question||'').trim();
       var _opts=edState.poll.options.map(function(o){return (o||'').trim();}).filter(Boolean);
       if(_q&&_opts.length>=2){
-        var pollRes=await window.supabase.from("polls").insert({post_id:saved.data.id,question:_q}).select().single();
+        var _closesAt=edState.poll.closesDays?new Date(Date.now()+edState.poll.closesDays*86400000).toISOString():null;
+        var pollRes=await window.supabase.from("polls").insert({post_id:saved.data.id,question:_q,
+          allow_multiple:!!edState.poll.allowMultiple,is_anonymous:!!edState.poll.anonymous,closes_at:_closesAt}).select().single();
         if(pollRes.error){console.error(pollRes.error);toast("투표 저장 실패: "+pollRes.error.message);}
         else{
           var optRows=_opts.map(function(b,i){return {poll_id:pollRes.data.id,body:b,sort:i};});
