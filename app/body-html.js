@@ -141,21 +141,6 @@ export const BODY_HTML = `
         </span>
       </div>
 
-      <!-- 서식 툴바 -->
-      <div class="ed-toolbar" id="edToolbar">
-        <button title="굵게" onmousedown="fmt(event,'bold')"><span class="ei" style="font-weight:900">B</span></button>
-        <button title="기울임" onmousedown="fmt(event,'italic')"><span class="ei" style="font-style:italic;font-family:serif">I</span></button>
-        <button title="밑줄" onmousedown="fmt(event,'underline')"><span class="ei" style="text-decoration:underline">U</span></button>
-        <span class="ed-div"></span>
-        <button title="글자색" onmousedown="fmt(event,'foreColor','#bf400c')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.5-.8 1-1.5-.5-.8 0-1.5 1-1.5h1a4 4 0 0 0 4-4c0-5-3-9-8-9z"/><circle cx="7.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="10.5" r="1" fill="currentColor" stroke="none"/></svg></button>
-        <button title="형광펜" onmousedown="fmt(event,'hiliteColor','#fbe9c8')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10-4-4L4 16v4z"/><path d="M13 7l4 4"/></svg></button>
-        <span class="ed-div"></span>
-        <button title="목록" onmousedown="fmt(event,'insertUnorderedList')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-        <button title="인용" onmousedown="insertQuote(event)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h4v6H7c0-3 0-4 2-6M15 7h4v6h-4c0-3 0-4 2-6"/></svg></button>
-        <span class="ed-div"></span>
-        <button title="이미지" onmousedown="pickImage(event)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5-5 4 3 3-2 4 4"/></svg></button>
-      </div>
-
       <!-- 본문 (contenteditable) -->
       <p class="ed-content-hint" id="edContentHint" style="display:none">한 줄 후기도 좋아요 — 내용 없이 별점만 남겨도 괜찮아요.</p>
       <div id="wContent" class="ed-content" contenteditable="true"
@@ -168,6 +153,21 @@ export const BODY_HTML = `
       <div id="edPollBox" class="ed-poll-box" style="display:none"></div>
       <button type="button" id="edPollAddBtn" class="ed-poll-addbtn" onclick="edPollAdd()">📊 투표 추가</button>
 
+      <!-- 서식 툴바 (투표 추가 아래) -->
+      <div class="ed-toolbar" id="edToolbar">
+        <button title="굵게" onmousedown="fmt(event,'bold')"><span class="ei" style="font-weight:900">B</span><span class="ed-tool-lbl">굵게</span></button>
+        <button title="기울임" onmousedown="fmt(event,'italic')"><span class="ei" style="font-style:italic;font-family:serif">I</span><span class="ed-tool-lbl">기울임</span></button>
+        <button title="밑줄" onmousedown="fmt(event,'underline')"><span class="ei" style="text-decoration:underline">U</span><span class="ed-tool-lbl">밑줄</span></button>
+        <span class="ed-div"></span>
+        <button title="글자색" onmousedown="fmt(event,'foreColor','#bf400c')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.5-.8 1-1.5-.5-.8 0-1.5 1-1.5h1a4 4 0 0 0 4-4c0-5-3-9-8-9z"/><circle cx="7.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="10.5" r="1" fill="currentColor" stroke="none"/></svg><span class="ed-tool-lbl">글자색</span></button>
+        <button title="형광펜" onmousedown="fmt(event,'hiliteColor','#fbe9c8')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10-4-4L4 16v4z"/><path d="M13 7l4 4"/></svg><span class="ed-tool-lbl">형광펜</span></button>
+        <span class="ed-div"></span>
+        <button title="목록" onmousedown="fmt(event,'insertUnorderedList')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span class="ed-tool-lbl">목록</span></button>
+        <button title="인용" onmousedown="insertQuote(event)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h4v6H7c0-3 0-4 2-6M15 7h4v6h-4c0-3 0-4 2-6"/></svg><span class="ed-tool-lbl">인용</span></button>
+        <span class="ed-div"></span>
+        <button title="이미지" onmousedown="pickImage(event)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5-5 4 3 3-2 4 4"/></svg><span class="ed-tool-lbl">이미지</span></button>
+      </div>
+
       <!-- 옵션 -->
       <div class="ed-options">
         <label class="ed-opt"><input type="checkbox" id="edCrit"><span>크리틱(피드백) 받고 싶어요</span></label>
@@ -177,14 +177,6 @@ export const BODY_HTML = `
     </div>
   </div>
 
-  <!-- mobile bottom quick toolbar -->
-  <div class="ed-mobilebar">
-    <button onmousedown="pickImage(event)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5-5 4 3 3-2 4 4"/></svg></button>
-    <button onmousedown="fmt(event,'bold')"><span class="ei" style="font-weight:900">B</span></button>
-    <button onmousedown="fmt(event,'foreColor','#bf400c')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.5-.8 1-1.5-.5-.8 0-1.5 1-1.5h1a4 4 0 0 0 4-4c0-5-3-9-8-9z"/><circle cx="7.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="10.5" r="1" fill="currentColor" stroke="none"/></svg></button>
-    <button onmousedown="fmt(event,'insertUnorderedList')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-    <button onmousedown="insertQuote(event)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h4v6H7c0-3 0-4 2-6M15 7h4v6h-4c0-3 0-4 2-6"/></svg></button>
-  </div>
 </div>
 
 
