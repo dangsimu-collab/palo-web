@@ -456,7 +456,7 @@ function StatCard({ label, value }) {
 const BOARD_LABELS = {
   talk: '수다 광장',
   ask: '질문/시세문의',
-  vote: '투표·수요조사',
+  vote: '투표/수요조사',
   wip: '작업물',
   doodle: '낙서',
   crit: '피드백 요청',
