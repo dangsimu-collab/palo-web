@@ -458,6 +458,7 @@ const BOARD_LABELS = {
   ask: '질문/시세문의',
   vote: '투표·수요조사',
   wip: '작업물',
+  doodle: '낙서/자유 그림',
   crit: '피드백 요청',
   sketch: '그림공부',
   challenge: '챌린지',
