@@ -1470,9 +1470,51 @@ async function cmAdjustBonus(commissionId,newValue){
     cmRecScores[commissionId]=b.final_score; // 추천 순위(목록)도 즉시 반영
   }
   toast("추가 점수를 "+data.value+"점으로 조정했어요 (상한 "+data.cap+")");
+  // 화면에 떠 있는 관리자 뷰를 그 자리에서 갱신(순서는 유지, 값·최종만 갱신)
+  var mgmtRow=document.getElementById('cm-mgmt-'+commissionId);
+  if(mgmtRow){mgmtRow.outerHTML=cmMgmtRowHTML(commissionId);return;}
   var d=cmData.find(function(x){return x.id===commissionId;});
   var el=document.querySelector('.cm-adminscore');
-  if(d&&el)el.outerHTML=cmAdminScoreHTML(d);   // 패널만 다시 그림(값·최종 갱신)
+  if(d&&el)el.outerHTML=cmAdminScoreHTML(d);   // 상세 패널만 다시 그림(값·최종 갱신)
+}
+/* 관리자 커미션 추천 관리 목록 — 접수중 커미션을 최종 점수 순으로, 요소 요약 + 그 자리 +/- 조정 */
+async function openAdminCommissionMgmt(){
+  if(!AUTH.profile||!AUTH.profile.is_admin||!window.supabase)return;
+  if(!cmDataLoaded)await cmLoadCommissions();
+  else if(!Object.keys(cmRecBreakdown).length)await cmLoadRecBreakdown();
+  renderAdminCommissionMgmt();
+}
+function cmMgmtRowHTML(id){
+  var b=cmRecBreakdown[id]; var d=cmData.find(function(x){return x.id===+id;});
+  if(!b||!d)return '';
+  return '<div class="cm-mgmt" id="cm-mgmt-'+d.id+'">'+
+    '<div class="cm-mgmt-info" onclick="cmOpenCommissionById('+d.id+')">'+
+      '<div class="cm-mgmt-title">'+esc(d.title)+'</div>'+
+      '<div class="cm-mgmt-sub">'+esc(d.artist)+' · 최종 <b>'+b.final_score+'</b> <span class="cm-mgmt-dim">(자동 '+b.auto_score+' + 추가 '+b.admin_bonus+')</span></div>'+
+      '<div class="cm-mgmt-factors">호'+b.ho_rate+' · 활'+b.activity_score+' · 후'+b.reviewcnt_score+' · 작'+b.ws_score+' · 인'+b.pop_score+' · 신'+b.new_score+(b.gated?' · <span class="cm-mgmt-gate">⚠️게이트</span>':'')+'</div>'+
+    '</div>'+
+    '<div class="cm-mgmt-ctrl">'+
+      '<button onclick="cmAdjustBonus('+d.id+',0)" title="0으로">0</button>'+
+      '<button onclick="cmAdjustBonus('+d.id+','+(b.admin_bonus-5)+')">−5</button>'+
+      '<button onclick="cmAdjustBonus('+d.id+','+(b.admin_bonus-1)+')">−1</button>'+
+      '<b class="cm-mgmt-bonus">'+b.admin_bonus+'</b>'+
+      '<button onclick="cmAdjustBonus('+d.id+','+(b.admin_bonus+1)+')">+1</button>'+
+      '<button onclick="cmAdjustBonus('+d.id+','+(b.admin_bonus+5)+')">+5</button>'+
+    '</div>'+
+  '</div>';
+}
+function renderAdminCommissionMgmt(){
+  var ids=Object.keys(cmRecBreakdown).filter(function(id){return cmData.some(function(x){return x.id===+id;});});
+  ids.sort(function(a,b){return cmRecBreakdown[b].final_score-cmRecBreakdown[a].final_score;});
+  var h='<div class="profile">'+
+    '<button class="d-back" onclick="openProfile()">← 내 정보로</button>'+
+    '<div class="pf-sec">🎯 커미션 추천 관리 ('+ids.length+')</div>'+
+    '<div class="cm-mgmt-note">접수중 커미션만 점수가 매겨져요(마감 제외). 최종 점수 높은 순. 아래 +/−로 관리자 추가 점수(0~30)를 바로 조정하면 순위에 반영돼요. 요약: 호(후기율)·활(작가활동)·후(후기개수)·작(작업물)·인(인기)·신(신규).</div>';
+  if(!ids.length)h+='<div class="pf-empty">접수중 커미션이 없어요.</div>';
+  else h+='<div class="cm-mgmt-list">'+ids.map(cmMgmtRowHTML).join('')+'</div>';
+  h+='</div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
 }
 function cmComputeTopTags(){
   var counts={};
@@ -4146,6 +4188,7 @@ function renderMyProfile(){
          '<button class="pf-edit" onclick="openReviewAnalysis()">🔍 후기 분석'+(function(){var n=reviewSuspicionCountSync();return n?' <span style="background:#e0607a;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:800">'+n+'</span>':'';})()+'</button>'+
          '<button class="pf-edit" onclick="openManagerPickList()">📌 매니저 픽 관리</button>'+
          '<button class="pf-edit" onclick="openAdminDeletionLog()">🗑 삭제 기록</button>'+
+         '<button class="pf-edit" onclick="openAdminCommissionMgmt()">🎯 커미션 추천 관리</button>'+
          '<button class="pf-edit" onclick="openCommissionBonusLog()">⭐ 추천 점수 조정 기록</button>'+
        '</div>';
   }
