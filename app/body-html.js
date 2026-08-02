@@ -141,19 +141,7 @@ export const BODY_HTML = `
         </span>
       </div>
 
-      <!-- 본문 (contenteditable) -->
-      <p class="ed-content-hint" id="edContentHint" style="display:none">한 줄 후기도 좋아요 — 내용 없이 별점만 남겨도 괜찮아요.</p>
-      <div id="wContent" class="ed-content" contenteditable="true"
-        ondragover="onEditorDragOver(event)" ondragleave="onEditorDragLeave(event)" ondrop="onEditorDrop(event)"
-        data-ph="이야기를 자유롭게 적어 주세요. 커서를 원하는 위치에 두고 위 🖼 버튼으로 그림을 그 자리에 넣을 수 있어요. 이미지 파일을 끌어다 놓아도 돼요."></div>
-      <input type="file" id="edFile" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="onImage(event)">
-      <div id="edImages" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"></div>
-
-      <!-- 투표 첨부 -->
-      <div id="edPollBox" class="ed-poll-box" style="display:none"></div>
-      <button type="button" id="edPollAddBtn" class="ed-poll-addbtn" onclick="edPollAdd()">📊 투표 추가</button>
-
-      <!-- 서식 툴바 (투표 추가 아래) -->
+      <!-- 서식 툴바 (제목 아래·본문 위, 스크롤해도 상단 고정) -->
       <div class="ed-toolbar" id="edToolbar">
         <button title="굵게" onmousedown="fmt(event,'bold')"><span class="ei" style="font-weight:900">B</span><span class="ed-tool-lbl">굵게</span></button>
         <button title="기울임" onmousedown="fmt(event,'italic')"><span class="ei" style="font-style:italic;font-family:serif">I</span><span class="ed-tool-lbl">기울임</span></button>
@@ -167,6 +155,18 @@ export const BODY_HTML = `
         <span class="ed-div"></span>
         <button title="이미지" onmousedown="pickImage(event)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5-5 4 3 3-2 4 4"/></svg><span class="ed-tool-lbl">이미지</span></button>
       </div>
+
+      <!-- 본문 (contenteditable) -->
+      <p class="ed-content-hint" id="edContentHint" style="display:none">한 줄 후기도 좋아요 — 내용 없이 별점만 남겨도 괜찮아요.</p>
+      <div id="wContent" class="ed-content" contenteditable="true"
+        ondragover="onEditorDragOver(event)" ondragleave="onEditorDragLeave(event)" ondrop="onEditorDrop(event)"
+        data-ph="이야기를 자유롭게 적어 주세요. 커서를 원하는 위치에 두고 위 🖼 버튼으로 그림을 그 자리에 넣을 수 있어요. 이미지 파일을 끌어다 놓아도 돼요."></div>
+      <input type="file" id="edFile" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="onImage(event)">
+      <div id="edImages" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"></div>
+
+      <!-- 투표 첨부 -->
+      <div id="edPollBox" class="ed-poll-box" style="display:none"></div>
+      <button type="button" id="edPollAddBtn" class="ed-poll-addbtn" onclick="edPollAdd()">📊 투표 추가</button>
 
       <!-- 옵션 -->
       <div class="ed-options">

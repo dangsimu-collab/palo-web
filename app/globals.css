@@ -343,7 +343,7 @@
   .ed-sentiment-btn.good.on{background:linear-gradient(120deg,#7cc38a,#5aab8f);border-color:transparent;color:#fff}
   .ed-sentiment-btn.bad.on{background:linear-gradient(120deg,#e0837a,#c05a5a);border-color:transparent;color:#fff}
   .ed-content-hint{font-size:12.5px;color:var(--muted);margin:8px 0 6px}
-  .ed-toolbar{display:flex;align-items:stretch;gap:4px;flex-wrap:wrap;margin:14px 0;padding:8px;background:var(--surface-2);border:1.5px solid var(--line-2);border-radius:14px}
+  .ed-toolbar{display:flex;align-items:stretch;gap:4px;flex-wrap:wrap;margin:12px 0;padding:8px;background:var(--surface-2);border:1.5px solid var(--line-2);border-radius:14px;position:sticky;top:0;z-index:2;box-shadow:0 3px 10px rgba(0,0,0,.05)}
   .ed-toolbar button{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:52px;padding:8px 6px;border:none;background:none;border-radius:11px;color:var(--ink-2);cursor:pointer;transition:.12s}
   .ed-toolbar button:hover{background:var(--surface);color:var(--brand)}
   .ed-toolbar button .ic{width:18px;height:18px}
