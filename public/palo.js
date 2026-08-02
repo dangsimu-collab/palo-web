@@ -41,7 +41,7 @@ var TREND=[
 ];
 var GRADS={t1:"#6b7d63,#414f3a",t2:"#7a5a8a,#493a58",t3:"#c2410c,#8a2f08",t4:"#3a5674,#26384c",t5:"#b08968,#7a5c42"};
 var state={board:"all",sort:"new",query:"",shown:8,tag:null,viewMode:"list"};
-var PER=40;var page=1;var READ=new Set();var FOLLOW=new Set();
+var PER=40;var page=1;var READ=new Set();var FOLLOW=new Set();var FOLLOW_NAME={}; // FOLLOW=팔로우한 회원 id들, FOLLOW_NAME[id]=닉(표시용)
 var ME={nick:"나"};
 var AUTH={user:null,profile:null};
 var SETTINGS={cm:true,like:true,notice:true,chat:true,cminquiry:true};
@@ -387,11 +387,13 @@ async function applySession(session){
     }
     // 이미 알림 권한을 켠 유저면 로그인 시 이 계정으로 구독을 확실히 저장(기기별 1회)
     if(typeof subscribeToPush==="function"&&notifPermState()==="granted")subscribeToPush();
+    loadMyFollows(); // 내 팔로우 목록 로드
   }else{
     ME.nick="나";
     globalChatNotifUserId=null;
     unsubscribeFromNotifications();
     NOTIFS=NOTIFS.filter(function(n){return !n.dbId});
+    FOLLOW=new Set();FOLLOW_NAME={}; // 로그아웃 시 팔로우 비움
     syncNotifBadge();
   }
   if(document.getElementById("myProfileView"))openProfile();
@@ -759,7 +761,7 @@ function openPost(id){
   userLeftHome=true;
   resetScreens();
   leaveChat();
-  var p=POSTS.find(function(x){return x.id===id});if(!p)return;p.views++;READ.add(id);
+  var p=POSTS.find(function(x){return x.id===id});if(!p)return;p.views++;READ.add(id);saveRead();
   if(p.dbId&&window.supabase)window.supabase.rpc("increment_post_views",{p_id:p.dbId}).then(function(){});
   if(p.dbId){
     var targetPath="/post/"+p.dbId;
@@ -786,7 +788,7 @@ function renderPostDetail(id){
   var h='<div class="detail"><div class="d-grip"></div><button class="d-back" onclick="renderList()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>목록으로</button>'+
     '<div class="d-head"><div class="line1"><span class="cat '+c.cls+'">'+c.label+'</span>'+(p.isManagerPick?'<span class="pick-badge">📌 매니저 픽</span>':'')+(p.reviewedNickname?'<span class="pick-badge">🎨 @'+esc(p.reviewedNickname)+' 후기</span>':'')+'</div><h1 class="serif">'+esc(p.title)+'</h1>'+
     '<div class="d-author"><div class="d-ava serif">'+avatarHTML(p.author,p.authorAvatar)+'</div><div class="d-au-info"><div class="n"'+(p.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+levelBadgeHtml(p.authorLevel,"lv-badge")+'</div><div class="meta">'+p.time+' · 조회 '+fmtViews(p.views)+'</div></div>'+
-    '<button class="d-follow'+(FOLLOW.has(p.author)?' following':'')+'" id="followBtn" onclick="toggleFollow(\''+esc(p.author)+'\','+p.id+')">'+(FOLLOW.has(p.author)?'팔로잉 ✓':'＋ 팔로우')+'</button></div></div>'+
+    ((p.authorId&&(!AUTH.user||p.authorId!==AUTH.user.id))?('<button class="d-follow'+(FOLLOW.has(p.authorId)?' following':'')+'" id="followBtn" onclick="toggleFollow(\''+esc(p.authorId)+'\',\''+esc(p.author)+'\')">'+(FOLLOW.has(p.authorId)?'팔로잉 ✓':'＋ 팔로우')+'</button>'):'')+'</div></div>'+
     canvas+'<div class="d-content">'+(safeHtml?safeHtml:p.content.map(function(x){return'<p>'+esc(x)+'</p>'}).join(""))+'</div>'+
     (p.pollId?'<div class="poll" id="pollBox"></div>':'')+
     '<div class="d-actions"><button class="d-act'+liked+'" id="likeBtn" onclick="toggleLike('+p.id+')">'+likeIconSvg(p._liked)+'좋아요 '+p.likes+'</button>'+
@@ -4404,8 +4406,9 @@ function renderMyProfile(){
      '<div class="pf-st"><b>'+cmSum+'</b><span>받은 댓글</span></div></div>';
   if(FOLLOW.size){
     h+='<div class="pf-sec">팔로잉</div><div class="pf-follow">';
-    Array.from(FOLLOW).forEach(function(n){
-      h+='<span class="pf-fl">'+esc(dispName(n))+'<button onclick="unfollowFromProfile(\''+esc(n)+'\')">언팔로우</button></span>';
+    Array.from(FOLLOW).forEach(function(uid){
+      var nm=FOLLOW_NAME[uid]||"회원";
+      h+='<span class="pf-fl">'+esc(nm)+'<button onclick="unfollowFromProfile(\''+esc(uid)+'\')">언팔로우</button></span>';
     });
     h+='</div>';
   }
@@ -4468,7 +4471,14 @@ function pfScrollAfterRender(){
   }
   window.scrollTo({top:0,behavior:"smooth"});
 }
-function unfollowFromProfile(n){FOLLOW.delete(n);toast(dispName(n)+"님 팔로우를 취소했어요");openProfile();}
+async function unfollowFromProfile(uid){
+  if(!AUTH.user||!window.supabase)return;
+  var del=await window.supabase.from("follows").delete().eq("follower_id",AUTH.user.id).eq("followee_id",uid);
+  if(del.error){toast("처리 실패: "+del.error.message);return;}
+  var nm=FOLLOW_NAME[uid]||"회원";
+  FOLLOW.delete(uid);
+  toast(dispName(nm)+"님 팔로우를 취소했어요");openProfile();
+}
 async function openAdminReports(){
   var res=await window.supabase.from("reports").select("*").eq("resolved",false).order("created_at",{ascending:false});
   if(res.error){toast("불러오기 실패: "+res.error.message);return;}
@@ -5020,14 +5030,36 @@ function openRules(){document.getElementById("rulesModal").classList.add("open")
 function closeRules(){document.getElementById("rulesModal").classList.remove("open");document.body.style.overflow="";}
 
 // ===== 팔로우 =====
-function toggleFollow(name,pid){
-  if(FOLLOW.has(name)){FOLLOW.delete(name);toast(dispName(name)+"님 팔로우를 취소했어요");}
-  else{FOLLOW.add(name);toast(dispName(name)+"님을 팔로우했어요","✓");}
+async function toggleFollow(followeeId,nickname){
+  if(!AUTH.user){toast("로그인 후 팔로우할 수 있어요","🔒");loginWithGoogle();return;}
+  if(!followeeId||followeeId===AUTH.user.id||!window.supabase)return;
+  var following=FOLLOW.has(followeeId);
+  if(following){
+    var del=await window.supabase.from("follows").delete().eq("follower_id",AUTH.user.id).eq("followee_id",followeeId);
+    if(del.error){toast("처리 실패: "+del.error.message);return;}
+    FOLLOW.delete(followeeId);
+    toast(dispName(nickname)+"님 팔로우를 취소했어요");
+  }else{
+    var ins=await window.supabase.from("follows").insert({follower_id:AUTH.user.id,followee_id:followeeId});
+    if(ins.error){toast("처리 실패: "+ins.error.message);return;}
+    FOLLOW.add(followeeId);
+    if(nickname)FOLLOW_NAME[followeeId]=nickname;
+    toast(dispName(nickname)+"님을 팔로우했어요","✓");
+  }
   var btn=document.getElementById("followBtn");
-  if(btn){
-    var following=FOLLOW.has(name);
-    btn.classList.toggle("following",following);
-    btn.textContent=following?"팔로잉 ✓":"＋ 팔로우";
+  if(btn){var f=FOLLOW.has(followeeId);btn.classList.toggle("following",f);btn.textContent=f?"팔로잉 ✓":"＋ 팔로우";}
+}
+// 로그인 시 내 팔로우 목록을 DB에서 불러옴(회원 id 기준 + 표시용 닉)
+async function loadMyFollows(){
+  FOLLOW=new Set();FOLLOW_NAME={};
+  if(!AUTH.user||!window.supabase)return;
+  var f=await window.supabase.from("follows").select("followee_id").eq("follower_id",AUTH.user.id);
+  if(f.error)return;
+  var ids=(f.data||[]).map(function(x){return x.followee_id;});
+  ids.forEach(function(id){FOLLOW.add(id);});
+  if(ids.length){
+    var pr=await window.supabase.from("profiles").select("id,nickname").in("id",ids);
+    (pr.data||[]).forEach(function(p){FOLLOW_NAME[p.id]=p.nickname;});
   }
 }
 
@@ -5215,6 +5247,10 @@ syncNotifBadge();
 // 재진입 시 즉시 표시: 지난번 피드를 캐시에서 꺼내 바로 그림(빈 스켈레톤 대기 없이).
 // 곧이어 initAuth→loadRealPosts가 최신 데이터로 교체함. 딥링크(글·유저)나 이미 다른 화면으로
 // 이동한 경우엔 캐시로 홈을 그리지 않음.
+// 읽은 글(READ) 표시를 기기에 저장(localStorage) — 새로고침해도 유지. 최근 1000개까지만.
+function loadReadCache(){ try{var a=JSON.parse(localStorage.getItem("palo_read")||"[]");if(Array.isArray(a))READ=new Set(a);}catch(e){} }
+function saveRead(){ try{var a=Array.from(READ);if(a.length>1000)a=a.slice(a.length-1000);localStorage.setItem("palo_read",JSON.stringify(a));}catch(e){} }
+loadReadCache();
 (function primeFromCache(){
   if(getPostIdFromPath()||getUserIdFromPath()||userLeftHome)return;
   if(!window.supabase)return; // supabase 없는 로컬 데모는 기존 폴백에 맡김

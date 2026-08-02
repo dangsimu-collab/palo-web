@@ -906,6 +906,12 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
   - **뷰어**: 내 정보 > 🛡 관리자 메뉴 > "🗑 삭제 기록"(`openAdminDeletionLog`가 행을 `ADMIN_DEL_LOG`에 캐시→`renderAdminDeletionLog`, `.del-log*`, 최근 100건 카드 — 게시판·시각·제목·본문 발췌·작성자·삭제관리자·사유·알림발송여부).
   - **보관본**: 카드 클릭 → `openArchivedPost(logId)`→`renderArchivedPost(row)` — 스냅샷으로 원본 글 상세를 읽기 전용 재구성(붉은 `.archived-banner`에 삭제 관리자·시각·사유·알림여부, 이어서 원본 제목·작성자·작성시각·이미지·서식 본문). `catFor`/`sanitizePostHtml`/`avatarHTML` 재사용. 이 기능 추가(2026-08-01) 이전 삭제분은 새 컬럼이 null이라 텍스트 본문만 보임.
 
+### 팔로우 저장 + 읽은 글 표시 저장 (2026-08-02, "작동하지만 저장 안 되던" 데이터 수정)
+전체 점검 중 **팔로우가 로컬 전용(휘발성)**이었음을 발견 — `FOLLOW` Set만 바꾸고 DB 저장·로드 전혀 없어 새로고침 시 사라짐, 게다가 닉네임 기준. 회원 ID 기준으로 DB화.
+- **DB `follows`**: `(follower_id, followee_id)` 복합 PK(중복 방지), 둘 다 `profiles(id)` FK `on delete cascade`, `check(follower_id<>followee_id)`(자기 팔로우 금지). RLS: select/insert/delete 전부 `follower_id = auth.uid()`(본인 것만, `commission_bookmarks`와 동일 원칙).
+- **클라(`public/palo.js`)**: `FOLLOW`=팔로우한 **회원 id** Set, `FOLLOW_NAME[id]=닉`(표시용). `loadMyFollows()`(applySession 로그인 시 호출, 로그아웃 시 비움)가 내 follows+닉 로드. `toggleFollow(followeeId,nickname)`가 follows insert/delete(로그인 필수·자기 팔로우 무시). 글 상세 팔로우 버튼은 `p.authorId` 기준, **본인 글엔 숨김**. 프로필 "팔로잉" 목록·`unfollowFromProfile(uid)`도 id 기준. (기존 닉 기반 데모 코드 완전 대체.)
+- **읽은 글 표시(READ)**: 화면 표시 편의라 DB 대신 **localStorage**(`palo_read`, 최근 1000개)에 저장 — `loadReadCache()`(부팅 시), `saveRead()`(openPost에서 READ.add 후). 새로고침해도 "본 글" 흐림 표시 유지. 기기별.
+
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:
 1. **1차(채팅만, 이후 폐기된 설계)**: `messages` 테이블을 직접 실시간 구독해서 클라이언트가 알림을 만드는 방식으로 시작 — 그런데 이러면 "지금 내가 참여 중인 대화방 id 목록"을 클라이언트가 직접 관리해야 하고, 새로 생긴 대화방을 놓치는 등 허점이 많았음.
