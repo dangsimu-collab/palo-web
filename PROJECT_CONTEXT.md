@@ -954,6 +954,13 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **`public/palo.js`**: `getBoardFromPath()`(`/^\/board\/([a-z]+)$/`, **BOARDS에 있는 유효 id만** 반환·'all'·미지의 id는 null=홈). **`renderList()`가 URL을 게시판 기반으로 관리** — `state.query`(검색) 중이 아니면 `state.board!=="all"`→`/board/{board}`(pushState, 경로 다를 때만=보드 전환 시에만 히스토리 추가; 정렬·태그·페이지 변경은 같은 경로라 push 안 함), "all"→"/". `document.title`도 게시판명으로. 부팅: **`state` 정의 직후 IIFE로 `getBoardFromPath()`면 `state.board`를 그걸로** 세팅(파싱 시점 — 이후 renderNav·primeFromCache·dispatcher가 그 게시판을 그림, wantPath===현재라 클robber 없음). popstate: `getBoardFromPath()`면 `selectBoard(id)`, "/"로 돌아오면 `state.board!=="all"`일 때 `selectBoard("all")`(브라우저가 이미 경로 바꿔서 push 재발 안 함). `selectBoard`는 그대로(renderList가 URL 처리).
 - 검증(dev): `/board/talk` 직접방문→탭 "수다 광장 · commi"·목록·URL 유지, in-app 전환(suggest→/board/suggest·"버그·건의사항 · commi", all→"/", doodle→/board/doodle·"낙서"), 콘솔 무에러.
 
+### 검색엔진 최적화(SEO) 인프라 (2026-08-04 추가)
+검색 등록(구글·네이버)을 위해 사이트맵·robots·메타 기준 추가.
+- **`app/sitemap.js`**(Next 네이티브 sitemap, `revalidate=3600`=1시간마다 재생성): `https://commi.kr` 기준. 정적(`/`,`/terms`,`/privacy`) + 게시판 14개(`/board/{id}` — **성인 'adult' 제외**) + posts(`/post/{id}`, **`board!=='adult'` 필터**, 최근 5000) + **진행중(open) 커미션**(`/commission/{id}`, 최근 2000). anon supabase 클라이언트로 id 조회. 검증(dev): 56 URL·post·commission 포함 확인.
+- **`app/robots.js`**: `allow /`, `disallow /admin`, sitemap `https://commi.kr/sitemap.xml`, host commi.kr.
+- **`app/layout.js`**: `metadataBase: new URL("https://commi.kr")`(OG·정규 URL 기준) + 기본 `openGraph`(siteName commi, type website) + description 보강.
+- **남은 것(사용자 대시보드 작업)**: 네이버 서치어드바이저·구글 서치콘솔에 사이트 등록 + 소유확인(메타태그 방식이면 layout.js에 인증 문자열 추가 예정) + 사이트맵 제출. ⚠️ 인증 후 색인까지 며칠~몇 주 걸림.
+
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:
 1. **1차(채팅만, 이후 폐기된 설계)**: `messages` 테이블을 직접 실시간 구독해서 클라이언트가 알림을 만드는 방식으로 시작 — 그런데 이러면 "지금 내가 참여 중인 대화방 id 목록"을 클라이언트가 직접 관리해야 하고, 새로 생긴 대화방을 놓치는 등 허점이 많았음.

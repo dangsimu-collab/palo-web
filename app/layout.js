@@ -3,8 +3,16 @@ import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
 
 export const metadata = {
+  metadataBase: new URL("https://commi.kr"),
   title: "commi · 그림 그리는 사람들의 커뮤니티",
-  description: "그림 그리는 사람들을 위한 커뮤니티 commi",
+  description: "그림 그리는 사람들을 위한 커뮤니티 commi. 창작 이야기·피드백·커미션까지, 잘 그린 그림보다 그리는 이야기가 먼저인 곳.",
+  openGraph: {
+    title: "commi · 그림 그리는 사람들의 커뮤니티",
+    description: "그림 그리는 사람들을 위한 커뮤니티 commi",
+    url: "https://commi.kr",
+    siteName: "commi",
+    type: "website",
+  },
   icons: {
     icon: [{ url: "/favicon-32.png", sizes: "32x32", type: "image/png" }, { url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
     apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
