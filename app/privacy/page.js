@@ -13,7 +13,7 @@ export default function PrivacyPage() {
     <main className="legal-wrap">
       <a className="legal-home" href="/">← commi로 돌아가기</a>
       <h1 className="legal-title">개인정보 처리방침</h1>
-      <p className="legal-sub">시행일: <B>[공개일 기재]</B></p>
+      <p className="legal-sub">시행일: 2026년 8월 3일</p>
 
       <div className="legal-doc">
         <h2>제1조 (총칙)</h2>
@@ -89,9 +89,9 @@ export default function PrivacyPage() {
         <h2>제10조 (개인정보의 관리책임자 및 민원 처리)</h2>
         <p>회사는 개인정보 처리에 관한 업무를 총괄해서 책임지고, 개인정보 처리와 관련된 회원의 민원 처리 및 피해 구제를 위해 다음과 같이 개인정보 관리책임자를 지정하고 있습니다.</p>
         <ul>
-          <li>성명: <B>[대표자 성함]</B></li>
+          <li>성명: 전승우</li>
           <li>직위: 디자인마켓 대표</li>
-          <li>이메일: <B>[문의 이메일 주소]</B></li>
+          <li>이메일: yssj1202@gmail.com</li>
         </ul>
         <p>회원은 언제든지 자신의 개인정보를 조회하거나 수정할 수 있으며, 회원 탈퇴 또는 관리책임자에 대한 요청을 통해 개인정보의 열람·정정·삭제·처리정지를 요구할 수 있습니다. 회사는 요청을 받은 경우 지체 없이 필요한 조치를 합니다.</p>
         <p>회원은 회사의 자체적인 개인정보 처리와 관련된 민원 처리, 피해 구제 결과에 만족하지 못하거나 보다 자세한 도움이 필요한 경우 아래 기관에 문의할 수 있습니다.</p>
@@ -101,7 +101,7 @@ export default function PrivacyPage() {
           <li>경찰청 사이버수사국: (국번없이) 182 / https://ecrm.police.go.kr</li>
         </ul>
 
-        <p className="legal-foot">본 방침은 <B>[공개일 기재]</B>부터 시행됩니다.</p>
+        <p className="legal-foot">본 방침은 2026년 8월 3일부터 시행됩니다.</p>
       </div>
     </main>
   );
