@@ -19,12 +19,13 @@ var BOARDS=[
     {id:"recruit",name:"커미션 구인",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"13.5\" cy=\"6.5\" r=\"1\"/><circle cx=\"17.5\" cy=\"10.5\" r=\"1\"/><circle cx=\"8.5\" cy=\"7.5\" r=\"1\"/><circle cx=\"6.5\" cy=\"12.5\" r=\"1\"/><path d=\"M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c1.4 0 2.5-1.1 2.5-2.5 0-.6-.2-1.2-.6-1.6-.4-.4-.6-.9-.6-1.4 0-1.1.9-2 2-2H16c3.3 0 6-2.7 6-6 0-5-4.5-8.5-10-8.5z\"/></svg>"},
     {id:"used",name:"중고 장비",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 12l8-8h6a2 2 0 0 1 2 2v6l-8 8z\"/><circle cx=\"15\" cy=\"9\" r=\"1.4\" fill=\"currentColor\" stroke=\"none\"/></svg>"}]},
   {group:"기타",items:[
+    {id:"suggest",name:"버그·건의사항",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z\"/><path d=\"M12 9v3M12 15h.01\"/></svg>"},
     {id:"adult",name:"에치치",icon:"<span class=\"ic\" style=\"font-size:18px;line-height:1\">🔞</span>"}]}
 ];
 var CATMAP={talk:{label:"수다",cls:"talk-c"},ask:{label:"고민",cls:"help-c"},crit:{label:"피드백",cls:"crit-c"},
   wip:{label:"작업과정",cls:"crit-c"},doodle:{label:"낙서",cls:"talk-c"},tip:{label:"팁",cls:"tip-c"},challenge:{label:"챌린지",cls:"chal-c"},collab:{label:"협업",cls:"help-c"},
   sketch:{label:"그림공부",cls:"tip-c"},trade:{label:"거래",cls:"free-c"},used:{label:"거래",cls:"free-c"},
-  review:{label:"후기",cls:"free-c"},vote:{label:"투표",cls:"chal-c"},request:{label:"리퀘스트",cls:"free-c"},recruit:{label:"구인",cls:"free-c"},adult:{label:"에치치",cls:"help-c"}};
+  review:{label:"후기",cls:"free-c"},vote:{label:"투표",cls:"chal-c"},request:{label:"리퀘스트",cls:"free-c"},recruit:{label:"구인",cls:"free-c"},adult:{label:"에치치",cls:"help-c"},suggest:{label:"건의",cls:"chal-c"}};
 
 var postsLoaded=false; // loadRealPosts()가 실제 글을 POSTS에 합친 뒤 true — 이 전에는 데모 글로 renderList()를 강제로 돌리지 않음(로그인 리다이렉트 직후 더미 글이 잠깐 보이는 버그 방지)
 var userLeftHome=false; // 초기 로딩이 끝나기 전에 사용자가 피드(홈) 밖 화면(커미션/채팅/글쓰기/프로필/글·유저 상세)으로 이동했으면 true — loadRealPosts() 완료 시 홈으로 강제 복귀시키지 않기 위함
@@ -3159,7 +3160,7 @@ var TAGS_BY_BOARD={
   talk:["잡담","질문","정보"],ask:["질문","시세문의"],crit:["피드백 요청"],
   wip:["러프","선화","채색","완성"],sketch:["러프","선화","채색"],tip:["강좌","꿀팁","자료"],challenge:["참가작"],
   vote:["투표","수요조사"],request:["모집중","모집완료","리퀘완료","후기글"],recruit:["개인용","비상업용","방송용","상업용","외주"],
-  trade:["구인","구직"],used:["판매","구매"]
+  trade:["구인","구직"],used:["판매","구매"],suggest:["버그","건의","개선"]
 };
 var edState={board:null,tag:null,img:false,images:[]};
 var editingPostId=null;

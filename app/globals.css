@@ -365,13 +365,14 @@
   .ed-sentiment-btn.good.on{background:linear-gradient(120deg,#7cc38a,#5aab8f);border-color:transparent;color:#fff}
   .ed-sentiment-btn.bad.on{background:linear-gradient(120deg,#e0837a,#c05a5a);border-color:transparent;color:#fff}
   .ed-content-hint{font-size:12.5px;color:var(--muted);margin:8px 0 6px}
-  .ed-toolbar{display:flex;align-items:stretch;gap:4px;flex-wrap:wrap;margin:12px 0;padding:8px;background:var(--surface-2);border:1.5px solid var(--line-2);border-radius:14px;position:sticky;top:0;z-index:2;box-shadow:0 3px 10px rgba(0,0,0,.05)}
-  .ed-toolbar button{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:52px;padding:8px 6px;border:none;background:none;border-radius:11px;color:var(--ink-2);cursor:pointer;transition:.12s}
+  .ed-toolbar{display:flex;align-items:center;gap:2px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:12px 0;padding:5px 6px;background:var(--surface-2);border:1.5px solid var(--line-2);border-radius:12px;position:sticky;top:0;z-index:2;box-shadow:0 3px 10px rgba(0,0,0,.05)}
+  .ed-toolbar::-webkit-scrollbar{height:0}
+  .ed-toolbar button{display:inline-flex;align-items:center;justify-content:center;min-width:0;flex:none;height:36px;box-sizing:border-box;padding:0 10px;border:none;background:none;border-radius:9px;color:var(--ink-2);cursor:pointer;transition:.12s}
   .ed-toolbar button:hover{background:var(--surface);color:var(--brand)}
   .ed-toolbar button .ic{width:18px;height:18px}
-  .ed-toolbar button .ei{font-size:15px}
-  .ed-tool-lbl{font-size:10.5px;font-weight:800;line-height:1;letter-spacing:-.02em}
-  .ed-toolbar .ed-div{width:1px;align-self:center;height:28px;background:var(--line-2);margin:0 4px}
+  .ed-toolbar button .ei{font-size:15px;line-height:1}
+  .ed-tool-lbl{display:none}
+  .ed-toolbar .ed-div{width:1px;align-self:center;height:20px;background:var(--line-2);margin:0 3px;flex:none}
   .ed-content{min-height:300px;padding:20px 2px;font-size:15.5px;line-height:1.85;color:var(--ink);outline:none;border-radius:14px;transition:background-color .12s,box-shadow .12s}
   .ed-content:empty::before{content:attr(data-ph);color:var(--muted-2);font-weight:400}
   .ed-content img{max-width:100%;border-radius:16px;margin:12px 0;display:block;box-shadow:var(--sh-xs)}
