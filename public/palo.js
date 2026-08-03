@@ -292,8 +292,10 @@ async function loadRealPosts(skipRender){
     var initialDbId=getPostIdFromPath();
     var initialPost=initialDbId?POSTS.find(function(x){return x.dbId===initialDbId}):null;
     var initialUserId=getUserIdFromPath();
+    var initialCommissionId=getCommissionIdFromPath();
     if(initialPost)openPost(initialPost.id);
     else if(initialUserId)openUserProfile(initialUserId);
+    else if(initialCommissionId)cmOpenCommissionById(initialCommissionId);
     else renderList();
   }
   renderSidebarAd();
@@ -307,6 +309,24 @@ function sharePost(id){
   var url=p.dbId?(location.origin+"/post/"+p.dbId):location.href;
   if(navigator.clipboard&&navigator.clipboard.writeText){
     navigator.clipboard.writeText(url).then(function(){toast("링크를 복사했어요")},function(){toast("복사에 실패했어요")});
+  }else{
+    toast("이 브라우저에서는 복사를 지원하지 않아요");
+  }
+}
+function getCommissionIdFromPath(){
+  var m=location.pathname.match(/^\/commission\/(\d+)$/);
+  return m?parseInt(m[1],10):null;
+}
+function _cmSetDetailUrl(id){ // 커미션 상세 주소를 브라우저 URL에 반영(공유·SEO). 히스토리 항목은 enterScreen이 이미 쌓았으니 현재 항목의 경로만 교체.
+  if(id==null)return;
+  var path="/commission/"+id;
+  if(location.pathname!==path){try{history.replaceState({},"",path);}catch(e){}}
+}
+function cmShare(id){
+  if(id==null){toast("이 커미션은 아직 공유할 수 없어요");return;}
+  var url=location.origin+"/commission/"+id;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(function(){toast("커미션 링크를 복사했어요","🔗")},function(){toast("복사에 실패했어요")});
   }else{
     toast("이 브라우저에서는 복사를 지원하지 않아요");
   }
@@ -340,8 +360,10 @@ window.addEventListener("popstate",function(){
   var dbId=getPostIdFromPath();
   var post=dbId?POSTS.find(function(x){return x.dbId===dbId}):null;
   var userId=getUserIdFromPath();
+  var commissionId=getCommissionIdFromPath();
   if(post)openPost(post.id);
   else if(userId)openUserProfile(userId);
+  else if(commissionId)cmOpenCommissionById(commissionId);
   // 구글 로그인 리다이렉트 직후 Supabase가 URL의 인증 토큰을 정리하면서 popstate 이벤트를
   // 발생시키는 경우가 있음 — 그때 postsLoaded가 아직 false면(실제 글을 아직 못 불러온 상태)
   // 더미 글로 목록을 그리지 않고 기다림(loadRealPosts()가 끝나면 스스로 그림).
@@ -1858,6 +1880,7 @@ async function openCommissionList(){
   userLeftHome=true;
   if(!navigatingBack)resetScreens();
   enterScreen("cmList",goHome);
+  if(location.pathname!=="/"){try{history.replaceState({},"","/");}catch(e){}} // 상세(/commission/id)에서 목록으로 오면 주소 초기화
   closeDrawer();closeSheet();syncTabs("commission");
   // 이미 커미션 리스트 화면(#cmGrid 존재)이면 셸을 다시 안 그리고 스크롤만 → refreshCommissions가
   // 새 커미션 있을 때만 그리드를 딱 한 번 갱신(껌뻑임 없이). 다른 화면/뒤로에서 왔으면 캐시로 즉시 셸 렌더.
@@ -2106,12 +2129,14 @@ async function cmEnsureCommissionInData(commissionId){
   return cmData.length-1;
 }
 async function cmOpenCommissionById(commissionId){
+  userLeftHome=true; // 부팅 딥링크(/commission/id) 시 홈 재렌더가 상세를 덮어쓰지 않게
   var idx=await cmEnsureCommissionInData(commissionId);
   if(idx<0){toast('커미션을 찾을 수 없어요(삭제되었을 수 있어요)');return;}
   enterScreen("cmDetail",cmDetailBack);
   closeDrawer();closeSheet();syncTabs("commission");
   cmDetailCtx={from:'list',idx:idx};
   document.getElementById("main").innerHTML=cmDetailHTML(cmData[idx],idx);
+  _cmSetDetailUrl(cmData[idx].id);
   window.scrollTo({top:0,behavior:'smooth'});
   cmLoadWorksamples(cmData[idx].id);
 }
@@ -2151,7 +2176,7 @@ function cmDetailHTML(d,idx){
     '<div class="cm-d-top"><div class="cm-left"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></div>'+
       '<div class="cm-right">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6 6l1.5 1.5M18 6l-1.5 1.5M6 18l1.5-1.5M18 18l-1.5-1.5"/></svg>'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V4M8 8l4-4 4 4"/><path d="M4 15v5h16v-5"/></svg>'+
+        '<svg onclick="cmShare('+(d.id!=null?d.id:'null')+')" style="cursor:pointer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V4M8 8l4-4 4 4"/><path d="M4 15v5h16v-5"/></svg>'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>'+
       '</div></div>'+
     '<div class="cm-slider" style="background:'+sliderBg+'"><div class="cm-dots"><i class="on"></i><i></i><i></i><i></i><i></i></div></div>'+
@@ -2203,6 +2228,7 @@ function cmOpenDetail(idx){
   cmDetailCtx={from:'list',idx:idx};
   var d=cmData[idx];
   document.getElementById("main").innerHTML=cmDetailHTML(d,idx);
+  _cmSetDetailUrl(d.id);
   window.scrollTo({top:0,behavior:"smooth"});
   cmLoadWorksamples(d.id);
   // 조회수 +1 (추천 점수의 '인기' 요소에 쓰임) — 서버에서 증가, 조작 방지 위해 딱 이 동작만 하는 RPC
@@ -3746,7 +3772,7 @@ var mSearch=document.getElementById("searchInputM");if(mSearch)mSearch.addEventL
 document.addEventListener("keydown",function(e){if(e.key==="Escape"){closeWrite();closeDrawer();closeSheet()}});
 
 renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
-if(!getPostIdFromPath()&&!getUserIdFromPath()){
+if(!getPostIdFromPath()&&!getUserIdFromPath()&&!getCommissionIdFromPath()){
   renderChips();renderHot();
   // renderTrend()는 이제 실제 글의 인기 순위를 보여주므로 loadRealPosts()가 끝난 뒤에 그림(아래 참고).
   // 실제 글은 loadRealPosts()가 곧 채워줌 — 여기서 더미 글로 renderList()를 한 번 더 돌리면
@@ -5448,7 +5474,7 @@ function loadReadCache(){ try{var a=JSON.parse(localStorage.getItem("palo_read")
 function saveRead(){ try{var a=Array.from(READ);if(a.length>1000)a=a.slice(a.length-1000);localStorage.setItem("palo_read",JSON.stringify(a));}catch(e){} }
 loadReadCache();
 (function primeFromCache(){
-  if(getPostIdFromPath()||getUserIdFromPath()||userLeftHome)return;
+  if(getPostIdFromPath()||getUserIdFromPath()||getCommissionIdFromPath()||userLeftHome)return;
   if(!window.supabase)return; // supabase 없는 로컬 데모는 기존 폴백에 맡김
   var cached=loadFeedCache();
   if(cached&&cached.length){

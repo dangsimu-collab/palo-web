@@ -942,6 +942,12 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **`app/globals.css`**: `.login-modal`/`.login-desc`/`.gsi-wrap`/`.login-hint`/`.login-alt`.
 - 검증(dev): GIS 로드·모달·구글 버튼 렌더·nonce·폴백·signInWithIdToken 지원 확인. **⚠️ 실제 로그인 종단 테스트는 원본 저장(+전파 5분~) 후 버릴 계정으로 필요**(자동화 브라우저엔 구글 세션이 없어 팝업 종단 테스트 불가). 폴백 링크가 있어 GIS가 막혀도 로그인 잠기지 않음.
 
+### 커미션 상세 URL(공유·SEO) (2026-08-04 추가)
+글(`/post/{id}`)·프로필(`/user/{id}`)은 실제 URL이 있었지만 **커미션은 `screenStack`으로만 열려 URL이 없어**(commi.kr 고정) 공유·SEO 불가였음. 커미션 상세에 `/commission/{id}` 부여.
+- **라우트 `app/commission/[id]/page.js`**: 서버 컴포넌트 + `generateMetadata`(commissions에서 `title`·`description`·첫 `commission_images` 조회 → title/description/OG image) + `<PaloApp/>` 렌더. 직접 방문·크롤러 대응.
+- **`public/palo.js`**: `getCommissionIdFromPath()`(`/^\/commission\/(\d+)$/`), `_cmSetDetailUrl(id)`(상세 렌더 시 `history.replaceState`로 주소 반영 — 히스토리 항목은 enterScreen이 이미 쌓음), `cmShare(id)`(링크 복사). 상세 여는 `cmOpenCommissionById`/`cmOpenDetail`가 렌더 후 `_cmSetDetailUrl` 호출. `cmOpenCommissionById`에 **`userLeftHome=true`** 추가(부팅 딥링크가 홈 재렌더에 안 덮이게 — openPost 패턴). 부팅 dispatcher(loadRealPosts 내)·popstate 라우팅에 커미션 분기 추가. **핵심 버그**: 부팅 시 `primeFromCache()`와 초기 렌더 가드가 post·user만 체크하고 **commission을 빠뜨려** 캐시 홈 렌더(`renderList()`가 URL을 "/"로 리셋)가 딥링크를 덮어씀 → 두 가드(`primeFromCache` line·`if(!getPostIdFromPath()&&...)`)에 `getCommissionIdFromPath()` 추가로 해결. `openCommissionList`는 목록 복귀 시 `replaceState "/"`로 주소 초기화. 상세 헤더의 기존 비활성 공유 아이콘(위쪽 화살표)을 `cmShare(d.id)`로 연결.
+- 검증(dev): `/commission/2` 직접방문 → 탭 제목 "1 · commi"(메타데이터)·상세 렌더·URL 유지·공유아이콘 연결, in-app 상세 열기 시 URL `/commission/{id}` 반영, 콘솔 무에러. ⚠️ 뒤로가기/공유 복사는 실기기 최종 확인 권장. **남은 것**: 게시판 목록 URL(`/board/{id}` 등)은 미구현(별도 작업).
+
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:
 1. **1차(채팅만, 이후 폐기된 설계)**: `messages` 테이블을 직접 실시간 구독해서 클라이언트가 알림을 만드는 방식으로 시작 — 그런데 이러면 "지금 내가 참여 중인 대화방 id 목록"을 클라이언트가 직접 관리해야 하고, 새로 생긴 대화방을 놓치는 등 허점이 많았음.
