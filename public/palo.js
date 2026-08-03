@@ -42,6 +42,7 @@ var TREND=[
 ];
 var GRADS={t1:"#6b7d63,#414f3a",t2:"#7a5a8a,#493a58",t3:"#c2410c,#8a2f08",t4:"#3a5674,#26384c",t5:"#b08968,#7a5c42"};
 var state={board:"all",sort:"new",query:"",shown:8,tag:null,viewMode:"list"};
+(function(){try{var _b=getBoardFromPath();if(_b)state.board=_b;}catch(e){}})(); // /board/{id} 딥링크면 시작 게시판을 그걸로
 var PER=40;var page=1;var READ=new Set();var FOLLOW=new Set();var FOLLOW_NAME={}; // FOLLOW=팔로우한 회원 id들, FOLLOW_NAME[id]=닉(표시용)
 var ME={nick:"나"};
 var AUTH={user:null,profile:null};
@@ -317,6 +318,14 @@ function getCommissionIdFromPath(){
   var m=location.pathname.match(/^\/commission\/(\d+)$/);
   return m?parseInt(m[1],10):null;
 }
+function getBoardFromPath(){ // /board/{id} — 유효한 게시판 id만 반환('all'·미지의 id는 null=홈)
+  var m=location.pathname.match(/^\/board\/([a-z]+)$/);
+  if(!m)return null;
+  var id=m[1];
+  if(id==="all")return null;
+  for(var g of BOARDS)for(var b of g.items)if(b.id===id)return id;
+  return null;
+}
 function _cmSetDetailUrl(id){ // 커미션 상세 주소를 브라우저 URL에 반영(공유·SEO). 히스토리 항목은 enterScreen이 이미 쌓았으니 현재 항목의 경로만 교체.
   if(id==null)return;
   var path="/commission/"+id;
@@ -361,13 +370,15 @@ window.addEventListener("popstate",function(){
   var post=dbId?POSTS.find(function(x){return x.dbId===dbId}):null;
   var userId=getUserIdFromPath();
   var commissionId=getCommissionIdFromPath();
+  var boardId=getBoardFromPath();
   if(post)openPost(post.id);
   else if(userId)openUserProfile(userId);
   else if(commissionId)cmOpenCommissionById(commissionId);
+  else if(boardId)selectBoard(boardId);
   // 구글 로그인 리다이렉트 직후 Supabase가 URL의 인증 토큰을 정리하면서 popstate 이벤트를
   // 발생시키는 경우가 있음 — 그때 postsLoaded가 아직 false면(실제 글을 아직 못 불러온 상태)
   // 더미 글로 목록을 그리지 않고 기다림(loadRealPosts()가 끝나면 스스로 그림).
-  else if(postsLoaded||!window.supabase)renderList();
+  else if(postsLoaded||!window.supabase){if(state.board!=="all")selectBoard("all");else renderList();}
 });
 
 /* ---------- 로그인 (Supabase Auth) ---------- */
@@ -809,7 +820,11 @@ if(typeof document!=="undefined"){
 }
 function renderList(){
   leaveChat();
-  if(location.pathname!=="/"){history.pushState({},"","/");document.title="commi · 그림 그리는 사람들의 커뮤니티";}
+  if(!state.query){ // 게시판별 URL(공유·SEO). 검색 중엔 주소를 바꾸지 않음.
+    var _wantPath=(state.board!=="all")?("/board/"+state.board):"/";
+    if(location.pathname!==_wantPath){history.pushState({},"",_wantPath);}
+    document.title=(state.board!=="all")?(boardName(state.board)+" · commi"):"commi · 그림 그리는 사람들의 커뮤니티";
+  }
   var main=document.getElementById("main");var arr=filteredPosts();
   var sub=state.query?('"'+esc(state.query)+'" 검색 결과 '+arr.length+'건'):(state.sort==="new"?"방금 올라온 이야기부터":"반응 많은 순으로");
   var h='<div class="board-head">'+

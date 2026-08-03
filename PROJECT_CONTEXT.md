@@ -946,7 +946,13 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 글(`/post/{id}`)·프로필(`/user/{id}`)은 실제 URL이 있었지만 **커미션은 `screenStack`으로만 열려 URL이 없어**(commi.kr 고정) 공유·SEO 불가였음. 커미션 상세에 `/commission/{id}` 부여.
 - **라우트 `app/commission/[id]/page.js`**: 서버 컴포넌트 + `generateMetadata`(commissions에서 `title`·`description`·첫 `commission_images` 조회 → title/description/OG image) + `<PaloApp/>` 렌더. 직접 방문·크롤러 대응.
 - **`public/palo.js`**: `getCommissionIdFromPath()`(`/^\/commission\/(\d+)$/`), `_cmSetDetailUrl(id)`(상세 렌더 시 `history.replaceState`로 주소 반영 — 히스토리 항목은 enterScreen이 이미 쌓음), `cmShare(id)`(링크 복사). 상세 여는 `cmOpenCommissionById`/`cmOpenDetail`가 렌더 후 `_cmSetDetailUrl` 호출. `cmOpenCommissionById`에 **`userLeftHome=true`** 추가(부팅 딥링크가 홈 재렌더에 안 덮이게 — openPost 패턴). 부팅 dispatcher(loadRealPosts 내)·popstate 라우팅에 커미션 분기 추가. **핵심 버그**: 부팅 시 `primeFromCache()`와 초기 렌더 가드가 post·user만 체크하고 **commission을 빠뜨려** 캐시 홈 렌더(`renderList()`가 URL을 "/"로 리셋)가 딥링크를 덮어씀 → 두 가드(`primeFromCache` line·`if(!getPostIdFromPath()&&...)`)에 `getCommissionIdFromPath()` 추가로 해결. `openCommissionList`는 목록 복귀 시 `replaceState "/"`로 주소 초기화. 상세 헤더의 기존 비활성 공유 아이콘(위쪽 화살표)을 `cmShare(d.id)`로 연결.
-- 검증(dev): `/commission/2` 직접방문 → 탭 제목 "1 · commi"(메타데이터)·상세 렌더·URL 유지·공유아이콘 연결, in-app 상세 열기 시 URL `/commission/{id}` 반영, 콘솔 무에러. ⚠️ 뒤로가기/공유 복사는 실기기 최종 확인 권장. **남은 것**: 게시판 목록 URL(`/board/{id}` 등)은 미구현(별도 작업).
+- 검증(dev): `/commission/2` 직접방문 → 탭 제목 "1 · commi"(메타데이터)·상세 렌더·URL 유지·공유아이콘 연결, in-app 상세 열기 시 URL `/commission/{id}` 반영, 콘솔 무에러. ⚠️ 뒤로가기/공유 복사는 실기기 최종 확인 권장. **게시판 목록 URL(`/board/{id}`)도 2026-08-04 추가**(아래).
+
+### 게시판 목록 URL(공유·SEO) (2026-08-04 추가)
+게시판 선택은 `state.board`만 바꾸고 URL은 항상 "/"였음(공유·SEO 불가). `/board/{id}` 부여.
+- **라우트 `app/board/[board]/page.js`**: 서버 컴포넌트 + `generateMetadata`(게시판 id→이름 맵 `BOARD_NAMES`로 title "이름 · commi"). 미지의 id는 기본 title. `<PaloApp/>` 렌더.
+- **`public/palo.js`**: `getBoardFromPath()`(`/^\/board\/([a-z]+)$/`, **BOARDS에 있는 유효 id만** 반환·'all'·미지의 id는 null=홈). **`renderList()`가 URL을 게시판 기반으로 관리** — `state.query`(검색) 중이 아니면 `state.board!=="all"`→`/board/{board}`(pushState, 경로 다를 때만=보드 전환 시에만 히스토리 추가; 정렬·태그·페이지 변경은 같은 경로라 push 안 함), "all"→"/". `document.title`도 게시판명으로. 부팅: **`state` 정의 직후 IIFE로 `getBoardFromPath()`면 `state.board`를 그걸로** 세팅(파싱 시점 — 이후 renderNav·primeFromCache·dispatcher가 그 게시판을 그림, wantPath===현재라 클robber 없음). popstate: `getBoardFromPath()`면 `selectBoard(id)`, "/"로 돌아오면 `state.board!=="all"`일 때 `selectBoard("all")`(브라우저가 이미 경로 바꿔서 push 재발 안 함). `selectBoard`는 그대로(renderList가 URL 처리).
+- 검증(dev): `/board/talk` 직접방문→탭 "수다 광장 · commi"·목록·URL 유지, in-app 전환(suggest→/board/suggest·"버그·건의사항 · commi", all→"/", doodle→/board/doodle·"낙서"), 콘솔 무에러.
 
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:
