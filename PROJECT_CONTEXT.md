@@ -933,6 +933,15 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **서식 도구바(`.ed-toolbar`, body-html.js `#edToolbar`)를 아이콘만 한 줄로**: 기존엔 아이콘+글자라벨(`.ed-tool-lbl`)이 세로로 쌓이고 `flex-wrap:wrap`이라 여러 줄이 됐음 → **`.ed-tool-lbl{display:none}`으로 라벨 숨김**, `flex-wrap:nowrap`+`overflow-x:auto`(넘치면 가로 스크롤, 스크롤바 숨김), 버튼 `height:36px` 고정으로 세로 정렬 통일(텍스트 B/I/U 31px vs 아이콘 34px 어긋남 해결). 각 버튼 `title`(툴팁) 유지. 검증: 데스크톱·모바일(375px) 모두 한 줄·넘침 없음(모바일 scrollWidth 337=clientWidth). 8개 버튼: 굵게/기울임/밑줄 | 글자색/형광펜 | 목록/인용 | 이미지.
 - **버그·건의사항 게시판 추가**: `BOARDS`의 "기타" 그룹에 `{id:"suggest",name:"버그·건의사항",icon:말풍선+!}` 추가(에치치 위). `buildBoardMenu`가 BOARDS를 그대로 순회하므로 **왼쪽 드로어 메뉴·글쓰기 게시판 선택 둘 다 자동 반영**. `CATMAP.suggest={label:"건의",cls:"chal-c"}`(카드 뱃지), `TAGS_BY_BOARD.suggest=["버그","건의","개선"]`(말머리). 일반 게시판과 동일 동작(수정·삭제 잠금 대상 아님).
 
+### 구글 로그인 GIS 방식 전환 (2026-08-03) — supabase.co 도메인 노출 제거
+문제: 기존 `signInWithOAuth`는 로그인 시 브라우저가 `qabbdgfottbnapmyjudy.supabase.co`를 경유 → 구글 동의 화면·알림 메일에 그 랜덤 supabase 주소가 표시됨(사용자가 스팸처럼 보인다고 지적, 실제 스크린샷 확인). 무료 브랜딩(앱 이름 commi)만으론 이 **도메인 표시**를 못 바꿈(로그인이 내 소유 아닌 supabase.co에서 일어나서). 유료 커스텀 도메인($35/월) 대안으로 **Google Identity Services(GIS) + `signInWithIdToken`** 채택(무료). commi.kr에서 직접 구글 팝업 로그인 → 받은 ID 토큰만 Supabase에 전달(supabase.co 리다이렉트 없음).
+- **구글 클라우드 설정(사용자 수동)**: OAuth 클라이언트 "팔로 테스트"(Client ID `622866923710-mcbkmbrcvnv0o3a7uefjqaqr6e5afbhk.apps.googleusercontent.com`, 공개값)의 **승인된 JavaScript 원본**에 `https://commi.kr`·`https://palo-web-nu.vercel.app`·`http://localhost:3000` 추가. 리디렉션 URI(supabase 콜백)는 그대로 둠.
+- **`app/PaloApp.js`**: GIS 스크립트 `https://accounts.google.com/gsi/client` 로드(afterInteractive).
+- **`public/palo.js`**: `loginWithGoogle()` 재작성 — GIS 준비됐으면 `openLoginModal()`, 아직이면 잠깐 대기 후 없으면 **기존 `signInWithOAuth` 리다이렉트로 폴백**(`_loginRedirectFallback`). `openLoginModal()`이 nonce 생성(raw=base64(32바이트), hashed=SHA-256 hex — 구글엔 hashed, Supabase엔 raw 전달)→`google.accounts.id.initialize`(ux_mode popup)→모달에 공식 구글 버튼 `renderButton`. `onGoogleCredential`이 `supabase.auth.signInWithIdToken({provider:'google',token,nonce})` 호출→성공 시 세션 생성(onAuthStateChange→applySession이 프로필·동의게이트 처리). `GOOGLE_CLIENT_ID` 상수.
+- **`app/body-html.js`**: `#loginModal`(공식 버튼 담을 `#gsiButton` + 안내 + **안전장치 "다른 방법으로 로그인" 링크**=`_loginRedirectFallback`). 기존 모든 `loginWithGoogle()` 호출부(~11곳: 로그인 필요 프롬프트·프로필 로그인 버튼)는 그대로 이 모달을 열게 됨.
+- **`app/globals.css`**: `.login-modal`/`.login-desc`/`.gsi-wrap`/`.login-hint`/`.login-alt`.
+- 검증(dev): GIS 로드·모달·구글 버튼 렌더·nonce·폴백·signInWithIdToken 지원 확인. **⚠️ 실제 로그인 종단 테스트는 원본 저장(+전파 5분~) 후 버릴 계정으로 필요**(자동화 브라우저엔 구글 세션이 없어 팝업 종단 테스트 불가). 폴백 링크가 있어 GIS가 막혀도 로그인 잠기지 않음.
+
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:
 1. **1차(채팅만, 이후 폐기된 설계)**: `messages` 테이블을 직접 실시간 구독해서 클라이언트가 알림을 만드는 방식으로 시작 — 그런데 이러면 "지금 내가 참여 중인 대화방 id 목록"을 클라이언트가 직접 관리해야 하고, 새로 생긴 대화방을 놓치는 등 허점이 많았음.

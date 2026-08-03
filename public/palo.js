@@ -400,8 +400,55 @@ async function applySession(session){
   }
   if(document.getElementById("myProfileView"))openProfile();
 }
+// ===== 구글 로그인 (GIS = commi.kr에서 직접 처리, supabase.co 안 거침) =====
+var GOOGLE_CLIENT_ID="622866923710-mcbkmbrcvnv0o3a7uefjqaqr6e5afbhk.apps.googleusercontent.com";
+function _gisReady(){return !!(window.google&&window.google.accounts&&window.google.accounts.id);}
 function loginWithGoogle(){
+  if(_gisReady()){openLoginModal();return;}
+  // GIS가 아직 로드 전 — 잠깐 기다렸다가, 그래도 없으면 기존 리다이렉트 방식으로 폴백(안전장치)
+  var tries=0;
+  var iv=setInterval(function(){
+    tries++;
+    if(_gisReady()){clearInterval(iv);openLoginModal();}
+    else if(tries>=20){clearInterval(iv);_loginRedirectFallback();}
+  },150);
+}
+function _loginRedirectFallback(){
   window.supabase.auth.signInWithOAuth({provider:"google",options:{redirectTo:window.location.origin}});
+}
+async function _makeLoginNonce(){
+  var nonce=btoa(String.fromCharCode.apply(null,crypto.getRandomValues(new Uint8Array(32))));
+  var buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(nonce));
+  var hashed=Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,"0");}).join("");
+  return {nonce:nonce,hashed:hashed};
+}
+async function openLoginModal(){
+  var m=document.getElementById("loginModal");if(!m)return;
+  var hint=document.getElementById("loginHint");if(hint)hint.textContent="";
+  var n;
+  try{n=await _makeLoginNonce();}catch(e){_loginRedirectFallback();return;}
+  google.accounts.id.initialize({
+    client_id:GOOGLE_CLIENT_ID,
+    callback:function(resp){onGoogleCredential(resp,n.nonce);},
+    nonce:n.hashed,
+    ux_mode:"popup",
+    auto_select:false,
+    cancel_on_tap_outside:true
+  });
+  m.classList.add("open");document.body.style.overflow="hidden";
+  var btn=document.getElementById("gsiButton");if(btn){btn.innerHTML="";
+    try{google.accounts.id.renderButton(btn,{theme:"outline",size:"large",type:"standard",text:"continue_with",shape:"pill",logo_alignment:"center",width:260,locale:"ko"});}catch(e){}
+  }
+}
+function closeLoginModal(){var m=document.getElementById("loginModal");if(m)m.classList.remove("open");document.body.style.overflow="";}
+async function onGoogleCredential(resp,rawNonce){
+  var hint=document.getElementById("loginHint");if(hint)hint.textContent="로그인 중…";
+  try{
+    var r=await window.supabase.auth.signInWithIdToken({provider:"google",token:resp.credential,nonce:rawNonce});
+    if(r.error){if(hint)hint.textContent="로그인 실패: "+r.error.message;toast("로그인 실패: "+r.error.message);return;}
+    closeLoginModal();toast("로그인했어요","✓");
+    // 세션 반영은 onAuthStateChange→applySession이 처리(프로필 로드·동의 게이트 등)
+  }catch(e){if(hint)hint.textContent="로그인 오류: "+((e&&e.message)||e);}
 }
 // ===== 이용약관·개인정보 처리방침 동의 (신규 가입 시 필수) =====
 // agreed_at이 비어있는 신규 가입자만 표시. 동의하면 서버(agree_to_terms)에 시각 기록.

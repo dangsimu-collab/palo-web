@@ -339,6 +339,15 @@ export const BODY_HTML = `
     <button class="consent-decline" onclick="declineConsent()">동의하지 않고 로그아웃</button>
   </div>
 </div>
+<div class="rules-scrim" id="loginModal" onclick="if(event.target===this)closeLoginModal()">
+  <div class="rules login-modal">
+    <h3>commi 시작하기</h3>
+    <p class="login-desc">구글 계정으로 간편하게 시작해요.</p>
+    <div id="gsiButton" class="gsi-wrap"></div>
+    <p class="login-hint" id="loginHint"></p>
+    <button class="login-alt" onclick="_loginRedirectFallback()">로그인이 안 되나요? 다른 방법으로 로그인</button>
+  </div>
+</div>
 <div class="rules-scrim" id="pfEditModal" onclick="if(event.target===this)closePfEdit()">
   <div class="rules">
     <h3>✏️ 소개글 · 링크 편집</h3>
