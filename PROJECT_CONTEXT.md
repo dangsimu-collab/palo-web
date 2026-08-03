@@ -959,7 +959,8 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **`app/sitemap.js`**(Next 네이티브 sitemap, `revalidate=3600`=1시간마다 재생성): `https://commi.kr` 기준. 정적(`/`,`/terms`,`/privacy`) + 게시판 14개(`/board/{id}` — **성인 'adult' 제외**) + posts(`/post/{id}`, **`board!=='adult'` 필터**, 최근 5000) + **진행중(open) 커미션**(`/commission/{id}`, 최근 2000). anon supabase 클라이언트로 id 조회. 검증(dev): 56 URL·post·commission 포함 확인.
 - **`app/robots.js`**: `allow /`, `disallow /admin`, sitemap `https://commi.kr/sitemap.xml`, host commi.kr.
 - **`app/layout.js`**: `metadataBase: new URL("https://commi.kr")`(OG·정규 URL 기준) + 기본 `openGraph`(siteName commi, type website) + description 보강.
-- **남은 것(사용자 대시보드 작업)**: 네이버 서치어드바이저·구글 서치콘솔에 사이트 등록 + 소유확인(메타태그 방식이면 layout.js에 인증 문자열 추가 예정) + 사이트맵 제출. ⚠️ 인증 후 색인까지 며칠~몇 주 걸림.
+- **소유확인 메타태그(2026-08-04)**: `layout.js`의 `metadata.verification`에 구글(`google`)·네이버(`other["naver-site-verification"]`) 인증값 추가 → `<meta name="google-site-verification">`·`<meta name="naver-site-verification">` 렌더(검증 완료).
+- **남은 것(사용자 대시보드 작업)**: 네이버 서치어드바이저·구글 서치콘솔에서 "확인" 눌러 소유확인 완료 + 사이트맵(`sitemap.xml`) 제출 + 홈 색인 요청. ⚠️ 인증 후 색인까지 며칠~몇 주 걸림.
 
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:

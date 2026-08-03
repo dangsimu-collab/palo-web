@@ -13,6 +13,12 @@ export const metadata = {
     siteName: "commi",
     type: "website",
   },
+  verification: {
+    google: "547vvUq82RlyN5pw6cBSJ8jExJyDfVv90lmBogdjnLk",
+    other: {
+      "naver-site-verification": "8b684f46a203c43796176b8879d101320ca47d4e",
+    },
+  },
   icons: {
     icon: [{ url: "/favicon-32.png", sizes: "32x32", type: "image/png" }, { url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
     apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
