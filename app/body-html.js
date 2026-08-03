@@ -68,7 +68,7 @@ export const BODY_HTML = `
   </aside>
 </div>
 
-<footer><div class="wrap">commi · 그림 그리는 사람들의 커뮤니티 · 잘 그린 그림보다 그리는 이야기가 먼저인 곳<div class="foot-biz">상호 디자인마켓 · 대표 전승우 · 사업자등록번호 685-14-02733 · 통신판매업 신고 2025-강원원주-00895<br>주소 강원특별자치도 원주시 무실동 2025 (제일풍경채원주무실) 103동 3201호 · 문의 yssj1202@gmail.com</div><div class="foot-links"><a href="/terms">이용약관</a> · <a href="/privacy">개인정보 처리방침</a></div></div></footer>
+<footer><div class="wrap">commi · 그림 그리는 사람들의 커뮤니티 · 잘 그린 그림보다 그리는 이야기가 먼저인 곳<div class="foot-biz">상호 디자인마켓 · 대표 전승우 · 사업자등록번호 685-14-02733 · 통신판매업 신고 2025-강원원주-00895<br>주소 강원특별자치도 원주시 무실동 2025 (제일풍경채원주무실) 103동 3201호 · 문의 yssj1202@gmail.com</div><div class="foot-disclaimer">디자인마켓은 통신판매중개자이며, 통신판매의 당사자가 아닙니다. 커미션 등 이용자 간 거래 및 상품·상품정보·거래에 관한 의무와 책임은 계약 당사자 각자에게 있습니다.</div><div class="foot-links"><a href="/terms">이용약관</a> · <a href="/privacy">개인정보 처리방침</a></div></div></footer>
 
 <!-- drawer -->
 <div class="scrim" id="scrim"></div>

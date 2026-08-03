@@ -185,6 +185,7 @@
   footer{border-top:1.5px solid var(--line);padding:30px 0 100px;text-align:center;font-size:12px;color:var(--muted)}
   @media(min-width:861px){footer{padding-bottom:30px}}
   .foot-biz{margin-top:10px;font-size:11px;color:var(--muted);line-height:1.7}
+  .foot-disclaimer{margin-top:8px;font-size:11px;color:var(--muted);line-height:1.65;max-width:640px;margin-left:auto;margin-right:auto}
   .anon-ip{font-size:11px;color:var(--muted-2);font-weight:700;letter-spacing:.02em}
   .foot-links{margin-top:8px}
   .foot-links a{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
