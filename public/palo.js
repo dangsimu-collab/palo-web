@@ -752,7 +752,7 @@ function renderList(){
   h+=tagFilterBarHTML();
   if(state.board==="all"&&!state.query){
     if(LATEST_NOTICE)h+='<div class="notice" onclick="showNotice()"><span class="pin">공지</span><span class="nt">📢 '+esc(LATEST_NOTICE.title)+'</span></div>';
-    h+='<div class="notice" onclick="openRules()"><span class="pin">공지</span><span class="nt">📌 commi 이용 규칙 & 크리틱 매너 안내 (처음 오셨다면 꼭!)</span></div>';
+    h+='<div class="notice" onclick="openRules()"><span class="pin">공지</span><span class="nt">📌 이용 규칙 & 피드백 매너 (처음 오셨다면 꼭!)</span></div>';
   }
   if(arr.length===0){
     h+='<div class="empty"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg><h3>아직 글이 없어요</h3><p>이 게시판의 첫 글을 남겨보세요.</p><button onclick="openWrite()">글쓰기</button></div>';
