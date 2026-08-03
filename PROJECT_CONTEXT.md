@@ -960,7 +960,8 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **`app/robots.js`**: `allow /`, `disallow /admin`, sitemap `https://commi.kr/sitemap.xml`, host commi.kr.
 - **`app/layout.js`**: `metadataBase: new URL("https://commi.kr")`(OG·정규 URL 기준) + 기본 `openGraph`(siteName commi, type website) + description 보강.
 - **소유확인 메타태그(2026-08-04)**: `layout.js`의 `metadata.verification`에 구글(`google`)·네이버(`other["naver-site-verification"]`) 인증값 추가 → `<meta name="google-site-verification">`·`<meta name="naver-site-verification">` 렌더(검증 완료).
-- **남은 것(사용자 대시보드 작업)**: 네이버 서치어드바이저·구글 서치콘솔에서 "확인" 눌러 소유확인 완료 + 사이트맵(`sitemap.xml`) 제출 + 홈 색인 요청. ⚠️ 인증 후 색인까지 며칠~몇 주 걸림.
+- **소유확인·사이트맵 제출 완료(2026-08-04, 사용자)**: 네이버·구글 둘 다 소유확인 성공 + sitemap 제출.
+- **SEO 세부설정(2026-08-04)**: ①**RSS 피드** `app/rss.xml/route.js`(GET, `revalidate=1800`, 최신 글 50개·성인 제외, `application/rss+xml`) — 네이버 RSS 제출용. ②**OG 이미지**: `layout.js` 기본 og:image=`/icon-512.png`, 글·커미션은 첫 이미지·**없으면 `/icon-512.png` 폴백**(페이지 openGraph가 layout을 덮어써 이미지 없으면 og:image가 비던 문제 → 폴백으로 해결), 게시판도 폴백. `post/[id]`에 `post_images(url,sort)` 조회 추가·description 개선. ③**JSON-LD**(`layout.js` body): `@graph`에 WebSite+Organization(schema.org). ④**중복 도메인**: `next.config.mjs` `redirects()`로 host=`palo-web-nu.vercel.app`→`https://commi.kr` 308 영구이동(정규 도메인 통일). 검증(dev): /rss.xml 유효·JSON-LD 2종·og:image 폴백 확인. **남은 것(사용자)**: 네이버 서치어드바이저에 **RSS(`https://commi.kr/rss.xml`) 제출**, 홈 색인 요청. ⚠️ 실검색 노출까지 며칠~몇 주.
 
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:

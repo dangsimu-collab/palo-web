@@ -16,7 +16,7 @@ export async function generateMetadata({ params }) {
   }
   const title = `${name} · commi`;
   const description = `commi의 ${name} 게시판 — 그림 그리는 사람들의 커뮤니티`;
-  return { title, description, openGraph: { title, description } };
+  return { title, description, openGraph: { title, description, images: ['/icon-512.png'] } };
 }
 
 export default function BoardPage() {

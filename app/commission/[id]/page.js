@@ -21,7 +21,7 @@ export async function generateMetadata({ params }) {
   const title = `${c.title || '커미션'} · commi`;
   const description = (c.description || '커미션 정보를 확인해보세요.').slice(0, 100);
   const imgs = (c.commission_images || []).slice().sort((a, b) => (a.sort || 0) - (b.sort || 0));
-  const images = imgs.length && imgs[0].url ? [imgs[0].url] : undefined;
+  const images = imgs.length && imgs[0].url ? [imgs[0].url] : ['/icon-512.png'];
 
   return {
     title,

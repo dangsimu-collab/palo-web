@@ -7,6 +7,17 @@ const nextConfig = {
     // 로컬 개발 서버에서는 값이 없어서 대신 빌드 시각을 씀.
     NEXT_PUBLIC_BUILD_ID: process.env.VERCEL_GIT_COMMIT_SHA || String(Date.now()),
   },
+  // 검색 중복 방지: vercel 기본 도메인으로 들어오면 commi.kr로 영구 이동(정규 도메인 통일)
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'palo-web-nu.vercel.app' }],
+        destination: 'https://commi.kr/:path*',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -10,7 +10,7 @@ export async function generateMetadata({ params }) {
   const { id } = await params;
   const { data: post } = await supabase
     .from('posts')
-    .select('title, content')
+    .select('title, content, post_images(url, sort)')
     .eq('id', id)
     .single();
 
@@ -19,12 +19,14 @@ export async function generateMetadata({ params }) {
   }
 
   const title = `${post.title} · commi`;
-  const description = (post.content || '').slice(0, 80);
+  const description = (post.content || 'commi에서 이 이야기를 확인해보세요.').replace(/\s+/g, ' ').trim().slice(0, 100);
+  const imgs = (post.post_images || []).slice().sort((a, b) => (a.sort || 0) - (b.sort || 0));
+  const images = imgs.length && imgs[0].url ? [imgs[0].url] : ['/icon-512.png'];
 
   return {
     title,
     description,
-    openGraph: { title, description },
+    openGraph: { title, description, images },
   };
 }
 

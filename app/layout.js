@@ -12,6 +12,7 @@ export const metadata = {
     url: "https://commi.kr",
     siteName: "commi",
     type: "website",
+    images: [{ url: "/icon-512.png", width: 512, height: 512, alt: "commi" }],
   },
   verification: {
     google: "547vvUq82RlyN5pw6cBSJ8jExJyDfVv90lmBogdjnLk",
@@ -35,10 +36,20 @@ export const viewport = {
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
+// 구조화 데이터(JSON-LD): 검색엔진이 사이트 정체성을 이해하도록
+const siteJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    { "@type": "WebSite", name: "commi", url: "https://commi.kr", inLanguage: "ko" },
+    { "@type": "Organization", name: "commi", url: "https://commi.kr", logo: "https://commi.kr/icon-512.png" },
+  ],
+};
+
 export default function RootLayout({ children }) {
   return (
     <html lang="ko">
       <body>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }} />
         {children}
         <Analytics />
         {GA_ID && (
