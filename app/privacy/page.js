@@ -75,15 +75,16 @@ export default function PrivacyPage() {
         <div className="legal-tablewrap">
           <table className="legal-table">
             <thead>
-              <tr><th>이전받는 자</th><th>이전 항목</th><th>이전 일시 및 방법</th><th>이전되는 국가</th><th>연락처</th><th>이용목적</th><th>이전 근거</th><th>처리기간</th></tr>
+              <tr><th>수탁자</th><th>처리 항목</th><th>처리·전송 방법</th><th>처리·보관 국가</th><th>연락처</th><th>이용목적</th><th>근거</th><th>보유·처리기간</th></tr>
             </thead>
             <tbody>
-              <tr><td>Supabase, Inc.</td><td>계정 정보(이메일·식별자·닉네임), 게시물, 서비스 이용 데이터</td><td>서비스 이용 시점에 암호화된 네트워크를 통해 실시간 이전</td><td><B>[Supabase 리전 기재]</B></td><td>privacy@supabase.io</td><td>데이터베이스·인증·저장소 운영</td><td>개인정보 보호법 제28조의8 제1항 제1호</td><td>위탁 계약 종료 또는 회원 탈퇴 시까지</td></tr>
+              <tr><td>Supabase, Inc.</td><td>계정 정보(이메일·식별자·닉네임), 게시물, 서비스 이용 데이터</td><td>서비스 이용 시점에 암호화된 네트워크를 통해 실시간 처리</td><td>대한민국(서울 리전)</td><td>privacy@supabase.io</td><td>데이터베이스·인증·저장소 운영</td><td>개인정보 보호법 제26조(처리위탁)</td><td>위탁 계약 종료 또는 회원 탈퇴 시까지</td></tr>
               <tr><td>Vercel, Inc.</td><td>접속 정보, 로그 데이터</td><td>서비스 이용 시점에 암호화된 통신을 통해 자동 이전</td><td>미국</td><td>privacy@vercel.com</td><td>웹 서비스 호스팅 및 배포</td><td>개인정보 보호법 제28조의8 제1항 제1호</td><td>위탁 계약 종료 시까지</td></tr>
               <tr><td>Google LLC</td><td>로그인 계정 정보, 서비스 이용 기록, 접속 정보</td><td>로그인 및 서비스 이용 시점에 암호화된 통신을 통해 자동 이전</td><td>미국</td><td>googlekrsupport@google.com</td><td>소셜 로그인 인증, 이용 통계 분석</td><td>개인정보 보호법 제28조의8 제1항 제1호</td><td>위탁 계약 종료 시까지</td></tr>
             </tbody>
           </table>
         </div>
+        <p>※ Supabase는 <b>국내(서울 리전)</b>에 데이터를 보관하므로 <b>국외 이전에 해당하지 않으며(국내 처리위탁)</b>, Vercel과 Google은 <b>미국</b>에서 처리되어 국외 이전에 해당합니다.</p>
         <p>회사는 위탁·이전되는 개인정보가 안전하게 관리되도록 접근 권한 통제(행 수준 보안(RLS) 등), 전송 구간 암호화(HTTPS), 접근 기록 관리 등의 조치를 시행합니다.</p>
 
         <h2>제10조 (개인정보의 관리책임자 및 민원 처리)</h2>
