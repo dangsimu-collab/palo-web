@@ -50,6 +50,8 @@ var SETTINGS={cm:true,like:true,notice:true,chat:true,cminquiry:true};
 try{var _savedPrefs=JSON.parse(localStorage.getItem("palo_notif_prefs")||"null");if(_savedPrefs&&typeof _savedPrefs==="object")Object.assign(SETTINGS,_savedPrefs);}catch(e){}
 var notifFilter="all";var pfTab="mine";
 function dispName(a){return a==="나"?ME.nick:a}
+// 비회원(익명) 글·댓글에만 붙는 IP 앞자리 표시(디시식). ip는 비회원일 때만 채워지므로 로그인 유저는 자동으로 빈 값.
+function anonIpHTML(ip){return ip?(' <span class="anon-ip">('+esc(ip)+')</span>'):'';}
 function avatarHTML(name,avatarUrl){
   if(avatarUrl)return '<img src="'+esc(avatarUrl)+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block">';
   return esc(dispName(name)[0]);
@@ -257,7 +259,7 @@ async function loadRealPosts(skipRender){
   });
   var commentsByPost={};
   (cmRes.data||[]).forEach(function(c){
-    (commentsByPost[c.post_id]=commentsByPost[c.post_id]||[]).push({n:nameFor(c.author_id),t:timeAgo(c.created_at),txt:c.content,dbId:c.id,authorId:c.author_id,lv:levelFor(c.author_id),av:avatarFor(c.author_id),h:helpfulCountByComment[c.id]||0,_me:!!helpfulMine[c.id]});
+    (commentsByPost[c.post_id]=commentsByPost[c.post_id]||[]).push({n:nameFor(c.author_id),t:timeAgo(c.created_at),txt:c.content,dbId:c.id,authorId:c.author_id,ip:c.ip_masked||null,lv:levelFor(c.author_id),av:avatarFor(c.author_id),h:helpfulCountByComment[c.id]||0,_me:!!helpfulMine[c.id]});
   });
   var likesByPost={};
   (likeRes.data||[]).forEach(function(l){
@@ -270,7 +272,7 @@ async function loadRealPosts(skipRender){
 
   var real=res.data.map(function(row){
     var likers=likesByPost[row.id]||[];
-    return {id:100000+row.id,dbId:row.id,authorId:row.author_id,board:row.board,title:row.title,category:row.category,author:nameFor(row.author_id),authorLevel:levelFor(row.author_id),authorAvatar:avatarFor(row.author_id),
+    return {id:100000+row.id,dbId:row.id,authorId:row.author_id,ipMasked:row.ip_masked||null,board:row.board,title:row.title,category:row.category,author:nameFor(row.author_id),authorLevel:levelFor(row.author_id),authorAvatar:avatarFor(row.author_id),
       time:timeAgo(row.created_at),createdAt:row.created_at,likes:likers.length,_liked:likers.indexOf(myLikeId())>-1,
       views:row.views,thumb:"none",stage:row.stage,images:imagesByPost[row.id],pollId:pollByPost[row.id]||null,
       isManagerPick:!!row.is_manager_pick,pickPosition:row.pick_position,pickedAt:row.picked_at,adLocked:!!adLockedIds[row.id],
@@ -875,7 +877,7 @@ function renderList(){
         '<div class="ptitle">'+(p.isManagerPick?'<span class="pick-badge">📌 매니저 픽</span> ':'')+esc(p.title)+'</div>'+
         '<div class="pmeta">'+
           '<span class="cat '+c.cls+'">'+c.label+'</span>'+
-          '<span class="who"'+(p.authorId?' style="cursor:pointer" onclick="event.stopPropagation();openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+'</span>'+
+          '<span class="who"'+(p.authorId?' style="cursor:pointer" onclick="event.stopPropagation();openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+anonIpHTML(p.ipMasked)+'</span>'+
           '<span class="sep"></span><span class="mt">'+p.time+'</span>'+
           '<span class="sep"></span><span class="mv">조회 '+fmtViews(p.views)+'</span>'+
           (p.likes?'<span class="sep"></span><span class="ml">추천 '+p.likes+'</span>':'')+
@@ -922,7 +924,7 @@ function renderPostDetail(id){
   var liked=p._liked?" liked":"";
   var h='<div class="detail"><div class="d-grip"></div><button class="d-back" onclick="renderList()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>목록으로</button>'+
     '<div class="d-head"><div class="line1"><span class="cat '+c.cls+'">'+c.label+'</span>'+(p.isManagerPick?'<span class="pick-badge">📌 매니저 픽</span>':'')+(p.reviewedNickname?'<span class="pick-badge">🎨 @'+esc(p.reviewedNickname)+' 후기</span>':'')+'</div><h1 class="serif">'+esc(p.title)+'</h1>'+
-    '<div class="d-author"><div class="d-ava serif">'+avatarHTML(p.author,p.authorAvatar)+'</div><div class="d-au-info"><div class="n"'+(p.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+levelBadgeHtml(p.authorLevel,"lv-badge")+'</div><div class="meta">'+p.time+' · 조회 '+fmtViews(p.views)+'</div></div>'+
+    '<div class="d-author"><div class="d-ava serif">'+avatarHTML(p.author,p.authorAvatar)+'</div><div class="d-au-info"><div class="n"'+(p.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+anonIpHTML(p.ipMasked)+levelBadgeHtml(p.authorLevel,"lv-badge")+'</div><div class="meta">'+p.time+' · 조회 '+fmtViews(p.views)+'</div></div>'+
     ((p.authorId&&(!AUTH.user||p.authorId!==AUTH.user.id))?('<button class="d-follow'+(FOLLOW.has(p.authorId)?' following':'')+'" id="followBtn" onclick="toggleFollow(\''+esc(p.authorId)+'\',\''+esc(p.author)+'\')">'+(FOLLOW.has(p.authorId)?'팔로잉 ✓':'＋ 팔로우')+'</button>'):'')+'</div></div>'+
     canvas+'<div class="d-content">'+(safeHtml?safeHtml:p.content.map(function(x){return'<p>'+esc(x)+'</p>'}).join(""))+'</div>'+
     (p.pollId?'<div class="poll" id="pollBox"></div>':'')+
@@ -1265,7 +1267,7 @@ function renderArchivedPost(row){
     '<button class="d-back" onclick="openAdminDeletionLog()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>삭제 기록으로</button>'+
     '<div class="archived-banner">🗑 삭제된 글 보관본<div class="archived-banner-sub">'+delMeta+'</div></div>'+
     '<div class="d-head"><div class="line1"><span class="cat '+c.cls+'">'+c.label+'</span></div><h1 class="serif">'+esc(p.title||"(제목 없음)")+'</h1>'+
-    '<div class="d-author"><div class="d-ava serif">'+avatarHTML(p.author,p.authorAvatar)+'</div><div class="d-au-info"><div class="n">'+esc(dispName(p.author))+levelBadgeHtml(p.authorLevel,"lv-badge")+'</div><div class="meta">'+esc(p.time)+'</div></div></div></div>'+
+    '<div class="d-author"><div class="d-ava serif">'+avatarHTML(p.author,p.authorAvatar)+'</div><div class="d-au-info"><div class="n">'+esc(dispName(p.author))+anonIpHTML(p.ipMasked)+levelBadgeHtml(p.authorLevel,"lv-badge")+'</div><div class="meta">'+esc(p.time)+'</div></div></div></div>'+
     canvas+'<div class="d-content">'+body+'</div>'+
   '</div>';
   document.getElementById("main").innerHTML=h;
@@ -1503,7 +1505,7 @@ function renderComments(p){
                    :'<span class="cm-accept-btn" onclick="acceptFeedback('+p.id+','+c.dbId+',false)">✅ 채택</span>')
       : '';
     var badge=isAccepted?'<div class="cm-accepted-badge">✅ 채택된 피드백</div>':'';
-    return '<div class="cm'+(isAccepted?' accepted':'')+'"><div class="d-ava serif">'+avatarHTML(c.n,c.av)+'</div><div class="cbody">'+badge+'<div class="ch"><span class="cn"'+(c.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+c.authorId+'\')"':'')+'>'+esc(c.n)+'</span>'+levelBadgeHtml(c.lv,"lv-badge")+'<span class="ct">'+esc(c.t)+'</span></div><div class="ctext">'+esc(c.txt).replace(/^@(\S+)/,'<b class="mention">@$1</b>')+'</div><div class="cfoot"><span onclick="helpful('+p.id+','+ci+',this)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 6h5a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7"/></svg>도움돼요'+(c.h?' <b>'+c.h+'</b>':'')+'</span><span onclick="replyTo(\''+esc(c.n)+'\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>답글</span>'+(canDelete?'<span onclick="deleteComment('+p.id+','+ci+')">삭제</span>':'')+acceptBtn+'</div></div></div>';
+    return '<div class="cm'+(isAccepted?' accepted':'')+'"><div class="d-ava serif">'+avatarHTML(c.n,c.av)+'</div><div class="cbody">'+badge+'<div class="ch"><span class="cn"'+(c.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+c.authorId+'\')"':'')+'>'+esc(c.n)+anonIpHTML(c.ip)+'</span>'+levelBadgeHtml(c.lv,"lv-badge")+'<span class="ct">'+esc(c.t)+'</span></div><div class="ctext">'+esc(c.txt).replace(/^@(\S+)/,'<b class="mention">@$1</b>')+'</div><div class="cfoot"><span onclick="helpful('+p.id+','+ci+',this)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 6h5a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7"/></svg>도움돼요'+(c.h?' <b>'+c.h+'</b>':'')+'</span><span onclick="replyTo(\''+esc(c.n)+'\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>답글</span>'+(canDelete?'<span onclick="deleteComment('+p.id+','+ci+')">삭제</span>':'')+acceptBtn+'</div></div></div>';
   }).join("");
 }
 async function acceptFeedback(postId,commentDbId,isCancel){
@@ -3200,7 +3202,7 @@ function postCardHTML(p){
     '<div class="post-card-body">'+
       (p.isManagerPick?'<span class="pick-badge">📌 매니저 픽</span> ':'')+
       '<div class="post-card-title">'+esc(p.title)+'</div>'+
-      '<div class="post-card-meta"><span class="cat '+c.cls+'">'+c.label+'</span><span class="post-card-author">'+esc(dispName(p.author))+'</span></div>'+
+      '<div class="post-card-meta"><span class="cat '+c.cls+'">'+c.label+'</span><span class="post-card-author">'+esc(dispName(p.author))+anonIpHTML(p.ipMasked)+'</span></div>'+
       '<div class="post-card-stats"><span>👁 '+fmtViews(p.views)+'</span><span>♥ '+p.likes+'</span><span>💬 '+p.comments.length+'</span></div>'+
     '</div>'+
   '</div>';

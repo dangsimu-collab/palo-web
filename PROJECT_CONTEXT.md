@@ -963,6 +963,14 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **소유확인·사이트맵 제출 완료(2026-08-04, 사용자)**: 네이버·구글 둘 다 소유확인 성공 + sitemap 제출.
 - **SEO 세부설정(2026-08-04)**: ①**RSS 피드** `app/rss.xml/route.js`(GET, `revalidate=1800`, 최신 글 50개·성인 제외, `application/rss+xml`) — 네이버 RSS 제출용. ②**OG 이미지**: `layout.js` 기본 og:image=`/icon-512.png`, 글·커미션은 첫 이미지·**없으면 `/icon-512.png` 폴백**(페이지 openGraph가 layout을 덮어써 이미지 없으면 og:image가 비던 문제 → 폴백으로 해결), 게시판도 폴백. `post/[id]`에 `post_images(url,sort)` 조회 추가·description 개선. ③**JSON-LD**(`layout.js` body): `@graph`에 WebSite+Organization(schema.org). ④**중복 도메인**: `next.config.mjs` `redirects()`로 host=`palo-web-nu.vercel.app`→`https://commi.kr` 308 영구이동(정규 도메인 통일). 검증(dev): /rss.xml 유효·JSON-LD 2종·og:image 폴백 확인. **남은 것(사용자)**: 네이버 서치어드바이저에 **RSS(`https://commi.kr/rss.xml`) 제출**, 홈 색인 요청. ⚠️ 실검색 노출까지 며칠~몇 주.
 
+### 비회원 IP 앞자리 표시(디시식, 자작·도배 감별) (2026-08-04 추가)
+비로그인(익명) 글·댓글에 **IP 앞 2자리(예: `210.106`)** 를 모두에게 표시 → 자작극·도배 어느 정도 감별. 로그인 유저는 미표시.
+- **IP 캡처 검증**: 테스트 RPC `debug_client_ip()`로 `current_setting('request.headers',true)::json->>'cf-connecting-ip'`(및 `x-forwarded-for`)에 **진짜 클라 IP가 잡힘** 확인(Supabase=Cloudflare). 이후 debug 함수 제거.
+- **DB**: `posts`·`comments`에 `ip_masked text` 컬럼. **BEFORE INSERT 트리거 `set_anon_ip_masked()`**(각 테이블): `author_id`가 있으면(로그인) `ip_masked=null`, 없으면(비회원) 헤더에서 IP 추출→마스킹(IPv4 앞 2옥텟/IPv6 앞 2그룹) 저장. **클라가 준 값은 무시=위조 방지**. 함수는 `revoke execute ... from public,anon,authenticated`(트리거 전용). ⚠️ **기존 글엔 소급 안 됨**(새 비회원 글부터).
+- **클라(`public/palo.js`)**: 매핑에 `ipMasked:row.ip_masked`(글)·`ip:c.ip_masked`(댓글) 추가. 헬퍼 **`anonIpHTML(ip)`**(ip 있을 때만 ` <span class="anon-ip">(210.106)</span>`, 없으면 빈 문자열=로그인 유저 자동 미표시). 글 카드(`.who`)·상세(`.d-author` 2곳)·앨범카드(`.post-card-author`)·댓글(`.cn`) 작성자 뒤에 `anonIpHTML(...)` 부착. CSS `.anon-ip`(11px muted-2).
+- **개인정보 처리방침 §4**(`app/privacy/page.js`)에 고지 문구 추가(비회원 글·댓글에 IP 앞 2자리 표시·저장).
+- 검증(dev, 목업): 헬퍼·글 카드·상세·댓글 모두 IP 표시, 로그인(ip null)이면 미표시. ⚠️ 실제 트리거 동작은 **로그아웃 상태로 글/댓글 작성**해 최종 확인 권장.
+
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:
 1. **1차(채팅만, 이후 폐기된 설계)**: `messages` 테이블을 직접 실시간 구독해서 클라이언트가 알림을 만드는 방식으로 시작 — 그런데 이러면 "지금 내가 참여 중인 대화방 id 목록"을 클라이언트가 직접 관리해야 하고, 새로 생긴 대화방을 놓치는 등 허점이 많았음.
