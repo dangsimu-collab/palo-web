@@ -506,7 +506,7 @@
   .tab .ic{width:20px;height:20px}
   .icon-btn .ic{width:18px;height:18px}
   .write-btn .ic,.ed-submit .ic{width:15px;height:15px}
-  .search .ic{width:15px;height:15px}
+  .search>.ic{width:15px;height:15px;position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
 
   /* ===== NAVER-CAFE STYLE POST ROW ===== */
   .list{display:flex;flex-direction:column;gap:0;background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-lg);overflow:hidden}
@@ -603,7 +603,8 @@
   .msearch.open{display:flex}
   .msearch input{flex:1;height:42px;border:1px solid var(--line-2);border-radius:12px;background:var(--surface-2);padding:0 14px 0 40px;font-family:inherit;font-size:15px;color:var(--ink)}
   .msearch input:focus{outline:none;border-color:#e07aa6;background:var(--surface)}
-  .msearch .ms-ic{position:absolute;left:28px;color:var(--muted);width:16px;height:16px}
+  .msearch .ms-ic{position:absolute;left:28px;top:50%;transform:translateY(-50%);color:var(--muted);width:16px;height:16px;display:flex;align-items:center;justify-content:center;pointer-events:none}
+  .msearch .ms-ic .ic{width:16px;height:16px}
   .msearch .ms-cancel{background:none;border:none;font-size:14px;font-weight:700;color:#e07aa6;cursor:pointer;white-space:nowrap;padding:6px}
   .msearch-ico-btn{display:none}
   @media(max-width:860px){ .msearch-ico-btn{display:flex} }
