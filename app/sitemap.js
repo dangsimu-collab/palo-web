@@ -8,7 +8,7 @@ const supabase = createClient(
 );
 
 const BOARDS = [
-  'talk', 'doodle', 'wip', 'sketch', 'ask', 'vote', 'crit',
+  'intro', 'talk', 'doodle', 'wip', 'sketch', 'ask', 'vote', 'crit',
   'collab', 'challenge', 'tip', 'request', 'recruit', 'used', 'suggest',
 ];
 

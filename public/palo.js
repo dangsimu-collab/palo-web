@@ -1,7 +1,8 @@
 var BOARDS=[
   {group:"이야기",items:[
     {id:"all",name:"전체 글",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"7\" width=\"18\" height=\"13\" rx=\"2\"/><path d=\"M3 7l2-3h6l2 3\"/></svg>"},
-    {id:"talk",name:"수다 광장",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z\"/></svg>"}]},
+    {id:"intro",name:"자기소개",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"8\" r=\"4\"/><path d=\"M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1\"/></svg>"},
+    {id:"talk",name:"자유게시판",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z\"/></svg>"}]},
   {group:"그리는 중",items:[
     {id:"doodle",name:"낙서",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 15c2.5-6 5 5 8-1s4-6 10 1\"/></svg>"},
     {id:"wip",name:"작업물",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 20h4L18 10l-4-4L4 16v4z\"/><path d=\"M13 7l4 4\"/></svg>"},
@@ -22,7 +23,7 @@ var BOARDS=[
     {id:"suggest",name:"버그·건의사항",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z\"/><path d=\"M12 9v3M12 15h.01\"/></svg>"},
     {id:"adult",name:"에치치",icon:"<span class=\"ic\" style=\"font-size:18px;line-height:1\">🔞</span>"}]}
 ];
-var CATMAP={talk:{label:"수다",cls:"talk-c"},ask:{label:"고민",cls:"help-c"},crit:{label:"피드백",cls:"crit-c"},
+var CATMAP={intro:{label:"자기소개",cls:"talk-c"},talk:{label:"자유",cls:"talk-c"},ask:{label:"고민",cls:"help-c"},crit:{label:"피드백",cls:"crit-c"},
   wip:{label:"작업과정",cls:"crit-c"},doodle:{label:"낙서",cls:"talk-c"},tip:{label:"팁",cls:"tip-c"},challenge:{label:"챌린지",cls:"chal-c"},collab:{label:"협업",cls:"help-c"},
   sketch:{label:"그림공부",cls:"tip-c"},trade:{label:"거래",cls:"free-c"},used:{label:"거래",cls:"free-c"},
   review:{label:"후기",cls:"free-c"},vote:{label:"투표",cls:"chal-c"},request:{label:"리퀘스트",cls:"free-c"},recruit:{label:"구인",cls:"free-c"},adult:{label:"에치치",cls:"help-c"},suggest:{label:"건의",cls:"chal-c"}};
@@ -3420,8 +3421,33 @@ function pickBoard(id){
     edState.commissionPostId=null;edState.reviewedNick=null;edState.reviewedUserId=null;edState.sentiment=null;
   }
   updateReviewNickField();}
+var BOARD_GUIDE={
+  intro:"나를 소개하는 공간이에요. 닉네임·그림 스타일·SNS 등을 편하게 남겨보세요.",
+  talk:"주제 제한 없이 자유롭게 이야기 나누는 공간이에요.",
+  doodle:"가볍게 그린 낙서·자유 그림을 올리는 곳이에요.",
+  wip:"작업 중이거나 완성한 그림을 공유해요.",
+  sketch:"연습·강좌 등 그림 공부 기록을 나눠요.",
+  ask:"궁금한 점이나 커미션 시세를 물어봐요.",
+  vote:"투표로 의견·수요를 모으는 곳이에요.",
+  crit:"내 그림에 대한 피드백(크리틱)을 요청해요.",
+  collab:"함께 작업할 팀원·협업 상대를 찾아요.",
+  challenge:"챌린지 주제·참가작을 공유해요.",
+  tip:"유용한 자료·꿀팁·강좌를 나눠요.",
+  request:"그려주길 바라는 리퀘스트를 올려요.",
+  recruit:"커미션 작가를 구인해요. 거래는 당사자끼리 직접 진행해요.",
+  used:"중고 장비를 사고팔아요. 거래 책임은 당사자에게 있어요.",
+  adult:"성인 대상 게시판이에요. 청소년은 이용할 수 없어요.",
+  suggest:"버그 제보·건의사항을 남겨주세요. 운영에 참고할게요.",
+  review:"커미션 이용 후기를 남기는 곳이에요."
+};
 function refreshBoardLabel(){
   document.getElementById("edBoardLabel").textContent=edState.board?boardName(edState.board):"게시판 선택";
+  var bg=document.getElementById("edBoardGuide");
+  if(bg){
+    var g=edState.board?BOARD_GUIDE[edState.board]:null;
+    if(g){bg.style.display="";bg.textContent="📋 "+g;}
+    else{bg.style.display="none";bg.textContent="";}
+  }
   var ln=document.getElementById("edLockNotice");
   if(ln){
     if(POST_EDIT_LOCK_BOARDS.indexOf(edState.board)>=0){

@@ -124,6 +124,7 @@ export const BODY_HTML = `
         <div class="ed-boardmenu" id="edBoardMenu"></div>
       </div>
       <div class="ed-tags" id="edTags"></div>
+      <div class="ed-board-guide" id="edBoardGuide" style="display:none"></div>
       <div class="ed-lock-notice" id="edLockNotice" style="display:none"></div>
       <div class="ed-accept-notice" id="edAcceptNotice" style="display:none"></div>
 
@@ -193,7 +194,7 @@ export const BODY_HTML = `
       <li><b>AI 생성물 금지.</b> commi는 사람의 창작을 위한 공간이에요. AI로 생성한 이미지는 올릴 수 없어요.</li>
       <li><b>거래는 커미션 게시판에서.</b> commi는 거래를 중개하지 않아요. 거래·환불은 당사자끼리 직접 진행하며, 트러블은 스스로 조심해주세요.</li>
       <li><b>질문·투표·피드백 글은 댓글이 달리면 수정·삭제가 제한돼요.</b> 신중하게 작성해주세요.</li>
-      <li>처음이라면 <b>수다 광장에 인사 글 하나!</b> 환영합니다 🎨</li>
+      <li>처음이라면 <b>자기소개 게시판에 인사 글 하나!</b> 환영합니다 🎨</li>
     </ol>
     <button class="r-ok" onclick="closeRules()">확인했어요</button>
   </div>

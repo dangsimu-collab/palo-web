@@ -971,6 +971,11 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **개인정보 처리방침 §4**(`app/privacy/page.js`)에 고지 문구 추가(비회원 글·댓글에 IP 앞 2자리 표시·저장).
 - 검증(dev, 목업): 헬퍼·글 카드·상세·댓글 모두 IP 표시, 로그인(ip null)이면 미표시. ⚠️ 실제 트리거 동작은 **로그아웃 상태로 글/댓글 작성**해 최종 확인 권장.
 
+### 자기소개 게시판 추가 + 자유게시판 개명 + 글쓰기 게시판 안내문구 (2026-08-04)
+- **`talk` 이름 `수다 광장`→`자유게시판`**: `BOARDS`(이야기 그룹) name·`CATMAP.talk.label`(수다→자유)·`app/board/[board]/page.js` BOARD_NAMES·이용규칙 모달 "수다 광장에 인사"→"자기소개 게시판에 인사". id는 `talk` 그대로(URL/데이터 호환).
+- **자기소개 게시판 신설**: `BOARDS` 이야기 그룹에 `{id:"intro",name:"자기소개",icon:사람}` 을 **전체 글과 자유게시판 사이**(자유게시판 위)에 추가. `CATMAP.intro={label:"자기소개",cls:"talk-c"}`, board 라우트 BOARD_NAMES·`sitemap.js` BOARDS에 intro 추가. 말머리(TAGS_BY_BOARD) 없음.
+- **글쓰기 게시판별 안내문구**: `BOARD_GUIDE` 맵(id→짧은 사용 안내), body-html `#edBoardGuide`(잠금 안내 위), `refreshBoardLabel()`이 `edState.board`에 맞춰 `📋 안내`를 표시/숨김. CSS `.ed-board-guide`(brand-soft 소프트 박스). 검증(dev): 그룹 순서·라벨·intro/talk/suggest 안내 표시·콘솔 무에러.
+
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:
 1. **1차(채팅만, 이후 폐기된 설계)**: `messages` 테이블을 직접 실시간 구독해서 클라이언트가 알림을 만드는 방식으로 시작 — 그런데 이러면 "지금 내가 참여 중인 대화방 id 목록"을 클라이언트가 직접 관리해야 하고, 새로 생긴 대화방을 놓치는 등 허점이 많았음.
