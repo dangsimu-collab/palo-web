@@ -440,6 +440,7 @@ async function applySession(session){
 var GOOGLE_CLIENT_ID="622866923710-mcbkmbrcvnv0o3a7uefjqaqr6e5afbhk.apps.googleusercontent.com";
 function _gisReady(){return !!(window.google&&window.google.accounts&&window.google.accounts.id);}
 function loginWithGoogle(){
+  if(isStandalonePWA()){_loginRedirectFallback();return;} // 홈 화면(PWA standalone)에선 GIS 팝업이 400 오류 → 리다이렉트 방식으로
   if(_gisReady()){openLoginModal();return;}
   // GIS가 아직 로드 전 — 잠깐 기다렸다가, 그래도 없으면 기존 리다이렉트 방식으로 폴백(안전장치)
   var tries=0;
@@ -1517,7 +1518,8 @@ function renderComments(p){
                    :'<span class="cm-accept-btn" onclick="acceptFeedback('+p.id+','+c.dbId+',false)">✅ 채택</span>')
       : '';
     var badge=isAccepted?'<div class="cm-accepted-badge">✅ 채택된 피드백</div>':'';
-    return '<div class="cm'+(isAccepted?' accepted':'')+'"><div class="d-ava serif">'+avatarHTML(c.n,c.av)+'</div><div class="cbody">'+badge+'<div class="ch"><span class="cn"'+(c.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+c.authorId+'\')"':'')+'>'+esc(c.n)+anonIpHTML(c.ip)+'</span>'+levelBadgeHtml(c.lv,"lv-badge")+'<span class="ct">'+esc(c.t)+'</span></div><div class="ctext">'+esc(c.txt).replace(/^@(\S+)/,'<b class="mention">@$1</b>')+'</div><div class="cfoot"><span onclick="helpful('+p.id+','+ci+',this)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 6h5a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7"/></svg>도움돼요'+(c.h?' <b>'+c.h+'</b>':'')+'</span><span onclick="replyTo(\''+esc(c.n)+'\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>답글</span>'+(canDelete?'<span onclick="deleteComment('+p.id+','+ci+')">삭제</span>':'')+acceptBtn+'</div></div></div>';
+    var isReply=/^\s*@\S/.test(c.txt||''); // "@닉네임"으로 시작하면 답글
+    return '<div class="cm'+(isAccepted?' accepted':'')+(isReply?' reply':'')+'"><div class="d-ava serif">'+avatarHTML(c.n,c.av)+'</div><div class="cbody">'+badge+'<div class="ch"><span class="cn"'+(c.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+c.authorId+'\')"':'')+'>'+esc(c.n)+anonIpHTML(c.ip)+'</span>'+levelBadgeHtml(c.lv,"lv-badge")+'<span class="ct">'+esc(c.t)+'</span></div><div class="ctext">'+esc(c.txt).replace(/^@(\S+)/,'<b class="mention">@$1</b>')+'</div><div class="cfoot"><span onclick="helpful('+p.id+','+ci+',this)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 6h5a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7"/></svg>도움돼요'+(c.h?' <b>'+c.h+'</b>':'')+'</span><span onclick="replyTo(\''+esc(c.n)+'\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>답글</span>'+(canDelete?'<span onclick="deleteComment('+p.id+','+ci+')">삭제</span>':'')+acceptBtn+'</div></div></div>';
   }).join("");
 }
 async function acceptFeedback(postId,commentDbId,isCancel){
