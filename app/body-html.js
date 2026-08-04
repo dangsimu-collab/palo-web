@@ -154,6 +154,8 @@ export const BODY_HTML = `
         <button title="인용" onmousedown="insertQuote(event)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h4v6H7c0-3 0-4 2-6M15 7h4v6h-4c0-3 0-4 2-6"/></svg><span class="ed-tool-lbl">인용</span></button>
         <span class="ed-div"></span>
         <button title="이미지" onmousedown="pickImage(event)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5-5 4 3 3-2 4 4"/></svg><span class="ed-tool-lbl">이미지</span></button>
+        <span class="ed-div"></span>
+        <button title="이 위치에 투표 넣기" onmousedown="edInsertPoll(event)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="20" x2="6" y2="14"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="10"/></svg><span class="ed-tool-lbl">투표</span></button>
       </div>
 
       <!-- 본문 (contenteditable) -->
@@ -164,9 +166,7 @@ export const BODY_HTML = `
       <input type="file" id="edFile" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="onImage(event)">
       <div id="edImages" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"></div>
 
-      <!-- 투표 첨부 -->
-      <div id="edPollBox" class="ed-poll-box" style="display:none"></div>
-      <button type="button" id="edPollAddBtn" class="ed-poll-addbtn" onclick="edPollAdd()">📊 투표 추가</button>
+      <!-- 투표는 위 도구바 📊 버튼으로 본문 원하는 위치에 삽입(여러 개 가능) -->
 
       <!-- 옵션 -->
       <div class="ed-options">
@@ -347,6 +347,23 @@ export const BODY_HTML = `
     <div id="gsiButton" class="gsi-wrap"></div>
     <p class="login-hint" id="loginHint"></p>
     <button class="login-alt" onclick="_loginRedirectFallback()">로그인이 안 되나요? 다른 방법으로 로그인</button>
+  </div>
+</div>
+<div class="rules-scrim" id="pollEditModal" onclick="if(event.target===this)closePollEdit()">
+  <div class="rules">
+    <h3>📊 투표 설정</h3>
+    <input class="ed-poll-q" id="pmQ" placeholder="투표 질문 (예: 다음 그림 주제는?)">
+    <div id="pmOpts"></div>
+    <button type="button" class="ed-poll-addopt" onclick="pmAddOption()">+ 선택지 추가</button>
+    <div class="ed-poll-settings">
+      <label class="ed-poll-set"><input type="checkbox" id="pmMulti"> 복수 선택 허용</label>
+      <label class="ed-poll-set"><input type="checkbox" id="pmAnon"> 익명 투표</label>
+      <label class="ed-poll-set"><span>마감</span><select id="pmClose" class="ed-poll-close"><option value="">없음</option><option value="1">1일 후</option><option value="3">3일 후</option><option value="7">7일 후</option><option value="14">14일 후</option></select></label>
+    </div>
+    <div class="pm-actions">
+      <button class="pm-del" onclick="edRemovePollFromModal()">투표 삭제</button>
+      <button class="pm-save" onclick="edSavePollModal()">저장</button>
+    </div>
   </div>
 </div>
 <div class="rules-scrim" id="pfEditModal" onclick="if(event.target===this)closePfEdit()">

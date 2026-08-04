@@ -976,6 +976,14 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - **자기소개 게시판 신설**: `BOARDS` 이야기 그룹에 `{id:"intro",name:"자기소개",icon:사람}` 을 **전체 글과 자유게시판 사이**(자유게시판 위)에 추가. `CATMAP.intro={label:"자기소개",cls:"talk-c"}`, board 라우트 BOARD_NAMES·`sitemap.js` BOARDS에 intro 추가. 말머리(TAGS_BY_BOARD) 없음.
 - **글쓰기 게시판별 안내문구**: `BOARD_GUIDE` 맵(id→짧은 사용 안내), body-html `#edBoardGuide`(잠금 안내 위), `refreshBoardLabel()`이 `edState.board`에 맞춰 `📋 안내`를 표시/숨김. CSS `.ed-board-guide`(brand-soft 소프트 박스). 검증(dev): 그룹 순서·라벨·intro/talk/suggest 안내 표시·콘솔 무에러.
 
+### 투표: 다중 + 본문 인라인 배치로 개편 (2026-08-04)
+기존엔 글당 투표 1개·본문 하단 고정. → **글 하나에 여러 투표 + 본문 원하는 위치**로 개편.
+- **DB**: `polls`의 `post_id` 유니크(제약/인덱스) 제거(글당 다중 허용) + `anchor_key text`(본문 마커와 매칭)·`sort int` 컬럼 추가.
+- **앵커 방식**: 글쓰기 도구바 📊 버튼(`edInsertPoll`, onmousedown로 선택 보존)이 **커서 위치에 `<div class="poll-anchor" data-poll="KEY" contenteditable="false">` 블록을 Range API로 삽입**(execCommand insertHTML은 일부 환경서 실패해 Range로). 블록 [편집]→모달(`#pollEditModal`, `edEditPoll`/`pm*`/`edSavePollModal`)에서 질문·선택지·복수/익명/마감 설정, [삭제]→`edRemovePoll`. `edState.poll`(단일)→**`edState.polls={key:{...}}`**(다중). sanitize `ALLOWED_ATTR`에 `data-poll` 추가(마커 보존; class/버튼은 저장 시 제거돼 `<div data-poll="KEY"></div>`만 남음).
+- **저장(submitPost)**: 최종 content_html에서 `[data-poll]` 마커를 순회하며 각 투표를 `polls`(anchor_key=KEY, sort) + `poll_options`로 insert(불완전한 건 스킵). RLS는 기존대로 '이 글 작성자만'(=투표는 사실상 로그인 필요).
+- **불러오기/렌더**: loadRealPosts가 글당 `polls:[{id,anchor}]`. renderPostDetail이 앵커 있는 투표는 본문의 `[data-poll=anchor]` 마커를 `#pollBox-{id}` 박스로 **교체**(마커 위치에 인라인), 앵커 없는(구) 투표는 본문 아래 박스. 투표 표시/투표/실시간 함수 전부 **per-poll**(`#pollBox-{id}`, `_pollChannels`/`_pollVotersOpen`/`_pollVotersData` 맵)로 리팩터. CSS `.poll-anchor`(에디터 블록)·`.pm-*`(모달).
+- 검증(dev, 목업): 투표 2개 삽입·모달 저장·라벨·sanitize 마커 보존·상세에서 `[위문단,pollBox,아래문단]` 순서(인라인 배치)·콘솔 무에러. ⚠️ 실제 DB 저장→표시 왕복은 **로그인 후 투표 넣은 글 작성**으로 최종 확인 권장. **리퀘스트 안내문구도 수정**(BOARD_GUIDE.request).
+
 ### 실시간 알림함 (2026-07-29 추가 — DB에 진짜로 저장됨)
 기존 "알림함"은 원본 프로토타입부터 있던 **가짜 데모 배열**(`NOTIFS`, 새로고침하면 초기화)이었음. 이번에 채팅/댓글/좋아요 3가지를 실제 DB 트리거로 알림을 만들고 영구 저장하도록 바꿈(스키마/트리거는 4절 "notifications" 참고). 진행 순서:
 1. **1차(채팅만, 이후 폐기된 설계)**: `messages` 테이블을 직접 실시간 구독해서 클라이언트가 알림을 만드는 방식으로 시작 — 그런데 이러면 "지금 내가 참여 중인 대화방 id 목록"을 클라이언트가 직접 관리해야 하고, 새로 생긴 대화방을 놓치는 등 허점이 많았음.

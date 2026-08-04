@@ -315,6 +315,14 @@
   .ed-poll-addbtn{margin-top:14px;background:var(--surface-2);border:1.5px dashed var(--line-2);border-radius:12px;padding:11px 16px;font-size:13.5px;font-weight:800;color:var(--ink-2);cursor:pointer;transition:.14s}
   .ed-poll-addbtn:hover{border-color:var(--brand);color:var(--brand)}
   .ed-poll-box{margin-top:14px;border:1.5px solid var(--line-2);border-radius:14px;padding:14px;background:var(--surface-2)}
+  /* 본문 안 투표 블록(에디터) */
+  .poll-anchor{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0;padding:10px 12px;background:var(--brand-soft);border:1.5px dashed var(--brand-2);border-radius:12px;font-size:13px;font-weight:700;color:var(--ink-2);user-select:none}
+  .poll-anchor .pa-q{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .poll-anchor .pa-act{display:flex;gap:6px;flex:none}
+  .poll-anchor .pa-act button{border:none;background:var(--surface);color:var(--brand-2);font-family:inherit;font-size:12px;font-weight:800;padding:5px 9px;border-radius:8px;cursor:pointer}
+  .pm-actions{display:flex;gap:10px;margin-top:16px}
+  .pm-del{flex:none;background:none;border:1.5px solid var(--line-2);color:var(--ink-2);border-radius:12px;padding:11px 14px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer}
+  .pm-save{flex:1;background:linear-gradient(120deg,var(--brand),var(--grape));border:none;color:#fff;border-radius:12px;padding:11px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer}
   .ed-poll-head{display:flex;justify-content:space-between;align-items:center;font-size:13.5px;font-weight:900;color:var(--ink);margin-bottom:10px}
   .ed-poll-del{background:none;border:none;color:#c0392b;font-size:12.5px;font-weight:800;cursor:pointer}
   .ed-poll-q,.ed-poll-opt-in{width:100%;border:1.5px solid var(--line-2);border-radius:10px;background:var(--surface);padding:11px 13px;font-family:inherit;font-size:14px;font-weight:600;color:var(--ink)}

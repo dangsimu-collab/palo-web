@@ -245,11 +245,11 @@ async function loadRealPosts(skipRender){
     dbIds.length?sb.from("comments").select("*").in("post_id",dbIds).order("created_at"):Promise.resolve({data:[]}),
     dbIds.length?sb.from("likes").select("post_id,user_id").in("post_id",dbIds):Promise.resolve({data:[]}),
     dbIds.length?sb.from("post_images").select("post_id,url,sort").in("post_id",dbIds).order("sort"):Promise.resolve({data:[]}),
-    dbIds.length?sb.from("polls").select("id,post_id").in("post_id",dbIds):Promise.resolve({data:[]})
+    dbIds.length?sb.from("polls").select("id,post_id,anchor_key,sort").in("post_id",dbIds).order("sort"):Promise.resolve({data:[]})
   ]);
   var cmRes=wave2[0],likeRes=wave2[1],imgRes=wave2[2],pollRes=wave2[3];
-  var pollByPost={};
-  (pollRes.data||[]).forEach(function(pl){pollByPost[pl.post_id]=pl.id;});
+  var pollsByPost={};
+  (pollRes.data||[]).forEach(function(pl){(pollsByPost[pl.post_id]=pollsByPost[pl.post_id]||[]).push({id:pl.id,anchor:pl.anchor_key||null});});
   var commentIds=(cmRes.data||[]).map(function(c){return c.id});
   // ── 3차: 댓글에 의존하는 도움돼요(comment_helpful) ──
   var helpfulRes=commentIds.length?await sb.from("comment_helpful").select("comment_id,user_id").in("comment_id",commentIds):{data:[]};
@@ -275,7 +275,7 @@ async function loadRealPosts(skipRender){
     var likers=likesByPost[row.id]||[];
     return {id:100000+row.id,dbId:row.id,authorId:row.author_id,ipMasked:row.ip_masked||null,board:row.board,title:row.title,category:row.category,author:nameFor(row.author_id),authorLevel:levelFor(row.author_id),authorAvatar:avatarFor(row.author_id),
       time:timeAgo(row.created_at),createdAt:row.created_at,likes:likers.length,_liked:likers.indexOf(myLikeId())>-1,
-      views:row.views,thumb:"none",stage:row.stage,images:imagesByPost[row.id],pollId:pollByPost[row.id]||null,
+      views:row.views,thumb:"none",stage:row.stage,images:imagesByPost[row.id],polls:pollsByPost[row.id]||[],pollId:(pollsByPost[row.id]&&pollsByPost[row.id][0]?pollsByPost[row.id][0].id:null),
       isManagerPick:!!row.is_manager_pick,pickPosition:row.pick_position,pickedAt:row.picked_at,adLocked:!!adLockedIds[row.id],
       reviewedNickname:row.reviewed_nickname||null,reviewedUserId:row.reviewed_user_id||null,commissionPostId:row.commission_post_id||null,commissionSentiment:row.commission_sentiment||null,
       commissionId:row.commission_id||null,commissionCtype:row.commission_ctype||null,commissionBadReason:row.commission_bad_reason||null,acceptedCommentId:row.accepted_comment_id||null,
@@ -928,7 +928,7 @@ function renderPostDetail(id){
     '<div class="d-author"><div class="d-ava serif">'+avatarHTML(p.author,p.authorAvatar)+'</div><div class="d-au-info"><div class="n"'+(p.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+anonIpHTML(p.ipMasked)+levelBadgeHtml(p.authorLevel,"lv-badge")+'</div><div class="meta">'+p.time+' · 조회 '+fmtViews(p.views)+'</div></div>'+
     ((p.authorId&&(!AUTH.user||p.authorId!==AUTH.user.id))?('<button class="d-follow'+(FOLLOW.has(p.authorId)?' following':'')+'" id="followBtn" onclick="toggleFollow(\''+esc(p.authorId)+'\',\''+esc(p.author)+'\')">'+(FOLLOW.has(p.authorId)?'팔로잉 ✓':'＋ 팔로우')+'</button>'):'')+'</div></div>'+
     canvas+'<div class="d-content">'+(safeHtml?safeHtml:p.content.map(function(x){return'<p>'+esc(x)+'</p>'}).join(""))+'</div>'+
-    (p.pollId?'<div class="poll" id="pollBox"></div>':'')+
+    (p.polls&&p.polls.length?p.polls.filter(function(pl){return !pl.anchor;}).map(function(pl){return '<div class="poll" id="pollBox-'+pl.id+'"></div>';}).join(''):'')+
     '<div class="d-actions"><button class="d-act'+liked+'" id="likeBtn" onclick="toggleLike('+p.id+')">'+likeIconSvg(p._liked)+'좋아요 '+p.likes+'</button>'+
     '<button class="d-act" onclick="sharePost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6"/><path d="M10 6l1-1a4 4 0 0 1 6 6l-1 1M14 18l-1 1a4 4 0 0 1-6-6l1-1"/></svg>공유</button>'+
     '<button class="d-act" onclick="reportPost('+p.id+')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>신고</button>'+
@@ -951,15 +951,25 @@ function renderPostDetail(id){
     '<div class="ad d-ad" role="complementary" aria-label="광고"><span class="ad-label">AD</span><div class="ad-ph"><svg viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"1.6\\" style=\\"width:22px;height:22px\\"><rect x=\\"3\\" y=\\"4\\" width=\\"18\\" height=\\"16\\" rx=\\"2\\"/><circle cx=\\"8.5\\" cy=\\"9.5\\" r=\\"1.6\\"/><path d=\\"m4 18 5-5 4 3 3-2 4 4\\"/></svg></div><div class="ad-body"><div class="ad-t">열심히 활동해서 포인트를 모아보세요!</div><div class="ad-d">포인트를 사용하여 이 자리에 광고를 집행할 수 있어요!</div></div></div>'+'<div class="cm-list" id="cmList">'+renderComments(p)+'</div></div></div>';
   main.innerHTML=h;
   renderDetailAd();
-  if(p.pollId)loadPoll(p.pollId);
+  if(p.polls&&p.polls.length){
+    p.polls.forEach(function(pl){
+      if(pl.anchor){ // 본문 마커(data-poll) 위치에 투표 박스를 끼워넣음
+        var mk=main.querySelector('.d-content [data-poll="'+pl.anchor+'"]');
+        if(mk){var bx=document.createElement('div');bx.className='poll';bx.id='pollBox-'+pl.id;mk.replaceWith(bx);}
+        else{var dc=main.querySelector('.d-content');if(dc){var bx2=document.createElement('div');bx2.className='poll';bx2.id='pollBox-'+pl.id;dc.insertAdjacentElement('afterend',bx2);}}
+      }
+      loadPoll(pl.id);
+    });
+  }
 }
 /* ===== 글 상세 투표 표시/투표하기 ===== */
-var _pollChannel=null;      // 실시간 broadcast 채널
-var _pollVotersOpen=false;  // 참여자 명단 펼침 여부
-var _pollVotersData=null;   // [{option_id, nick}]
+var _pollChannels={};       // pollId → 실시간 broadcast 채널
+var _pollVotersOpen={};     // pollId → 참여자 명단 펼침 여부
+var _pollVotersData={};     // pollId → [{option_id, nick}]
+function _pollBox(pid){return document.getElementById('pollBox-'+pid);}
 async function loadPoll(pollId){
-  var box=document.getElementById('pollBox'); if(!box||!window.supabase)return;
-  _pollVotersOpen=false;_pollVotersData=null;
+  var box=_pollBox(pollId); if(!box||!window.supabase)return;
+  _pollVotersOpen[pollId]=false;_pollVotersData[pollId]=null;
   box.innerHTML='<div class="poll-loading">투표 불러오는 중…</div>';
   var res=await window.supabase.rpc('get_poll_results',{p_poll_id:pollId});
   if(res.error||!res.data){box.innerHTML='<div class="poll-loading">투표를 불러오지 못했어요</div>';return;}
@@ -969,29 +979,30 @@ async function loadPoll(pollId){
 // 실시간: 같은 투표를 보는 브라우저끼리 broadcast 채널로 연결(투표 테이블 직접 구독 X → 익명 보장)
 function subscribePoll(pollId){
   if(!window.supabase)return;
-  if(_pollChannel){try{window.supabase.removeChannel(_pollChannel);}catch(e){}_pollChannel=null;}
-  _pollChannel=window.supabase.channel('poll-'+pollId)
+  if(_pollChannels[pollId]){try{window.supabase.removeChannel(_pollChannels[pollId]);}catch(e){}delete _pollChannels[pollId];}
+  _pollChannels[pollId]=window.supabase.channel('poll-'+pollId)
     .on('broadcast',{event:'vote'},function(){refreshPollResults(pollId);})
     .subscribe();
 }
 async function refreshPollResults(pollId){
-  if(!document.getElementById('pollBox')||!window.supabase)return; // 화면 떠났으면 무시
+  if(!_pollBox(pollId)||!window.supabase)return; // 화면 떠났으면 무시
   var res=await window.supabase.rpc('get_poll_results',{p_poll_id:pollId});
   if(res.error||!res.data)return;
-  if(_pollVotersOpen&&!res.data.is_anonymous){
+  if(_pollVotersOpen[pollId]&&!res.data.is_anonymous){
     var vr=await window.supabase.rpc('get_poll_voters',{p_poll_id:pollId});
-    _pollVotersData=(vr&&vr.data&&vr.data.voters)||[];
+    _pollVotersData[pollId]=(vr&&vr.data&&vr.data.voters)||[];
   }
   renderPoll(pollId,res.data);
 }
-function togglePollVoters(pollId){ _pollVotersOpen=!_pollVotersOpen; refreshPollResults(pollId); }
-function renderPollVotersHTML(opts){
-  if(_pollVotersData==null)return '<div class="poll-voters-loading">불러오는 중…</div>';
-  if(!_pollVotersData.length)return '<div class="poll-voters-empty">아직 참여자가 없어요</div>';
+function togglePollVoters(pollId){ _pollVotersOpen[pollId]=!_pollVotersOpen[pollId]; refreshPollResults(pollId); }
+function renderPollVotersHTML(pollId,opts){
+  var vd=_pollVotersData[pollId];
+  if(vd==null)return '<div class="poll-voters-loading">불러오는 중…</div>';
+  if(!vd.length)return '<div class="poll-voters-empty">아직 참여자가 없어요</div>';
   var optBody={}; opts.forEach(function(o){optBody[o.id]=o.body;});
   // 사람별로 묶기(user_id 우선, 없으면 nick). 복수 선택이면 한 사람이 여러 선택지.
   var byUser={},order=[];
-  _pollVotersData.forEach(function(v){
+  vd.forEach(function(v){
     var k=v.user_id||('nick:'+v.nick);
     if(!byUser[k]){byUser[k]={nick:v.nick||'익명',opts:[]};order.push(k);}
     byUser[k].opts.push(optBody[v.option_id]||'?');
@@ -1010,7 +1021,7 @@ function pollDeadlineText(iso){
   return '곧 마감';
 }
 function renderPoll(pollId,data){
-  var box=document.getElementById('pollBox'); if(!box||!data)return;
+  var box=_pollBox(pollId); if(!box||!data)return;
   var opts=data.options||[], total=data.total||0;
   var mine=data.my_options||[], voted=mine.length>0;
   var multi=!!data.allow_multiple, closed=!!data.closed;
@@ -1039,8 +1050,8 @@ function renderPoll(pollId,data){
   if(data.is_anonymous){
     h+='<div class="poll-anon">🕶 익명 투표 — 누가 골랐는지는 공개되지 않아요</div>';
   }else if(total>0){
-    h+='<button class="poll-voters-btn" onclick="togglePollVoters('+pollId+')">'+(_pollVotersOpen?'참여자 숨기기 ▲':'👥 참여자 보기 ▼')+'</button>';
-    if(_pollVotersOpen)h+=renderPollVotersHTML(opts);
+    h+='<button class="poll-voters-btn" onclick="togglePollVoters('+pollId+')">'+(_pollVotersOpen[pollId]?'참여자 숨기기 ▲':'👥 참여자 보기 ▼')+'</button>';
+    if(_pollVotersOpen[pollId])h+=renderPollVotersHTML(pollId,opts);
   }
   box.innerHTML=h;
 }
@@ -1056,10 +1067,10 @@ async function votePoll(pollId,optionId){
     if(data.error==='closed'){toast('마감된 투표예요');renderPoll(pollId,data);return;}
     toast('투표할 수 없어요 ('+(data.error||'오류')+')');return;
   }
-  if(_pollVotersOpen){_pollVotersData=null;} // 참여자 목록 열려있으면 갱신 필요
+  if(_pollVotersOpen[pollId]){_pollVotersData[pollId]=null;} // 참여자 목록 열려있으면 갱신 필요
   renderPoll(pollId,data); // cast_vote가 최신 결과를 함께 반환(내 화면 즉시)
-  if(_pollVotersOpen)refreshPollResults(pollId); // 열린 참여자 목록도 최신화
-  if(_pollChannel){try{_pollChannel.send({type:'broadcast',event:'vote',payload:{}});}catch(e){}} // 다른 사람에게 알림
+  if(_pollVotersOpen[pollId])refreshPollResults(pollId); // 열린 참여자 목록도 최신화
+  if(_pollChannels[pollId]){try{_pollChannels[pollId].send({type:'broadcast',event:'vote',payload:{}});}catch(e){}} // 다른 사람에게 알림
 }
 // 이 게시판들은 '다른 사람(작성자 아닌)의 댓글'이 하나라도 달리면 작성자가 수정·삭제 불가(관리자 삭제는 예외).
 var POST_EDIT_LOCK_BOARDS=['ask','vote','crit']; // 질문/시세문의 · 투표·수요조사 · 피드백 요청
@@ -3329,7 +3340,7 @@ function openWrite(){
   updateReviewNickField();
   document.getElementById("wContent").innerHTML="";
   document.getElementById("edImages").innerHTML="";
-  edState.poll=null;edPollRender();
+  edState.polls={};
   document.getElementById("edCrit").checked=(edState.board==="crit");
   document.getElementById("edTitleLabel").textContent="글쓰기";
   document.getElementById("edSubmitBtn").textContent="등록";
@@ -3350,7 +3361,7 @@ function openEditPost(id){
   updateReviewNickField();
   document.getElementById("wContent").innerHTML=p.html?sanitizePostHtml(p.html):p.content.map(function(x){return"<p>"+esc(x)+"</p>"}).join("");
   renderEdImages();
-  edState.poll=null;edPollRender(); // 수정 시엔 투표 편집 미지원(1단계) — 버튼도 숨김
+  edState.polls={}; // 수정 시엔 투표 편집 미지원(1단계) — 버튼도 숨김
   document.getElementById("edCrit").checked=(edState.board==="crit");
   document.getElementById("edTitleLabel").textContent="글 수정";
   document.getElementById("edSubmitBtn").textContent="수정 완료";
@@ -3433,7 +3444,7 @@ var BOARD_GUIDE={
   collab:"함께 작업할 팀원·협업 상대를 찾아요.",
   challenge:"챌린지 주제·참가작을 공유해요.",
   tip:"유용한 자료·꿀팁·강좌를 나눠요.",
-  request:"그려주길 바라는 리퀘스트를 올려요.",
+  request:"리퀘스트 글을 올려보세요! 원하는 사람들이 댓글로 캐릭터와 설명을 달아줄 거예요!",
   recruit:"커미션 작가를 구인해요. 거래는 당사자끼리 직접 진행해요.",
   used:"중고 장비를 사고팔아요. 거래 책임은 당사자에게 있어요.",
   adult:"성인 대상 게시판이에요. 청소년은 이용할 수 없어요.",
@@ -3636,44 +3647,81 @@ function sanitizePostHtml(html){
   if(!window.DOMPurify)return "";
   return window.DOMPurify.sanitize(html,{
     ALLOWED_TAGS:["b","strong","i","em","u","font","span","ul","ol","li","blockquote","br","div","p","img","video","source"],
-    ALLOWED_ATTR:["style","color","src","controls","alt"]
+    ALLOWED_ATTR:["style","color","src","controls","alt","data-poll"]
   });
 }
-/* ===== 글쓰기 투표 편집기 ===== edState.poll = null 또는 {question, options:[...]} */
-function edPollSync(){ // 화면(DOM) → edState.poll (재렌더 전에 입력값 보존)
-  if(!edState.poll)return;
-  var q=document.getElementById('edPollQ'); if(q)edState.poll.question=q.value;
-  var opts=[]; document.querySelectorAll('#edPollOpts .ed-poll-opt-in').forEach(function(inp){opts.push(inp.value);});
-  if(opts.length)edState.poll.options=opts;
-  var m=document.getElementById('edPollMulti'); if(m)edState.poll.allowMultiple=m.checked;
-  var a=document.getElementById('edPollAnon'); if(a)edState.poll.anonymous=a.checked;
-  var c=document.getElementById('edPollClose'); if(c)edState.poll.closesDays=c.value?parseInt(c.value,10):null;
+/* ===== 글쓰기 투표(다중·본문 삽입형) ===== edState.polls = {key:{question,options,allowMultiple,anonymous,closesDays}} */
+function edPollBlockInner(key){ // 본문 안 투표 블록의 표시 내용(라벨+편집/삭제)
+  var pd=edState.polls[key]||{};
+  var label=(pd.question||'').trim()?esc(pd.question.trim()):'투표 (편집을 눌러 설정)';
+  var n=(pd.options||[]).filter(function(o){return (o||'').trim();}).length;
+  return '<span class="pa-q">📊 '+label+(n?' · '+n+'개 선택지':'')+'</span>'+
+    '<span class="pa-act"><button type="button" onmousedown="event.preventDefault()" onclick="edEditPoll(\''+key+'\')">편집</button>'+
+    '<button type="button" onmousedown="event.preventDefault()" onclick="edRemovePoll(\''+key+'\')">삭제</button></span>';
 }
-function edPollAdd(){ edState.poll={question:'',options:['',''],allowMultiple:false,anonymous:false,closesDays:null}; edPollRender(); }
-function edPollRemove(){ edState.poll=null; edPollRender(); }
-function edPollAddOption(){ edPollSync(); if(edState.poll.options.length>=8){toast('선택지는 최대 8개예요');return;} edState.poll.options.push(''); edPollRender(); }
-function edPollRemoveOption(i){ edPollSync(); if(edState.poll.options.length<=2){toast('선택지는 최소 2개가 필요해요');return;} edState.poll.options.splice(i,1); edPollRender(); }
-function edPollRender(){
-  var box=document.getElementById('edPollBox'), btn=document.getElementById('edPollAddBtn');
-  if(!box)return;
-  if(!edState.poll){ box.style.display='none'; box.innerHTML=''; if(btn)btn.style.display=(editingPostId?'none':''); return; }
-  if(btn)btn.style.display='none';
-  box.style.display='';
-  box.innerHTML='<div class="ed-poll-head"><span>📊 투표</span><button type="button" class="ed-poll-del" onclick="edPollRemove()">삭제</button></div>'+
-    '<input class="ed-poll-q" id="edPollQ" placeholder="투표 질문 (예: 다음 그림 주제는?)" value="'+esc(edState.poll.question||'')+'">'+
-    '<div id="edPollOpts">'+edState.poll.options.map(function(o,i){
-      return '<div class="ed-poll-optrow"><input class="ed-poll-opt-in" placeholder="선택지 '+(i+1)+'" value="'+esc(o||'')+'"><button type="button" class="ed-poll-optdel" onclick="edPollRemoveOption('+i+')" title="선택지 삭제">×</button></div>';
-    }).join('')+'</div>'+
-    '<button type="button" class="ed-poll-addopt" onclick="edPollAddOption()">+ 선택지 추가</button>'+
-    '<div class="ed-poll-settings">'+
-      '<label class="ed-poll-set"><input type="checkbox" id="edPollMulti"'+(edState.poll.allowMultiple?' checked':'')+'> 복수 선택 허용</label>'+
-      '<label class="ed-poll-set"><input type="checkbox" id="edPollAnon"'+(edState.poll.anonymous?' checked':'')+'> 익명 투표</label>'+
-      '<label class="ed-poll-set"><span>마감</span><select id="edPollClose" class="ed-poll-close">'+
-        [['','없음'],['1','1일 후'],['3','3일 후'],['7','7일 후'],['14','14일 후']].map(function(o){
-          return '<option value="'+o[0]+'"'+((String(edState.poll.closesDays||'')===o[0])?' selected':'')+'>'+o[1]+'</option>';
-        }).join('')+
-      '</select></label>'+
-    '</div>';
+function edInsertPoll(e){ // 커서 위치에 투표 블록 삽입 → 편집 모달 열기 (Range API로 안정 삽입)
+  if(e)e.preventDefault();
+  var ed=document.getElementById("wContent"); if(!ed)return; ed.focus();
+  var key='p'+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36);
+  if(!edState.polls)edState.polls={};
+  edState.polls[key]={question:'',options:['',''],allowMultiple:false,anonymous:false,closesDays:null};
+  var wrap=document.createElement('div');
+  wrap.innerHTML='<div class="poll-anchor" data-poll="'+key+'" contenteditable="false">'+edPollBlockInner(key)+'</div><p><br></p>';
+  var frag=document.createDocumentFragment(), nodes=[];
+  while(wrap.firstChild){nodes.push(wrap.firstChild);frag.appendChild(wrap.firstChild);}
+  var sel=window.getSelection();
+  var range=(sel&&sel.rangeCount&&ed.contains(sel.anchorNode))?sel.getRangeAt(0):null;
+  if(range){
+    range.deleteContents(); range.insertNode(frag);
+    var last=nodes[nodes.length-1];
+    if(last){try{var nr=document.createRange();nr.setStart(last,0);nr.collapse(true);sel.removeAllRanges();sel.addRange(nr);}catch(e2){}}
+  }else{ nodes.forEach(function(n){ed.appendChild(n);}); }
+  edEditPoll(key);
+}
+function refreshPollBlockLabel(key){
+  var el=document.querySelector('#wContent .poll-anchor[data-poll="'+key+'"]');
+  if(el)el.innerHTML=edPollBlockInner(key);
+}
+function edRemovePoll(key){
+  var el=document.querySelector('#wContent .poll-anchor[data-poll="'+key+'"]');
+  if(el)el.remove();
+  if(edState.polls)delete edState.polls[key];
+  if(_edPollKey===key)closePollEdit();
+}
+var _edPollKey=null, _pmOpts=[];
+function edEditPoll(key){
+  var pd=edState.polls&&edState.polls[key]; if(!pd)return;
+  _edPollKey=key;
+  _pmOpts=(pd.options&&pd.options.length?pd.options.slice():['','']);
+  document.getElementById('pmQ').value=pd.question||'';
+  document.getElementById('pmMulti').checked=!!pd.allowMultiple;
+  document.getElementById('pmAnon').checked=!!pd.anonymous;
+  document.getElementById('pmClose').value=pd.closesDays?String(pd.closesDays):'';
+  pmRenderOpts();
+  document.getElementById('pollEditModal').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function pmSyncOpts(){ var arr=[]; document.querySelectorAll('#pmOpts .ed-poll-opt-in').forEach(function(inp){arr.push(inp.value);}); if(arr.length)_pmOpts=arr; }
+function pmRenderOpts(){
+  document.getElementById('pmOpts').innerHTML=_pmOpts.map(function(o,i){
+    return '<div class="ed-poll-optrow"><input class="ed-poll-opt-in" placeholder="선택지 '+(i+1)+'" value="'+esc(o||'')+'"><button type="button" class="ed-poll-optdel" onclick="pmRemoveOption('+i+')" title="선택지 삭제">×</button></div>';
+  }).join('');
+}
+function pmAddOption(){ pmSyncOpts(); if(_pmOpts.length>=8){toast('선택지는 최대 8개예요');return;} _pmOpts.push(''); pmRenderOpts(); }
+function pmRemoveOption(i){ pmSyncOpts(); if(_pmOpts.length<=2){toast('선택지는 최소 2개가 필요해요');return;} _pmOpts.splice(i,1); pmRenderOpts(); }
+function closePollEdit(){ var m=document.getElementById('pollEditModal'); if(m)m.classList.remove('open'); document.body.style.overflow=''; _edPollKey=null; }
+function edRemovePollFromModal(){ var k=_edPollKey; closePollEdit(); if(k)edRemovePoll(k); }
+function edSavePollModal(){
+  var key=_edPollKey; if(!key||!edState.polls||!edState.polls[key])return;
+  pmSyncOpts();
+  var q=(document.getElementById('pmQ').value||'').trim();
+  var opts=_pmOpts.map(function(o){return (o||'').trim();}).filter(Boolean);
+  if(!q){toast('투표 질문을 입력해주세요');return;}
+  if(opts.length<2){toast('선택지를 2개 이상 입력해주세요');return;}
+  edState.polls[key]={question:q,options:opts,allowMultiple:document.getElementById('pmMulti').checked,anonymous:document.getElementById('pmAnon').checked,closesDays:(document.getElementById('pmClose').value?parseInt(document.getElementById('pmClose').value,10):null)};
+  refreshPollBlockLabel(key);
+  closePollEdit();
+  toast('투표를 저장했어요','📊');
 }
 async function submitPost(){
   var t=document.getElementById("wTitle").value.trim();
@@ -3694,12 +3742,13 @@ async function submitPost(){
   var reviewedUserId=isReview?edState.reviewedUserId:null;
   var commissionPostId=isReview?edState.commissionPostId:null;
 
-  if(edState.poll){ // 투표를 넣었다면 질문 + 선택지 2개 이상 필수
-    edPollSync();
-    var _pq=(edState.poll.question||'').trim();
-    var _pos=edState.poll.options.map(function(o){return (o||'').trim();}).filter(Boolean);
-    if(!_pq){toast('투표 질문을 입력해주세요');return;}
-    if(_pos.length<2){toast('투표 선택지를 2개 이상 입력해주세요');return;}
+  // 본문에 넣은 투표들: 각각 질문 + 선택지 2개 이상 필수
+  var _tmpv=document.createElement('div'); _tmpv.innerHTML=html;
+  var _pmk=[].slice.call(_tmpv.querySelectorAll('[data-poll]'));
+  for(var _vi=0;_vi<_pmk.length;_vi++){
+    var _vk=_pmk[_vi].getAttribute('data-poll'); var _vpd=edState.polls&&edState.polls[_vk];
+    if(!_vpd||!(_vpd.question||'').trim()){toast('투표 질문을 입력해주세요 (본문의 투표 블록에서 [편집])');return;}
+    if((_vpd.options||[]).map(function(o){return (o||'').trim();}).filter(Boolean).length<2){toast('투표 선택지를 2개 이상 입력해주세요');return;}
   }
 
   if(editingPostId){
@@ -3759,21 +3808,25 @@ async function submitPost(){
       var savedImgs=await window.supabase.from("post_images").insert(imgRows);
       if(savedImgs.error)console.error(savedImgs.error);
     }
-    // 투표 저장 (있으면): polls 1행 + poll_options 여러 행. RLS가 서버에서 '이 글 작성자만'을 확인.
-    var _newPollId=null;
-    if(edState.poll){
-      var _q=(edState.poll.question||'').trim();
-      var _opts=edState.poll.options.map(function(o){return (o||'').trim();}).filter(Boolean);
-      if(_q&&_opts.length>=2){
-        var _closesAt=edState.poll.closesDays?new Date(Date.now()+edState.poll.closesDays*86400000).toISOString():null;
+    // 투표 저장: 본문에 남은 투표 마커(data-poll)마다 polls 1행 + options. RLS가 '이 글 작성자만' 확인.
+    var _insertedPolls=[];
+    if(edState.polls){
+      var _tmp=document.createElement('div'); _tmp.innerHTML=html;
+      var _mk=[].slice.call(_tmp.querySelectorAll('[data-poll]'));
+      var _psort=0;
+      for(var _mi=0;_mi<_mk.length;_mi++){
+        var _key=_mk[_mi].getAttribute('data-poll'); var _pd=edState.polls[_key]; if(!_pd)continue;
+        var _q=(_pd.question||'').trim();
+        var _opts=(_pd.options||[]).map(function(o){return (o||'').trim();}).filter(Boolean);
+        if(!_q||_opts.length<2)continue;
+        var _closesAt=_pd.closesDays?new Date(Date.now()+_pd.closesDays*86400000).toISOString():null;
         var pollRes=await window.supabase.from("polls").insert({post_id:saved.data.id,question:_q,
-          allow_multiple:!!edState.poll.allowMultiple,is_anonymous:!!edState.poll.anonymous,closes_at:_closesAt}).select().single();
-        if(pollRes.error){console.error(pollRes.error);toast("투표 저장 실패: "+pollRes.error.message);}
-        else{
-          var optRows=_opts.map(function(b,i){return {poll_id:pollRes.data.id,body:b,sort:i};});
-          var optIns=await window.supabase.from("poll_options").insert(optRows);
-          if(optIns.error)console.error(optIns.error); else _newPollId=pollRes.data.id;
-        }
+          allow_multiple:!!_pd.allowMultiple,is_anonymous:!!_pd.anonymous,closes_at:_closesAt,anchor_key:_key,sort:_psort++}).select().single();
+        if(pollRes.error){console.error(pollRes.error);toast("투표 저장 실패: "+pollRes.error.message);continue;}
+        var optRows=_opts.map(function(b,i){return {poll_id:pollRes.data.id,body:b,sort:i};});
+        var optIns=await window.supabase.from("poll_options").insert(optRows);
+        if(optIns.error)console.error(optIns.error);
+        _insertedPolls.push({id:pollRes.data.id,anchor:_key});
       }
     }
     refreshMyProfile();
@@ -3784,7 +3837,7 @@ async function submitPost(){
     images:edState.images.length?edState.images.slice():undefined,
     dbId:saved&&saved.data?saved.data.id:undefined,authorId:saved&&saved.data?saved.data.author_id:undefined,
     reviewedNickname:reviewedNick,reviewedUserId:reviewedUserId,commissionPostId:commissionPostId,commissionSentiment:sentiment,
-    pollId:(typeof _newPollId!=="undefined"?_newPollId:null),
+    polls:(typeof _insertedPolls!=="undefined"?_insertedPolls:[]),pollId:(typeof _insertedPolls!=="undefined"&&_insertedPolls[0]?_insertedPolls[0].id:null),
     html:html,content:text.split("\n").filter(Boolean),comments:[]};
   justAddedId=np.id;setTimeout(function(){justAddedId=null},1800);POSTS.unshift(np);
   closeWrite();state.board=edState.board;state.query="";state.sort="new";state.shown=8;
