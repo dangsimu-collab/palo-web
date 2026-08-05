@@ -4397,13 +4397,17 @@ function chatMessagesHtml(messages){
   return h;
 }
 var chatListCache=null; // 마지막으로 그린 채팅 목록 데이터 — 재방문 시 즉시 표시용(뒤에서 최신으로 교체)
-async function openChatList(){
+var _chatListBack=null; // 채팅 목록에서 '뒤로' 갈 곳(들어온 곳 기억): 홈 탭이면 goHome, 프로필 메뉴면 openProfile
+async function openChatList(origin){
   if(!AUTH.user){toast("로그인이 필요해요");loginWithGoogle();return;}
+  // origin: 'profile'→뒤로=프로필, 'home'→뒤로=홈, 미지정→기존 유지(채팅방에서 목록으로 복귀할 때 원래 자리 보존)
+  if(origin==='profile')_chatListBack=openProfile;
+  else if(origin==='home')_chatListBack=goHome;
   curTab="chat";navSeq++;
   var mySeq=navSeq; // 이 로딩을 시작한 시점의 번호표. 아래 렌더 직전에 아직 최신인지 확인.
   userLeftHome=true;
   if(!navigatingBack)resetScreens();
-  enterScreen("chatList",goHome);
+  enterScreen("chatList",function(){(_chatListBack||goHome)();}); // 뒤로가기 시 기억해 둔 곳(홈/프로필)으로
   leaveChat();
   closeNotif();
   syncTabs("chat");
@@ -4699,7 +4703,7 @@ function renderMyProfile(){
      '</div>';
   h+='<div class="pf-group"><div class="pf-group-title">내 활동</div>'+
      pfRow(pfMiniIcon('<path d="M8 12l3 3 5-5"/><path d="M3 10l5-5 4 3 4-3 5 5-6 8H9z"/>'),'내 커미션',"cmOpenMy()",{})+
-     pfRow(pfMiniIcon('<path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8 8.38 8.38 0 0 1 8.5-8.5 8.5 8.5 0 0 1 8.5 8.5z"/>'),'채팅 목록',"openChatList()",{})+
+     pfRow(pfMiniIcon('<path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8 8.38 8.38 0 0 1 8.5-8.5 8.5 8.5 0 0 1 8.5 8.5z"/>'),'채팅 목록',"openChatList('profile')",{})+
      pfRow(pfMiniIcon('<circle cx="12" cy="12" r="9"/><path d="M12 8v8M9 12h6"/>'),'포인트 내역',"openScoreLog()",{})+
      '</div>';
   h+='<div class="pf-group" id="notifSettingsSec"><div class="pf-group-title">알림 설정</div>'+notifEnableHTML()+
