@@ -931,6 +931,29 @@
   .pf-fb:hover{border-color:var(--brand);background:var(--brand-soft)}
   .pf-fb b{font-size:17px;font-weight:900;color:var(--ink)}
   .pf-fb span{font-size:12.5px;font-weight:700;color:var(--muted)}
+  /* ===== 프로필 포스타입식 섹션 메뉴 ===== */
+  .pf-viewpublic{display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:none;padding:12px 2px;margin:4px 0 2px;font-size:14px;font-weight:700;color:var(--brand);cursor:pointer;font-family:inherit}
+  .pf-viewpublic svg{width:16px;height:16px;flex:none}
+  .pf-group{margin-top:26px}
+  .pf-group-title{font-size:12.5px;font-weight:800;color:var(--muted);letter-spacing:.01em;padding:0 2px 4px}
+  .pf-item{display:flex;align-items:center;gap:14px;width:100%;background:none;border:none;border-top:1px solid var(--line);padding:15px 2px;cursor:pointer;text-align:left;font-family:inherit}
+  .pf-item:active{background:var(--surface-2)}
+  .pf-item-ic{width:24px;height:24px;flex:none;display:flex;align-items:center;justify-content:center;color:var(--ink-2)}
+  .pf-item-ic svg{width:22px;height:22px}
+  .pf-item-label{flex:1;font-size:15px;font-weight:600;color:var(--ink)}
+  .pf-item-right{display:flex;align-items:center;gap:7px;flex:none}
+  .pf-item-count{font-size:13.5px;font-weight:700;color:var(--muted)}
+  .pf-chev{width:18px;height:18px;color:var(--muted-2)}
+  .pf-item.danger .pf-item-label,.pf-item.danger .pf-item-ic{color:#e0607a}
+  .pf-item-badge{background:#e0607a;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:800;margin-left:2px}
+  .pf-toggle-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding:13px 2px}
+  .pf-toggle-row .pf-item-label{flex:1;font-weight:600;font-size:14.5px}
+  .pf-toggle-row input[type=checkbox]{appearance:none;-webkit-appearance:none;width:44px;height:26px;border-radius:13px;background:var(--line-2);position:relative;cursor:pointer;flex:none;transition:background .18s;margin:0}
+  .pf-toggle-row input[type=checkbox]::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .18s}
+  .pf-toggle-row input[type=checkbox]:checked{background:var(--brand)}
+  .pf-toggle-row input[type=checkbox]:checked::after{transform:translateX(18px)}
+  .pf-list-head{font-size:20px;font-weight:900;letter-spacing:-.02em;padding:8px 2px 14px}
+  .pf-list-head span{color:var(--brand)}
   /* 팔로우 목록 모달 */
   .follow-modal{background:var(--surface);border-radius:20px;width:min(420px,92vw);max-height:72vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--sh-lg);transform:translateY(12px) scale(.98);opacity:0;transition:transform .26s cubic-bezier(.32,.72,0,1),opacity .2s}
   .rules-scrim.open .follow-modal{transform:none;opacity:1}

@@ -4115,6 +4115,40 @@ function listOrEmpty(arr,emptyMsg,cta){
   if(arr.length)return '<div class="list">'+arr.map(profileRow).join("")+'</div>';
   return '<div class="pf-empty">'+emptyMsg+(cta?'<button onclick="openWrite()">✏️ 첫 글 쓰기</button>':'')+'</div>';
 }
+// 포스타입식 메뉴 한 줄: 왼쪽 선(line) 아이콘 + 이름, 오른쪽 개수/화살표. opts:{count, chev:false, danger}
+function pfMiniIcon(inner){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+inner+'</svg>';}
+function pfRow(icon,label,onclick,opts){
+  opts=opts||{};
+  var right='';
+  if(opts.count!=null)right+='<span class="pf-item-count">'+opts.count+'</span>';
+  if(opts.chev!==false)right+='<svg class="pf-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+  return '<button type="button" class="pf-item'+(opts.danger?' danger':'')+'" onclick="'+onclick+'">'+
+    '<span class="pf-item-ic">'+icon+'</span>'+
+    '<span class="pf-item-label">'+label+'</span>'+
+    '<span class="pf-item-right">'+right+'</span></button>';
+}
+// 프로필의 '내 글' 계열(쓴 글/댓글 단 글/좋아요/최근 본 글)을 각각 별도 화면으로 표시(메뉴 행에서 진입)
+function openPfList(kind){
+  if(!AUTH.user)return;
+  userLeftHome=true;
+  var mine=POSTS.filter(function(p){return p.author==="나"||(AUTH.user&&p.authorId===AUTH.user.id)});
+  var commented=POSTS.filter(function(p){return p.author!=="나"&&p.comments.some(function(c){return c.n==="나"})});
+  var likedArr=POSTS.filter(function(p){return p._liked});
+  var recent=[];Array.from(READ).reverse().forEach(function(id){var p=POSTS.find(function(x){return x.id===id});if(p)recent.push(p)});
+  recent=recent.slice(0,10);
+  var M={mine:["쓴 글",mine,'아직 쓴 글이 없어요.<br>첫 이야기를 올려볼까요?',true],
+         cm:["댓글 단 글",commented,'댓글을 단 글이 아직 없어요.<br>마음에 드는 글에 훈수를 남겨보세요!',false],
+         liked:["좋아요",likedArr,'좋아요한 글이 아직 없어요.<br>마음에 드는 그림에 하트를 눌러보세요!',false],
+         recent:["최근 본 글",recent,'최근 본 글이 없어요.',false]};
+  var m=M[kind]||M.mine;
+  var h='<div class="profile">'+
+    '<button class="d-back" onclick="openProfile()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>내 정보로</button>'+
+    '<div class="pf-list-head">'+m[0]+' <span>'+m[1].length+'</span></div>'+
+    listOrEmpty(m[1],m[2],m[3])+
+  '</div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"auto"});
+}
 // keepStack=true면 커미션·채팅 같은 앱 내부 화면 흐름 '안에서' 열린 것 — 스택을 비우거나
 // URL(/user/)로 바꾸지 않고, 그 화면 흐름의 뒤로가기 스택에 그대로 얹혀 한 단계씩 돌아가게 함.
 async function openUserProfile(userId,keepStack){
@@ -4632,59 +4666,67 @@ function renderMyProfile(){
     cover_url:AUTH.profile&&AUTH.profile.cover_url,bio:AUTH.profile&&AUTH.profile.bio,
     sns_twitter:AUTH.profile&&AUTH.profile.sns_twitter,sns_instagram:AUTH.profile&&AUTH.profile.sns_instagram,sns_email:AUTH.profile&&AUTH.profile.sns_email},
     true,myReviewStats,null);
-  h+='<div class="pf-actions">'+
-       '<button class="pf-edit" onclick="openUserProfile(\''+AUTH.user.id+'\')">👤 내 공개 프로필 보기</button>'+
-       '<button class="pf-edit" onclick="cmOpenMy()">🎨 내 커미션</button>'+
-       '<button class="pf-edit" onclick="openNickModal()">닉네임 변경</button>'+
-       '<button class="pf-edit" onclick="openChatList()">💬 채팅 목록</button>'+
-       '<button class="pf-edit" onclick="openScoreLog()">포인트 내역</button>'+
-       '<button class="pf-edit" onclick="logout()">로그아웃</button>'+
-     '</div>';
-  if(AUTH.profile&&AUTH.profile.is_admin){
-    h+='<div class="pf-sec">🛡 관리자 메뉴</div>'+
-       '<div class="pf-actions pf-admin-actions">'+
-         '<button class="pf-edit" onclick="openAdminReports()">신고 목록</button>'+
-         '<button class="pf-edit" onclick="openAdminChatList()">전체 채팅 목록</button>'+
-         '<button class="pf-edit" onclick="openAdminAdReview()">광고 심사</button>'+
-         '<button class="pf-edit" onclick="openAdminAdList()">전체 광고 목록</button>'+
-         '<button class="pf-edit" onclick="openAdminCampaigns()">🎯 유료 광고 관리</button>'+
-         '<button class="pf-edit" onclick="openReviewAnalysis()">🔍 후기 분석'+(function(){var n=reviewSuspicionCountSync();return n?' <span style="background:#e0607a;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:800">'+n+'</span>':'';})()+'</button>'+
-         '<button class="pf-edit" onclick="openManagerPickList()">📌 매니저 픽 관리</button>'+
-         '<button class="pf-edit" onclick="openAdminDeletionLog()">🗑 삭제 기록</button>'+
-         '<button class="pf-edit" onclick="openAdminCommissionMgmt()">🎯 커미션 추천 관리</button>'+
-         '<button class="pf-edit" onclick="openCommissionBonusLog()">⭐ 추천 점수 조정 기록</button>'+
-       '</div>';
-  }
-  h+=pinnedPostCardHTML(AUTH.profile?AUTH.profile.pinned_post_id:null);
-  if(pfReviewsForUserId!==AUTH.user.id){pfReviewsExpanded=false;pfReviewsForUserId=AUTH.user.id;}
-  h+=pfReviewListHTML(pfArtistReviewList(AUTH.user.id,ME.nick),AUTH.user.id);
+  // 내 공개 프로필 보기 (포스타입식 '프로필 보기' 링크)
+  h+='<button type="button" class="pf-viewpublic" onclick="openUserProfile(\''+AUTH.user.id+'\')"><span>내 공개 프로필 보기</span>'+
+     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>';
+  h+='<div class="pf-follow-bar" id="pfFollowBar"></div>'; // 팔로잉/팔로워 수(비동기 채움)
+  // 등급 진행바
   h+='<div class="pf-progress"><div class="pp-row"><span>'+lvName+'</span><span>'+
      (prog.maxed?'최고 등급 달성! 🎉':('다음 등급('+prog.nextName+')까지 '+prog.remain+'점'))+'</span></div>'+
      '<div class="pp-bar"><div class="pp-fill" style="width:'+prog.pct+'%"></div></div></div>';
+  // 통계(점수·광고P·받은 추천·받은 댓글) — '쓴 글' 수는 아래 [내 글] 메뉴로 이동
   h+='<div class="pf-stats">'+
      '<div class="pf-st"><b>'+myScore+'</b><span>활동 점수</span></div>'+
      '<div class="pf-st"><b>'+(AUTH.profile?(AUTH.profile.ad_points||0):0)+'</b><span>광고 포인트</span></div>'+
-     '<div class="pf-st"><b>'+mine.length+'</b><span>쓴 글</span></div>'+
      '<div class="pf-st"><b>'+likeSum+'</b><span>받은 추천</span></div>'+
      '<div class="pf-st"><b>'+cmSum+'</b><span>받은 댓글</span></div></div>';
-  h+='<div class="pf-follow-bar" id="pfFollowBar"></div>'; // 팔로잉/팔로워 수(비동기 채움)
-  var tabs=[["mine","쓴 글 "+mine.length],["cm","댓글 단 글 "+commented.length],["liked","좋아요 "+likedArr.length],["recent","최근 본 글 "+recent.length]];
-  h+='<div class="pf-tabs">'+tabs.map(function(t){
-    return '<button class="pf-tab'+(pfTab===t[0]?' on':'')+'" onclick="setPfTab(\''+t[0]+'\')">'+t[1]+'</button>';
-  }).join("")+'</div>';
-  if(pfTab==="mine")h+=listOrEmpty(mine,'아직 쓴 글이 없어요.<br>첫 이야기를 올려볼까요?',true);
-  else if(pfTab==="cm")h+=listOrEmpty(commented,'댓글을 단 글이 아직 없어요.<br>마음에 드는 글에 훈수를 남겨보세요!');
-  else if(pfTab==="liked")h+=listOrEmpty(likedArr,'좋아요한 글이 아직 없어요.<br>마음에 드는 그림에 하트를 눌러보세요!');
-  else h+=listOrEmpty(recent,'최근 본 글이 없어요.');
-  h+='<div class="pf-sec" id="notifSettingsSec">알림 설정</div>';
-  h+=notifEnableHTML();
-  h+='<div class="pf-set">'+
-     '<label class="pf-toggle"><span>내 글에 댓글이 달리면 알림</span><input type="checkbox" '+(SETTINGS.cm?'checked':'')+' onchange="toggleNotifPref(\'cm\',this.checked,\'댓글\')"></label>'+
-     '<label class="pf-toggle"><span>좋아요 알림</span><input type="checkbox" '+(SETTINGS.like?'checked':'')+' onchange="toggleNotifPref(\'like\',this.checked,\'좋아요\')"></label>'+
-     '<label class="pf-toggle"><span>공지·챌린지 알림</span><input type="checkbox" '+(SETTINGS.notice?'checked':'')+' onchange="toggleNotifPref(\'notice\',this.checked,\'공지\')"></label>'+
-     '<label class="pf-toggle"><span>채팅 알림</span><input type="checkbox" '+(SETTINGS.chat?'checked':'')+' onchange="toggleNotifPref(\'chat\',this.checked,\'채팅\')"></label>'+
-     '<label class="pf-toggle"><span>커미션 문의 알림</span><input type="checkbox" '+(SETTINGS.cminquiry?'checked':'')+' onchange="toggleNotifPref(\'cminquiry\',this.checked,\'커미션 문의\')"></label></div>';
-  h+='<div class="pf-danger"><button class="pf-withdraw" onclick="openWithdraw()">회원 탈퇴</button></div>';
+  // 고정한 글 + 받은 후기(콘텐츠)
+  h+=pinnedPostCardHTML(AUTH.profile?AUTH.profile.pinned_post_id:null);
+  if(pfReviewsForUserId!==AUTH.user.id){pfReviewsExpanded=false;pfReviewsForUserId=AUTH.user.id;}
+  h+=pfReviewListHTML(pfArtistReviewList(AUTH.user.id,ME.nick),AUTH.user.id);
+  // ===== 메뉴 (포스타입식 섹션: 소제목 + 한 줄에 하나씩) =====
+  h+='<div class="pf-group"><div class="pf-group-title">내 글</div>'+
+     pfRow(pfMiniIcon('<path d="M4 20h4L20 8l-4-4L4 16v4z"/><path d="M14 6l4 4"/>'),'쓴 글',"openPfList('mine')",{count:mine.length})+
+     pfRow(pfMiniIcon('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'),'댓글 단 글',"openPfList('cm')",{count:commented.length})+
+     pfRow(pfMiniIcon('<path d="M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5c0 5-7 9.5-7 9.5z"/>'),'좋아요',"openPfList('liked')",{count:likedArr.length})+
+     pfRow(pfMiniIcon('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>'),'최근 본 글',"openPfList('recent')",{count:recent.length})+
+     '</div>';
+  h+='<div class="pf-group"><div class="pf-group-title">내 활동</div>'+
+     pfRow(pfMiniIcon('<path d="M8 12l3 3 5-5"/><path d="M3 10l5-5 4 3 4-3 5 5-6 8H9z"/>'),'내 커미션',"cmOpenMy()",{})+
+     pfRow(pfMiniIcon('<path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8 8.38 8.38 0 0 1 8.5-8.5 8.5 8.5 0 0 1 8.5 8.5z"/>'),'채팅 목록',"openChatList()",{})+
+     pfRow(pfMiniIcon('<circle cx="12" cy="12" r="9"/><path d="M12 8v8M9 12h6"/>'),'포인트 내역',"openScoreLog()",{})+
+     '</div>';
+  h+='<div class="pf-group" id="notifSettingsSec"><div class="pf-group-title">알림 설정</div>'+notifEnableHTML()+
+     '<label class="pf-toggle-row"><span class="pf-item-label">내 글에 댓글이 달리면 알림</span><input type="checkbox" '+(SETTINGS.cm?'checked':'')+' onchange="toggleNotifPref(\'cm\',this.checked,\'댓글\')"></label>'+
+     '<label class="pf-toggle-row"><span class="pf-item-label">좋아요 알림</span><input type="checkbox" '+(SETTINGS.like?'checked':'')+' onchange="toggleNotifPref(\'like\',this.checked,\'좋아요\')"></label>'+
+     '<label class="pf-toggle-row"><span class="pf-item-label">공지·챌린지 알림</span><input type="checkbox" '+(SETTINGS.notice?'checked':'')+' onchange="toggleNotifPref(\'notice\',this.checked,\'공지\')"></label>'+
+     '<label class="pf-toggle-row"><span class="pf-item-label">채팅 알림</span><input type="checkbox" '+(SETTINGS.chat?'checked':'')+' onchange="toggleNotifPref(\'chat\',this.checked,\'채팅\')"></label>'+
+     '<label class="pf-toggle-row"><span class="pf-item-label">커미션 문의 알림</span><input type="checkbox" '+(SETTINGS.cminquiry?'checked':'')+' onchange="toggleNotifPref(\'cminquiry\',this.checked,\'커미션 문의\')"></label>'+
+     '</div>';
+  h+='<div class="pf-group"><div class="pf-group-title">설정</div>'+
+     pfRow(pfMiniIcon('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>'),'닉네임 변경',"openNickModal()",{})+
+     '</div>';
+  h+='<div class="pf-group"><div class="pf-group-title">기타</div>'+
+     pfRow(pfMiniIcon('<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/>'),'이용약관',"location.href='/terms'",{})+
+     pfRow(pfMiniIcon('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),'개인정보처리방침',"location.href='/privacy'",{})+
+     pfRow(pfMiniIcon('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>'),'로그아웃',"logout()",{chev:false})+
+     pfRow(pfMiniIcon('<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>'),'회원 탈퇴',"openWithdraw()",{chev:false,danger:true})+
+     '</div>';
+  if(AUTH.profile&&AUTH.profile.is_admin){
+    var suspN=(function(){var n=reviewSuspicionCountSync();return n?' <span class="pf-item-badge">'+n+'</span>':'';})();
+    h+='<div class="pf-group"><div class="pf-group-title">🛡 관리자</div>'+
+       pfRow(pfMiniIcon('<path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/>'),'신고 목록',"openAdminReports()",{})+
+       pfRow(pfMiniIcon('<path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8 8.38 8.38 0 0 1 8.5-8.5 8.5 8.5 0 0 1 8.5 8.5z"/>'),'전체 채팅 목록',"openAdminChatList()",{})+
+       pfRow(pfMiniIcon('<path d="M3 3v18h18"/><path d="M7 14l3-3 3 3 4-5"/>'),'광고 심사',"openAdminAdReview()",{})+
+       pfRow(pfMiniIcon('<path d="M3 3v18h18"/><path d="M7 14l3-3 3 3 4-5"/>'),'전체 광고 목록',"openAdminAdList()",{})+
+       pfRow(pfMiniIcon('<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>'),'유료 광고 관리',"openAdminCampaigns()",{})+
+       pfRow(pfMiniIcon('<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>'),'후기 분석'+suspN,"openReviewAnalysis()",{})+
+       pfRow(pfMiniIcon('<path d="M9 3v6l-4 4v8h14v-8l-4-4V3z"/>'),'매니저 픽 관리',"openManagerPickList()",{})+
+       pfRow(pfMiniIcon('<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>'),'삭제 기록',"openAdminDeletionLog()",{})+
+       pfRow(pfMiniIcon('<path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/><path d="M16 3l5 5-9 9H7v-5z"/>'),'커미션 추천 관리',"openAdminCommissionMgmt()",{})+
+       pfRow(pfMiniIcon('<path d="M12 2l2.4 7.4H22l-6 4.3 2.3 7.3-6.3-4.6-6.3 4.6 2.3-7.3-6-4.3h7.6z"/>'),'추천 점수 조정 기록',"openCommissionBonusLog()",{})+
+       '</div>';
+  }
   h+='</div>';
   document.getElementById("main").innerHTML=h;
   syncTabs("me");pfScrollAfterRender();
