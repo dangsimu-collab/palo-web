@@ -30,6 +30,9 @@ var CATMAP={intro:{label:"자기소개",cls:"talk-c"},talk:{label:"자유",cls:"
 
 var postsLoaded=false; // loadRealPosts()가 실제 글을 POSTS에 합친 뒤 true — 이 전에는 데모 글로 renderList()를 강제로 돌리지 않음(로그인 리다이렉트 직후 더미 글이 잠깐 보이는 버그 방지)
 var userLeftHome=false; // 초기 로딩이 끝나기 전에 사용자가 피드(홈) 밖 화면(커미션/채팅/글쓰기/프로필/글·유저 상세)으로 이동했으면 true — loadRealPosts() 완료 시 홈으로 강제 복귀시키지 않기 위함
+// 하단 탭 경합(레이스) 방지: 사용자가 "마지막으로 선택한" 최상위 탭을 기록. 각 탭 함수가 눌리는 즉시(동기) 갱신하고,
+// 비동기 로딩이 뒤늦게 끝나 화면을 그리기 직전에 "아직 내가 이 탭인가?"를 확인해, 이전 탭 결과가 현재 화면을 덮어쓰지 않게 한다.
+var curTab="home"; // "home" | "commission" | "chat" | "me"
 var feedRefreshing=false; // refreshFeed() 중복 실행 방지(홈/로고 연타 대비)
 var profileRefreshing=false; // refreshProfile() 중복 실행 방지
 var notifDeeplinkPending=false; // "알림 설정" 딥링크(?notif=settings)로 진입 시, 렌더 후 알림 설정 섹션으로 스크롤
@@ -1619,7 +1622,7 @@ async function refreshCommissions(){
     if(cmBookmarkIds===null)await cmLoadMyBookmarks();
   }catch(e){}
   cmRefreshing=false;
-  if(document.getElementById('cmGrid')&&cmListSignature()!==before){
+  if(curTab==="commission"&&document.getElementById('cmGrid')&&cmListSignature()!==before){
     var chipsEl=document.querySelector('.cm-chips');if(chipsEl)chipsEl.innerHTML=cmChipsHTML();
     var gridEl=document.getElementById('cmGrid');if(gridEl)gridEl.innerHTML=cmGridHTML();
   }
@@ -1908,6 +1911,7 @@ async function cmToggleBookmark(commissionId,el){
   }
 }
 async function openCommissionList(){
+  curTab="commission";
   userLeftHome=true;
   if(!navigatingBack)resetScreens();
   enterScreen("cmList",goHome);
@@ -3229,6 +3233,7 @@ function showMore(){state.shown+=6;renderList()}
 function goHome(){
   // 이미 '전체 글' 홈 피드를 보고 있으면 캐시로 다시 안 그림 → refreshFeed가 새 글 있을 때만 딱 한 번,
   // 그것도 최신(새 글 포함)으로 그림. 다른 화면/게시판에서 왔으면 즉시 전환용으로 캐시를 그림.
+  curTab="home";
   var onHomeFeed=(!userLeftHome&&state.board==="all"&&!state.query&&!state.tag);
   resetScreens();userLeftHome=false;
   selectBoard("all",onHomeFeed);
@@ -4336,6 +4341,8 @@ function chatMessagesHtml(messages){
 }
 async function openChatList(){
   if(!AUTH.user){toast("로그인이 필요해요");loginWithGoogle();return;}
+  curTab="chat";
+  var myTab=curTab; // 이 로딩을 시작한 시점의 탭. 아래 렌더 직전에 아직 유효한지 확인.
   userLeftHome=true;
   if(!navigatingBack)resetScreens();
   enterScreen("chatList",goHome);
@@ -4347,6 +4354,7 @@ async function openChatList(){
   var convRes=await window.supabase.from("conversations").select("*")
     .or("user1_id.eq."+AUTH.user.id+",user2_id.eq."+AUTH.user.id)
     .order("last_message_at",{ascending:false});
+  if(myTab!==curTab)return; // 로딩 중 사용자가 다른 탭으로 이동함 → 더 진행하지 않음(현재 화면 유지)
   if(convRes.error){toast("채팅 목록을 불러오지 못했어요: "+convRes.error.message);return;}
   var convs=convRes.data||[];
   var partnerIds=convs.map(function(c){return c.user1_id===AUTH.user.id?c.user2_id:c.user1_id;});
@@ -4362,6 +4370,7 @@ async function openChatList(){
     if(m.sender_id!==AUTH.user.id&&!m.is_read)unreadByConv[m.conversation_id]=(unreadByConv[m.conversation_id]||0)+1;
   });
 
+  if(myTab!==curTab)return; // 로딩이 끝났지만 그새 다른 탭으로 이동함 → 채팅으로 화면을 덮어쓰지 않음
   renderChatList(convs,partnerIds,nickById,avaById,lastMsgByConv,unreadByConv);
 }
 function chatListDate(iso){
@@ -4549,6 +4558,7 @@ function renderLeaderboard(rows,period){
   window.scrollTo({top:0,behavior:"smooth"});
 }
 function openProfile(){
+  curTab="me";
   userLeftHome=true;
   resetScreens();
   leaveChat();
@@ -4669,7 +4679,7 @@ async function refreshProfile(){
   var before=profileSignature();
   try{await refreshMyProfile();await loadRealPosts(true);}catch(e){} // loadRealPosts(true)=피드는 안 그림
   profileRefreshing=false;
-  if(document.getElementById("myProfileView")&&profileSignature()!==before)renderMyProfile();
+  if(curTab==="me"&&document.getElementById("myProfileView")&&profileSignature()!==before)renderMyProfile();
 }
 // "알림 설정" 딥링크(시스템 알림 클릭 → /?notif=settings) 처리: 내 정보를 열고 알림 설정 섹션으로 스크롤
 function handleNotifSettingsDeeplink(){
