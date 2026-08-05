@@ -457,6 +457,9 @@ async function applySession(session){
 var GOOGLE_CLIENT_ID="622866923710-mcbkmbrcvnv0o3a7uefjqaqr6e5afbhk.apps.googleusercontent.com";
 var GOOGLE_G_SVG='<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
 function _gisReady(){return !!(window.google&&window.google.accounts&&window.google.accounts.id);}
+// 네이버 로그인 노출 스위치: 네이버 개발자센터 '검수'가 승인되면 이 값을 true로만 바꿔 배포하면 네이버 버튼이 다시 나타남.
+// (검수 전에는 앱 소유자만 로그인 가능하므로 일반 사용자에게 잠시 숨김)
+var NAVER_LOGIN_ENABLED=false;
 // 로그인 진입점(여러 곳에서 openLogin 대신 이 이름으로 호출) — 구글+네이버가 함께 있는 모달을 엶.
 function loginWithGoogle(){ openLoginModal(); }
 // 네이버로 로그인: 서버(start)로 이동해 네이버 인증 시작
@@ -477,6 +480,11 @@ async function openLoginModal(){
   var m=document.getElementById("loginModal");if(!m)return;
   var hint=document.getElementById("loginHint");if(hint)hint.textContent="";
   var gwrap=document.getElementById("gsiButton");
+  // 네이버 버튼·안내문구는 검수 승인 전까지 숨김(NAVER_LOGIN_ENABLED로 제어)
+  var nvBtn=document.querySelector(".login-naver-btn");
+  if(nvBtn)nvBtn.style.display=NAVER_LOGIN_ENABLED?"flex":"none";
+  var desc=document.querySelector(".login-desc");
+  if(desc)desc.textContent=NAVER_LOGIN_ENABLED?"구글 또는 네이버 계정으로 간편하게 시작해요.":"구글 계정으로 간편하게 시작해요.";
   // 구글 버튼: PWA(홈 화면)나 GIS 미로드 상태에선 팝업이 막히므로(400) '리다이렉트 방식' 버튼을, 아니면 GIS 버튼을 그림.
   if(isStandalonePWA()||!_gisReady()){
     if(gwrap)gwrap.innerHTML='<button type="button" class="login-google-btn" onclick="_loginRedirectFallback()">'+GOOGLE_G_SVG+'구글로 로그인</button>';
@@ -4653,7 +4661,7 @@ function openProfile(){
     document.getElementById("main").innerHTML=
       '<div class="profile" id="myProfileView"><div class="empty"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>'+
       '<h3>로그인이 필요해요</h3><p>로그인하면 내 닉네임으로 글을 쓰고 활동을 볼 수 있어요.</p>'+
-      '<button onclick="loginWithGoogle()">구글로 로그인</button></div></div>';
+      '<button onclick="loginWithGoogle()">로그인하기</button></div></div>';
     syncTabs("me");window.scrollTo({top:0,behavior:"smooth"});
     return;
   }
