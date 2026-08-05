@@ -33,6 +33,9 @@ var userLeftHome=false; // 초기 로딩이 끝나기 전에 사용자가 피드
 // 하단 탭 경합(레이스) 방지: 사용자가 "마지막으로 선택한" 최상위 탭을 기록. 각 탭 함수가 눌리는 즉시(동기) 갱신하고,
 // 비동기 로딩이 뒤늦게 끝나 화면을 그리기 직전에 "아직 내가 이 탭인가?"를 확인해, 이전 탭 결과가 현재 화면을 덮어쓰지 않게 한다.
 var curTab="home"; // "home" | "commission" | "chat" | "me"
+// 매 탭 전환마다 1씩 증가하는 "번호표". 비동기 로딩을 시작한 시점의 번호를 기억해 두고, 로딩이 끝나 화면을
+// 그리기 직전에 번호가 그대로인지 확인한다. 그새 다른(혹은 같은) 탭을 다시 눌렀으면 번호가 달라져 렌더를 버린다.
+var navSeq=0;
 var feedRefreshing=false; // refreshFeed() 중복 실행 방지(홈/로고 연타 대비)
 var profileRefreshing=false; // refreshProfile() 중복 실행 방지
 var notifDeeplinkPending=false; // "알림 설정" 딥링크(?notif=settings)로 진입 시, 렌더 후 알림 설정 섹션으로 스크롤
@@ -288,7 +291,9 @@ async function loadRealPosts(skipRender){
   // 캐시 프라임 등 dbId 없는 것)만 남김 — loadRealPosts()를 여러 번 불러도(캐시→백그라운드 갱신) 중복 안 됨.
   POSTS=real.concat(POSTS.filter(function(p){return !p.dbId;}));
   postsLoaded=true;
-  saveFeedCache(real);
+  // 캐시 저장(모든 글 복사→JSON 문자열화→localStorage 동기 쓰기)은 모바일에서 무거워 화면 전환을 막을 수 있음.
+  // 다음 방문용 캐시일 뿐이라 지금 당장 필요 없으니, 대기 중인 탭 입력이 먼저 처리되도록 지연 실행한다.
+  setTimeout(function(){saveFeedCache(real);},0);
   renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
   renderTrend();
   // 로딩이 끝나기 전에 사용자가 이미 홈 밖 다른 화면으로 이동했다면, 그 화면을 그대로 두고
@@ -1911,7 +1916,7 @@ async function cmToggleBookmark(commissionId,el){
   }
 }
 async function openCommissionList(){
-  curTab="commission";
+  curTab="commission";navSeq++;
   userLeftHome=true;
   if(!navigatingBack)resetScreens();
   enterScreen("cmList",goHome);
@@ -3233,7 +3238,7 @@ function showMore(){state.shown+=6;renderList()}
 function goHome(){
   // 이미 '전체 글' 홈 피드를 보고 있으면 캐시로 다시 안 그림 → refreshFeed가 새 글 있을 때만 딱 한 번,
   // 그것도 최신(새 글 포함)으로 그림. 다른 화면/게시판에서 왔으면 즉시 전환용으로 캐시를 그림.
-  curTab="home";
+  curTab="home";navSeq++;
   var onHomeFeed=(!userLeftHome&&state.board==="all"&&!state.query&&!state.tag);
   resetScreens();userLeftHome=false;
   selectBoard("all",onHomeFeed);
@@ -4341,8 +4346,8 @@ function chatMessagesHtml(messages){
 }
 async function openChatList(){
   if(!AUTH.user){toast("로그인이 필요해요");loginWithGoogle();return;}
-  curTab="chat";
-  var myTab=curTab; // 이 로딩을 시작한 시점의 탭. 아래 렌더 직전에 아직 유효한지 확인.
+  curTab="chat";navSeq++;
+  var mySeq=navSeq; // 이 로딩을 시작한 시점의 번호표. 아래 렌더 직전에 아직 최신인지 확인.
   userLeftHome=true;
   if(!navigatingBack)resetScreens();
   enterScreen("chatList",goHome);
@@ -4354,23 +4359,27 @@ async function openChatList(){
   var convRes=await window.supabase.from("conversations").select("*")
     .or("user1_id.eq."+AUTH.user.id+",user2_id.eq."+AUTH.user.id)
     .order("last_message_at",{ascending:false});
-  if(myTab!==curTab)return; // 로딩 중 사용자가 다른 탭으로 이동함 → 더 진행하지 않음(현재 화면 유지)
+  if(mySeq!==navSeq)return; // 로딩 중 사용자가 다른 탭으로 이동함 → 더 진행하지 않음(현재 화면 유지)
   if(convRes.error){toast("채팅 목록을 불러오지 못했어요: "+convRes.error.message);return;}
   var convs=convRes.data||[];
   var partnerIds=convs.map(function(c){return c.user1_id===AUTH.user.id?c.user2_id:c.user1_id;});
   var convIds=convs.map(function(c){return c.id;});
 
-  var profRes=partnerIds.length?await window.supabase.from("profiles").select("id,nickname,avatar_url").in("id",partnerIds):{data:[]};
+  // 프로필·메시지 조회는 서로 독립적이라 병렬로 실행(예전엔 순차 await라 왕복 지연이 2배로 쌓였음 → 채팅 로딩이 느려 씹힘 창이 컸음)
+  var profMsg=await Promise.all([
+    partnerIds.length?window.supabase.from("profiles").select("id,nickname,avatar_url").in("id",partnerIds):Promise.resolve({data:[]}),
+    convIds.length?window.supabase.from("messages").select("conversation_id,sender_id,content,is_read,created_at,commission_id").in("conversation_id",convIds).order("created_at",{ascending:true}):Promise.resolve({data:[]})
+  ]);
+  var profRes=profMsg[0],msgRes=profMsg[1];
   var nickById={},avaById={};(profRes.data||[]).forEach(function(p){nickById[p.id]=p.nickname;avaById[p.id]=p.avatar_url;});
 
-  var msgRes=convIds.length?await window.supabase.from("messages").select("*").in("conversation_id",convIds).order("created_at",{ascending:true}):{data:[]};
   var lastMsgByConv={},unreadByConv={};
   (msgRes.data||[]).forEach(function(m){
     lastMsgByConv[m.conversation_id]=m;
     if(m.sender_id!==AUTH.user.id&&!m.is_read)unreadByConv[m.conversation_id]=(unreadByConv[m.conversation_id]||0)+1;
   });
 
-  if(myTab!==curTab)return; // 로딩이 끝났지만 그새 다른 탭으로 이동함 → 채팅으로 화면을 덮어쓰지 않음
+  if(mySeq!==navSeq)return; // 로딩이 끝났지만 그새 다른 탭으로 이동함 → 채팅으로 화면을 덮어쓰지 않음
   renderChatList(convs,partnerIds,nickById,avaById,lastMsgByConv,unreadByConv);
 }
 function chatListDate(iso){
@@ -4558,7 +4567,7 @@ function renderLeaderboard(rows,period){
   window.scrollTo({top:0,behavior:"smooth"});
 }
 function openProfile(){
-  curTab="me";
+  curTab="me";navSeq++;
   userLeftHome=true;
   resetScreens();
   leaveChat();
