@@ -990,6 +990,14 @@
   .login-modal{text-align:center}
   .login-desc{font-size:14px;color:var(--ink-2);margin-bottom:20px}
   .gsi-wrap{display:flex;justify-content:center;min-height:44px}
+  /* 네이버 로그인 버튼(브랜드 초록) + PWA용 구글 리다이렉트 버튼 */
+  .login-naver-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:260px;max-width:100%;height:44px;margin:10px auto 0;border:none;border-radius:22px;background:#03C75A;color:#fff;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:filter .14s}
+  .login-naver-btn svg{width:16px;height:16px;flex:none}
+  .login-naver-btn:hover{filter:brightness(.96)}
+  .login-naver-btn:active{filter:brightness(.92)}
+  .login-google-btn{display:flex;align-items:center;justify-content:center;gap:9px;width:260px;max-width:100%;height:44px;margin:0 auto;border:1.5px solid var(--line-2);border-radius:22px;background:#fff;color:#3c4043;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:background .14s}
+  .login-google-btn svg{width:18px;height:18px;flex:none}
+  .login-google-btn:hover{background:var(--surface-2)}
   .login-hint{font-size:12px;color:var(--muted);margin-top:14px;min-height:16px}
   .login-alt{background:none;border:none;color:var(--muted);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:2px;margin-top:6px}
   .login-alt:hover{color:var(--brand-2)}

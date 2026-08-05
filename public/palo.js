@@ -453,19 +453,16 @@ async function applySession(session){
   }
   if(document.getElementById("myProfileView"))openProfile();
 }
-// ===== 구글 로그인 (GIS = commi.kr에서 직접 처리, supabase.co 안 거침) =====
+// ===== 구글/네이버 로그인 =====
 var GOOGLE_CLIENT_ID="622866923710-mcbkmbrcvnv0o3a7uefjqaqr6e5afbhk.apps.googleusercontent.com";
+var GOOGLE_G_SVG='<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
 function _gisReady(){return !!(window.google&&window.google.accounts&&window.google.accounts.id);}
-function loginWithGoogle(){
-  if(isStandalonePWA()){_loginRedirectFallback();return;} // 홈 화면(PWA standalone)에선 GIS 팝업이 400 오류 → 리다이렉트 방식으로
-  if(_gisReady()){openLoginModal();return;}
-  // GIS가 아직 로드 전 — 잠깐 기다렸다가, 그래도 없으면 기존 리다이렉트 방식으로 폴백(안전장치)
-  var tries=0;
-  var iv=setInterval(function(){
-    tries++;
-    if(_gisReady()){clearInterval(iv);openLoginModal();}
-    else if(tries>=20){clearInterval(iv);_loginRedirectFallback();}
-  },150);
+// 로그인 진입점(여러 곳에서 openLogin 대신 이 이름으로 호출) — 구글+네이버가 함께 있는 모달을 엶.
+function loginWithGoogle(){ openLoginModal(); }
+// 네이버로 로그인: 서버(start)로 이동해 네이버 인증 시작
+function loginWithNaver(){
+  var hint=document.getElementById("loginHint");if(hint)hint.textContent="네이버로 이동 중…";
+  location.href="/api/auth/naver/start";
 }
 function _loginRedirectFallback(){
   window.supabase.auth.signInWithOAuth({provider:"google",options:{redirectTo:window.location.origin}});
@@ -479,8 +476,18 @@ async function _makeLoginNonce(){
 async function openLoginModal(){
   var m=document.getElementById("loginModal");if(!m)return;
   var hint=document.getElementById("loginHint");if(hint)hint.textContent="";
+  var gwrap=document.getElementById("gsiButton");
+  // 구글 버튼: PWA(홈 화면)나 GIS 미로드 상태에선 팝업이 막히므로(400) '리다이렉트 방식' 버튼을, 아니면 GIS 버튼을 그림.
+  if(isStandalonePWA()||!_gisReady()){
+    if(gwrap)gwrap.innerHTML='<button type="button" class="login-google-btn" onclick="_loginRedirectFallback()">'+GOOGLE_G_SVG+'구글로 로그인</button>';
+    m.classList.add("open");document.body.style.overflow="hidden";
+    return;
+  }
   var n;
-  try{n=await _makeLoginNonce();}catch(e){_loginRedirectFallback();return;}
+  try{n=await _makeLoginNonce();}catch(e){
+    if(gwrap)gwrap.innerHTML='<button type="button" class="login-google-btn" onclick="_loginRedirectFallback()">'+GOOGLE_G_SVG+'구글로 로그인</button>';
+    m.classList.add("open");document.body.style.overflow="hidden";return;
+  }
   google.accounts.id.initialize({
     client_id:GOOGLE_CLIENT_ID,
     callback:function(resp){onGoogleCredential(resp,n.nonce);},
@@ -490,8 +497,8 @@ async function openLoginModal(){
     cancel_on_tap_outside:true
   });
   m.classList.add("open");document.body.style.overflow="hidden";
-  var btn=document.getElementById("gsiButton");if(btn){btn.innerHTML="";
-    try{google.accounts.id.renderButton(btn,{theme:"outline",size:"large",type:"standard",text:"continue_with",shape:"pill",logo_alignment:"center",width:260,locale:"ko"});}catch(e){}
+  if(gwrap){gwrap.innerHTML="";
+    try{google.accounts.id.renderButton(gwrap,{theme:"outline",size:"large",type:"standard",text:"continue_with",shape:"pill",logo_alignment:"center",width:260,locale:"ko"});}catch(e){}
   }
 }
 function closeLoginModal(){var m=document.getElementById("loginModal");if(m)m.classList.remove("open");document.body.style.overflow="";}
@@ -5673,5 +5680,13 @@ loadReadCache();
     try{renderChips();renderHot();renderTrend();renderList();}catch(e){}
   }
 })();
-initAuth().then(function(){loadRealPosts();handleNotifSettingsDeeplink();});
+initAuth().then(function(){loadRealPosts();handleNotifSettingsDeeplink();handleLoginError();});
+// 네이버 로그인 실패 시 서버가 /?login_error=... 로 돌려보냄 → 사유를 토스트로 안내하고 주소 정리
+function handleLoginError(){
+  var params;try{params=new URLSearchParams(location.search);}catch(e){return;}
+  var code=params.get("login_error");if(!code)return;
+  try{history.replaceState({},"","/");}catch(_){}
+  var msg={state:"보안 확인에 실패했어요. 다시 시도해 주세요.",no_email:"네이버 이메일 제공에 동의해야 로그인할 수 있어요.",config:"네이버 로그인이 아직 준비 중이에요. 잠시 후 다시 시도해 주세요.",token:"네이버 인증에 실패했어요. 다시 시도해 주세요.",profile:"네이버 정보를 불러오지 못했어요.",link:"로그인 처리에 실패했어요. 다시 시도해 주세요."}[code]||"네이버 로그인에 실패했어요.";
+  toast(msg);
+}
 

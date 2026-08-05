@@ -343,8 +343,9 @@ export const BODY_HTML = `
 <div class="rules-scrim" id="loginModal" onclick="if(event.target===this)closeLoginModal()">
   <div class="rules login-modal">
     <h3>commi 시작하기</h3>
-    <p class="login-desc">구글 계정으로 간편하게 시작해요.</p>
+    <p class="login-desc">구글 또는 네이버 계정으로 간편하게 시작해요.</p>
     <div id="gsiButton" class="gsi-wrap"></div>
+    <button type="button" class="login-naver-btn" onclick="loginWithNaver()"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.273 12.845 7.376 0H0v24h7.726V11.156L16.624 24H24V0h-7.727z"/></svg>네이버로 로그인</button>
     <p class="login-hint" id="loginHint"></p>
     <button class="login-alt" onclick="_loginRedirectFallback()">로그인이 안 되나요? 다른 방법으로 로그인</button>
   </div>
