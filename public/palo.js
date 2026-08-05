@@ -1179,12 +1179,13 @@ async function togglePinnedPost(id){
 }
 async function openManagerPickList(){
   if(!AUTH.profile||!AUTH.profile.is_admin)return;
+  enterScreen("mgrPick",openProfile); // 뒤로가기가 프로필로 복귀
   var picks=POSTS.filter(function(p){return p.isManagerPick}).slice().sort(function(a,b){return (a.pickPosition||1)-(b.pickPosition||1);});
   renderManagerPickList(picks);
 }
 function renderManagerPickList(picks){
   var h='<div class="profile">'+
-    '<button class="d-back" onclick="openProfile()">← 내 정보로</button>'+
+    '<button class="d-back" onclick="screenBack()">← 내 정보로</button>'+
     '<div class="pf-sec">📌 매니저 픽 관리 ('+picks.length+')</div>';
   if(!picks.length){
     h+='<div class="pf-empty">지정된 매니저 픽이 없어요. 글 상세 화면에서 "매니저 픽 지정" 버튼으로 추가할 수 있어요.</div>';
@@ -1211,13 +1212,14 @@ var ADMIN_DEL_LOG=[];
 /* 관리자 추천 점수 조정 기록 뷰어 — commission_admin_bonus_log(RLS로 관리자만 조회) */
 async function openCommissionBonusLog(){
   if(!AUTH.profile||!AUTH.profile.is_admin||!window.supabase)return;
+  enterScreen("bonusLog",openProfile); // 뒤로가기가 프로필로 복귀
   var res=await window.supabase.from("commission_admin_bonus_log").select("*").order("created_at",{ascending:false}).limit(100);
   if(res.error){toast("불러오기 실패: "+res.error.message);return;}
   renderCommissionBonusLog(res.data||[]);
 }
 function renderCommissionBonusLog(rows){
   var h='<div class="profile">'+
-    '<button class="d-back" onclick="openProfile()">← 내 정보로</button>'+
+    '<button class="d-back" onclick="screenBack()">← 내 정보로</button>'+
     '<div class="pf-sec">⭐ 추천 점수 조정 기록 ('+rows.length+')</div>';
   if(!rows.length){
     h+='<div class="pf-empty">아직 추천 점수 조정 기록이 없어요.</div>';
@@ -1241,6 +1243,7 @@ function renderCommissionBonusLog(rows){
 }
 async function openAdminDeletionLog(){
   if(!AUTH.profile||!AUTH.profile.is_admin||!window.supabase)return;
+  enterScreen("delLog",openProfile); // 뒤로가기가 프로필로 복귀
   var res=await window.supabase.from("admin_post_deletions").select("*").order("created_at",{ascending:false}).limit(100);
   if(res.error){toast("불러오기 실패: "+res.error.message);return;}
   ADMIN_DEL_LOG=res.data||[];
@@ -1248,7 +1251,7 @@ async function openAdminDeletionLog(){
 }
 function renderAdminDeletionLog(rows){
   var h='<div class="profile">'+
-    '<button class="d-back" onclick="openProfile()">← 내 정보로</button>'+
+    '<button class="d-back" onclick="screenBack()">← 내 정보로</button>'+
     '<div class="pf-sec">🗑 삭제 기록 ('+rows.length+')</div>';
   if(!rows.length){
     h+='<div class="pf-empty">아직 관리자 삭제 기록이 없어요.</div>';
@@ -1780,6 +1783,7 @@ async function cmAdjustBonus(commissionId,newValue){
 /* 관리자 커미션 추천 관리 목록 — 접수중 커미션을 최종 점수 순으로, 요소 요약 + 그 자리 +/- 조정 */
 async function openAdminCommissionMgmt(){
   if(!AUTH.profile||!AUTH.profile.is_admin||!window.supabase)return;
+  enterScreen("admCmMgmt",openProfile); // 뒤로가기가 프로필로 복귀
   if(!cmDataLoaded)await cmLoadCommissions();
   else if(!Object.keys(cmRecBreakdown).length)await cmLoadRecBreakdown();
   renderAdminCommissionMgmt();
@@ -1807,7 +1811,7 @@ function renderAdminCommissionMgmt(){
   var ids=Object.keys(cmRecBreakdown).filter(function(id){return cmData.some(function(x){return x.id===+id;});});
   ids.sort(function(a,b){return cmRecBreakdown[b].final_score-cmRecBreakdown[a].final_score;});
   var h='<div class="profile">'+
-    '<button class="d-back" onclick="openProfile()">← 내 정보로</button>'+
+    '<button class="d-back" onclick="screenBack()">← 내 정보로</button>'+
     '<div class="pf-sec">🎯 커미션 추천 관리 ('+ids.length+')</div>'+
     '<div class="cm-mgmt-note">접수중 커미션만 점수가 매겨져요(마감 제외). 최종 점수 높은 순. 아래 +/−로 관리자 추가 점수(0~30)를 바로 조정하면 순위에 반영돼요. 요약: 호(후기율)·활(작가활동)·후(후기개수)·작(작업물)·인(인기)·신(신규).</div>';
   if(!ids.length)h+='<div class="pf-empty">접수중 커미션이 없어요.</div>';
@@ -4131,6 +4135,7 @@ function pfRow(icon,label,onclick,opts){
 function openPfList(kind){
   if(!AUTH.user)return;
   userLeftHome=true;
+  enterScreen("pfList",openProfile); // 히스토리에 프로필을 남겨, 스와이프/뒤로가기가 프로필로 정확히 복귀
   var mine=POSTS.filter(function(p){return p.author==="나"||(AUTH.user&&p.authorId===AUTH.user.id)});
   var commented=POSTS.filter(function(p){return p.author!=="나"&&p.comments.some(function(c){return c.n==="나"})});
   var likedArr=POSTS.filter(function(p){return p._liked});
@@ -4142,7 +4147,7 @@ function openPfList(kind){
          recent:["최근 본 글",recent,'최근 본 글이 없어요.',false]};
   var m=M[kind]||M.mine;
   var h='<div class="profile">'+
-    '<button class="d-back" onclick="openProfile()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>내 정보로</button>'+
+    '<button class="d-back" onclick="screenBack()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>내 정보로</button>'+
     '<div class="pf-list-head">'+m[0]+' <span>'+m[1].length+'</span></div>'+
     listOrEmpty(m[1],m[2],m[3])+
   '</div>';
@@ -4560,6 +4565,7 @@ async function refreshMyProfile(){
 var SCORE_EVENT_LABELS={post_create:"글 작성",comment_create:"댓글 작성",like_received:"글이 추천받음",helpful_received:"댓글이 도움돼요 받음"};
 async function openScoreLog(){
   if(!AUTH.user||!window.supabase)return;
+  enterScreen("scoreLog",openProfile); // 뒤로가기가 프로필로 정확히 복귀하도록 히스토리 남김
   document.getElementById("main").innerHTML='<div class="profile"><p style="padding:40px 0;text-align:center;color:var(--muted)">불러오는 중...</p></div>';
   var res=await window.supabase.from("score_log").select("*").eq("user_id",AUTH.user.id).order("created_at",{ascending:false}).limit(100);
   if(res.error){toast("불러오기 실패: "+res.error.message);return;}
@@ -4567,7 +4573,7 @@ async function openScoreLog(){
 }
 function renderScoreLog(rows){
   var h='<div class="profile">'+
-    '<button class="d-back" onclick="openProfile()">← 내 정보로</button>'+
+    '<button class="d-back" onclick="screenBack()">← 내 정보로</button>'+
     '<div class="pf-sec">포인트 내역</div>';
   if(!rows.length){
     h+='<div class="pf-empty">아직 받은 점수가 없어요.</div>';
@@ -5325,6 +5331,7 @@ function renderAdminChatView(conv,nickById,messages,backTo){
 }
 async function openAdminChatList(searchTerm){
   searchTerm=(searchTerm||"").trim();
+  enterScreen("admChat",openProfile); // 뒤로가기가 프로필로 복귀(검색 재호출은 같은 key라 중복 안 쌓임)
   document.getElementById("main").innerHTML='<div class="profile"><p style="padding:40px 0;text-align:center;color:var(--muted)">불러오는 중...</p></div>';
   var convRes;
   if(searchTerm){
@@ -5346,7 +5353,7 @@ async function openAdminChatList(searchTerm){
 }
 function renderAdminChatList(convs,nickById,searchTerm){
   var h='<div class="profile">'+
-    '<button class="d-back" onclick="openProfile()">← 내 정보로</button>'+
+    '<button class="d-back" onclick="screenBack()">← 내 정보로</button>'+
     '<div class="pf-sec">🛡 전체 채팅 목록 ('+convs.length+')</div>'+
     '<div style="display:flex;gap:8px;margin-bottom:14px">'+
       '<input id="adminChatSearchInput" class="nick-in" style="flex:1;margin-bottom:0" placeholder="닉네임으로 검색" value="'+esc(searchTerm||"")+'" onkeydown="if(event.key===\'Enter\'){openAdminChatList(this.value)}">'+
