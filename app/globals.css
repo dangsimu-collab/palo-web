@@ -679,31 +679,34 @@
   /* ===== 게시글 목록 — 디시식 선-구분형 (2026-08-04): 카드 제거, 얇은 구분선, 촘촘 ===== */
   /* (앞선 규칙들을 확실히 이기도록 맨 뒤에 둠) 리스트 카드(테두리·둥근모서리·배경·그림자) 제거 → 행은 아래 얇은 구분선으로만 */
   .list{background:transparent;border:none;border-radius:0;overflow:visible;box-shadow:none}
-  .post{background:transparent;border:none;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;padding:9px 6px;gap:10px;align-items:center;min-height:0}
+  .post{background:transparent;border:none;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;padding:11px 6px;gap:11px;align-items:center;min-height:0}
   .post:hover{background:var(--surface-2)}
   .post:active{transform:none;background:var(--surface-2)}
-  .pmain{align-self:center}
-  /* 제목: 한 줄, 길면 말줄임 */
-  .ptitle{font-size:14.5px;font-weight:600;line-height:1.35;margin-bottom:3px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-height:none}
-  /* 메타: 한 줄, ㅣ(얇은 세로선) 구분 */
-  .pmeta{display:flex;align-items:center;gap:6px;margin-top:0;font-size:11.5px;color:var(--muted);flex-wrap:nowrap;overflow:hidden}
-  .pmeta>span{white-space:nowrap}
+  .pmain{flex:1;min-width:0;align-self:center}
+  /* 윗줄(제목): [말머리 뱃지] 제목 — 한 줄, 길면 말줄임 */
+  .ptitle{font-size:14.5px;font-weight:600;line-height:1.4;margin-bottom:5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-height:none}
+  .ptitle .cat{display:inline-block;vertical-align:middle;padding:1px 7px;font-size:10.5px;font-weight:800;line-height:1.6;border-radius:6px;margin-right:6px;position:relative;top:-1px}
+  .ptitle .pick-badge{vertical-align:middle}
+  /* 아랫줄(메타): 작성자(왼쪽) ─ 시간ㅣ조회ㅣ추천(오른쪽), 위아래 대칭 */
+  .pmeta{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:0;font-size:11.5px;color:var(--muted);flex-wrap:nowrap;overflow:hidden}
+  .pmeta .who{font-weight:700;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .pm-stats{display:flex;align-items:center;gap:6px;flex-shrink:0}
+  .pm-stats>span{white-space:nowrap}
   .pmeta .sep{width:1px;height:10px;background:var(--line-2);border-radius:0}
-  .pmeta .cat{padding:1px 6px;font-size:10.5px;line-height:1.4;flex-shrink:0}
-  .pmeta .who{font-weight:700;color:var(--ink-2)}
   /* 댓글수: 박스 없이 오른쪽 숫자만(댓글 있으면 브랜드색 강조) */
   .pcmt{background:none;width:auto;min-width:24px;height:auto;flex-shrink:0;gap:0;align-self:center}
   .pcmt .cn{font-size:14px;font-weight:800;color:var(--muted)}
   .pcmt .cn.has{color:var(--brand)}
   .pcmt .cl{display:none}
-  /* 썸네일 작게 */
-  .nthumb{width:42px;height:42px;border-radius:8px;flex-shrink:0}
+  /* 썸네일: 이미지가 잘 보이게 살짝 크게 */
+  .nthumb{width:54px;height:54px;border-radius:9px;flex-shrink:0}
   @media(max-width:860px){
-    .post{padding:8px 4px;gap:9px}
-    .ptitle{font-size:14px;margin-bottom:2px}
-    .pmeta{font-size:11px;gap:5px}
+    .post{padding:10px 4px;gap:10px}
+    .ptitle{font-size:14px;margin-bottom:4px}
+    .pmeta{font-size:11px;gap:6px}
+    .pm-stats{gap:5px}
     .pmeta .sep{height:9px}
-    .nthumb{width:38px;height:38px}
+    .nthumb{width:50px;height:50px}
     .pcmt .cn{font-size:13.5px}
   }
 

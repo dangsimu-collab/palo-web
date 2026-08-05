@@ -910,13 +910,14 @@ function renderList(){
     var thumb=postThumbHTML(p);
     h+='<div class="post rip'+(isHot?' hot-post':'')+(READ.has(p.id)?' read':'')+(p.id===justAddedId?' justAdded':'')+'" tabindex="0" role="button" onclick="openPost('+p.id+')" onkeydown="if(event.key===\'Enter\')openPost('+p.id+')">'+
       '<div class="pmain">'+
-        '<div class="ptitle">'+(p.isManagerPick?'<span class="pick-badge">📌 매니저 픽</span> ':'')+esc(p.title)+'</div>'+
+        '<div class="ptitle"><span class="cat '+c.cls+'">'+c.label+'</span>'+(p.isManagerPick?'<span class="pick-badge">📌 매니저 픽</span> ':'')+esc(p.title)+'</div>'+
         '<div class="pmeta">'+
-          '<span class="cat '+c.cls+'">'+c.label+'</span>'+
           '<span class="who"'+(p.authorId?' style="cursor:pointer" onclick="event.stopPropagation();openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+anonIpHTML(p.ipMasked)+'</span>'+
-          '<span class="sep"></span><span class="mt">'+p.time+'</span>'+
-          '<span class="sep"></span><span class="mv">조회 '+fmtViews(p.views)+'</span>'+
-          (p.likes?'<span class="sep"></span><span class="ml">추천 '+p.likes+'</span>':'')+
+          '<span class="pm-stats">'+
+            '<span class="mt">'+p.time+'</span>'+
+            '<span class="sep"></span><span class="mv">조회 '+fmtViews(p.views)+'</span>'+
+            (p.likes?'<span class="sep"></span><span class="ml">추천 '+p.likes+'</span>':'')+
+          '</span>'+
         '</div>'+
       '</div>'+
       thumb+
