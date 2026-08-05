@@ -43,9 +43,9 @@
   .write-btn.commission-btn{background:var(--surface);color:var(--ink-2);border:1.5px solid var(--line-2);box-shadow:none}
   .write-btn.commission-btn:hover{border-color:var(--brand);color:var(--brand);transform:none;box-shadow:none}
 
-  .catbar{background:rgba(253,247,249,.82);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-bottom:1px solid var(--line);position:sticky;top:66px;z-index:55}
+  .catbar{background:rgba(255,255,255,.86);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-bottom:1px solid var(--line);position:sticky;top:66px;z-index:55}
   body.chat-open .catbar{display:none} /* 1:1 채팅 화면에선 게시판 탭 숨김 */
-  .catbar-inner{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:12px 0}
+  .catbar-inner{display:flex;gap:3px;overflow-x:auto;scrollbar-width:none;padding:6px 0}
   .catbar-inner::-webkit-scrollbar{display:none}
 
   .trendbar{background:var(--surface);border-bottom:1px solid var(--line)}
@@ -81,9 +81,10 @@
   .post .vote .vl{font-size:9px;font-weight:800;color:var(--muted-2)}
   .post.hot-post .vote{background:linear-gradient(150deg,#f6ece5,#f4e2ea)}
   .post.hot-post .vote .vn{color:#d98a6a}
-  .chip{flex-shrink:0;padding:9px 17px;border-radius:13px;font-size:13px;font-weight:700;color:var(--ink-2);background:var(--surface);transition:.14s;white-space:nowrap;cursor:pointer;border:1.5px solid var(--line-2)}
-  .chip:hover{border-color:var(--brand);color:var(--brand)}
-  .chip.on{background:linear-gradient(120deg,var(--brand),var(--grape));color:#fff;border-color:transparent;box-shadow:0 3px 10px rgba(255,93,162,.3)}
+  /* 게시판 탭: 디시식 가벼운 텍스트 탭(무거운 pill 제거) → 한 화면에 더 많은 게시판, 바도 얇게. 선택된 탭만 소프트 브랜드 pill로 강조 */
+  .chip{flex-shrink:0;padding:7px 12px;border-radius:9px;font-size:13px;font-weight:700;color:var(--ink-2);background:none;transition:.14s;white-space:nowrap;cursor:pointer;border:none}
+  .chip:hover{background:var(--surface-2);color:var(--brand-2)}
+  .chip.on{background:var(--brand-soft);color:var(--brand-2);font-weight:800}
 
   .grid{display:grid;grid-template-columns:212px minmax(0,1fr) 296px;gap:36px;padding:34px 0 96px;align-items:start}
   @media(max-width:1080px) and (min-width:861px){.grid{grid-template-columns:minmax(0,1fr) 288px}.side-l{position:absolute;width:0;height:0;overflow:hidden;visibility:hidden;left:-9999px}}
@@ -457,8 +458,8 @@
     .h-actions{gap:4px}
     .icon-btn .ic{width:21px;height:21px}
     /* category chips slimmer */
-    .catbar-inner{padding:8px 0;gap:5px}
-    .chip{padding:7px 13px;font-size:12.5px;border-radius:9px}
+    .catbar-inner{padding:5px 0;gap:2px}
+    .chip{padding:6px 10px;font-size:12.5px;border-radius:8px}
     /* board head compact */
     .board-head{margin-bottom:12px;gap:8px;padding:0 10px 0 2px}
     .board-head h1{font-size:18px}
@@ -495,7 +496,7 @@
     .post .vote{width:34px}
     .post .title{font-size:13px}
     .ember-card{width:170px}
-    .chip{padding:6px 12px;font-size:12px}
+    .chip{padding:6px 9px;font-size:12px}
   }
 
   .ei{font-style:normal;line-height:1;display:inline-block}

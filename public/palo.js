@@ -610,11 +610,13 @@ function renderNav(el){
   });
   el.innerHTML=h;
 }
+// 상단 게시판 탭(catbar)용 짧은 이름 — 한 화면에 더 많은 게시판이 보이게(디시식). 왼쪽 서랍 메뉴엔 전체 이름 그대로 표시됨.
+var CHIP_SHORT={all:"전체",talk:"자유",ask:"질문",vote:"투표",crit:"피드백",collab:"협업",tip:"자료",recruit:"구인",used:"중고",suggest:"건의"};
 function renderChips(){
   var flat=[{id:"all",name:"전체 글"}];
   BOARDS.forEach(function(g){g.items.forEach(function(b){if(b.id!=="all")flat.push(b)})});
   document.getElementById("chips").innerHTML=flat.map(function(b){
-    return '<button class="chip'+(state.board===b.id?' on':'')+'" onclick="selectBoard(\''+b.id+'\')">'+b.name+'</button>';
+    return '<button class="chip'+(state.board===b.id?' on':'')+'" onclick="selectBoard(\''+b.id+'\')">'+(CHIP_SHORT[b.id]||b.name)+'</button>';
   }).join("");
 }
 function renderHot(){
