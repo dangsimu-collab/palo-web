@@ -38,6 +38,11 @@ var curTab="home"; // "home" | "commission" | "chat" | "me"
 var navSeq=0;
 var feedRefreshing=false; // refreshFeed() 중복 실행 방지(홈/로고 연타 대비)
 var profileRefreshing=false; // refreshProfile() 중복 실행 방지
+// 최근에 이미 불러온 데이터면 탭을 다시 눌러도 재조회를 건너뛴다(캐시 즉시 표시만) → 탭 왕복이 빨라지고
+// 무거운 처리(파싱·렌더)도 덜 돌아 멈춤이 준다. 글을 바꾸는 작업(작성·삭제 등)은 낙관적 갱신으로 즉시 반영됨.
+var REFRESH_THROTTLE_MS=8000;
+var postsLoadedAt=0; // loadRealPosts()가 마지막으로 성공한 시각(홈·내 정보 공용)
+var cmLoadedAt=0;    // 커미션 목록을 마지막으로 불러온 시각
 var notifDeeplinkPending=false; // "알림 설정" 딥링크(?notif=settings)로 진입 시, 렌더 후 알림 설정 섹션으로 스크롤
 var POSTS=[]; // 실제 글은 loadRealPosts()가 DB에서 채움
 var TREND=[
@@ -290,7 +295,7 @@ async function loadRealPosts(skipRender){
   // 기존 실제 글(dbId 있음)은 방금 새로 받은 real로 교체하고, 클라이언트에만 있는 글(낙관적 추가·
   // 캐시 프라임 등 dbId 없는 것)만 남김 — loadRealPosts()를 여러 번 불러도(캐시→백그라운드 갱신) 중복 안 됨.
   POSTS=real.concat(POSTS.filter(function(p){return !p.dbId;}));
-  postsLoaded=true;
+  postsLoaded=true;postsLoadedAt=Date.now();
   // 캐시 저장(모든 글 복사→JSON 문자열화→localStorage 동기 쓰기)은 모바일에서 무거워 화면 전환을 막을 수 있음.
   // 다음 방문용 캐시일 뿐이라 지금 당장 필요 없으니, 대기 중인 탭 입력이 먼저 처리되도록 지연 실행한다.
   setTimeout(function(){saveFeedCache(real);},0);
@@ -420,6 +425,10 @@ async function recheckAuthSession(){
 }
 var globalChatNotifUserId=null;
 async function applySession(session){
+  // 계정이 바뀌면(로그인/로그아웃/전환) 사용자별 데이터(내 좋아요·북마크·채팅)를 다음 이동 때 강제로 새로 불러오도록
+  // throttle 타임스탬프와 채팅 캐시를 리셋한다(안 그러면 8초간 이전 계정 기준 데이터가 남을 수 있음).
+  var _prevUid=AUTH.user?AUTH.user.id:null, _newUid=session?session.user.id:null;
+  if(_prevUid!==_newUid){postsLoadedAt=0;cmLoadedAt=0;chatListCache=null;}
   AUTH.user=session?session.user:null;
   AUTH.profile=null;
   if(AUTH.user){
@@ -546,6 +555,7 @@ async function declineConsent(){
 }
 async function logout(){
   await window.supabase.auth.signOut();
+  chatListCache=null; // 다른 계정이 이전 사용자의 채팅 목록을 보지 않도록 캐시 비움
   toast("로그아웃했어요");
   openProfile();
 }
@@ -1620,11 +1630,13 @@ function cmListSignature(){
 // 커미션 목록을 DB에서 다시 불러와, '리스트 화면을 보고 있고 & 내용이 바뀐' 경우에만 그리드/칩을 한 번 갱신.
 async function refreshCommissions(){
   if(!window.supabase||cmRefreshing)return;
+  if(Date.now()-cmLoadedAt<REFRESH_THROTTLE_MS)return; // 최근에 불러왔으면 재조회 생략(캐시 그대로 사용)
   cmRefreshing=true;
   var before=cmListSignature();
   try{
     await cmLoadCommissions();
     if(cmBookmarkIds===null)await cmLoadMyBookmarks();
+    cmLoadedAt=Date.now();
   }catch(e){}
   cmRefreshing=false;
   if(curTab==="commission"&&document.getElementById('cmGrid')&&cmListSignature()!==before){
@@ -3250,8 +3262,9 @@ function feedSignature(){
   return POSTS.filter(function(p){return p.dbId;})
     .map(function(p){return p.dbId+"."+p.likes+"."+(p.comments?p.comments.length:0);}).join(",");
 }
-async function refreshFeed(){
+async function refreshFeed(force){
   if(!window.supabase||feedRefreshing)return;
+  if(!force&&Date.now()-postsLoadedAt<REFRESH_THROTTLE_MS)return; // 최근에 불러왔으면 재조회 생략(캐시 그대로 사용). 당겨서 새로고침 등은 force로 강제.
   feedRefreshing=true;
   var before=feedSignature();
   try{await loadRealPosts(true);}catch(e){} // true = loadRealPosts는 목록을 안 그림(중복 렌더 방지)
@@ -4344,6 +4357,7 @@ function chatMessagesHtml(messages){
   });
   return h;
 }
+var chatListCache=null; // 마지막으로 그린 채팅 목록 데이터 — 재방문 시 즉시 표시용(뒤에서 최신으로 교체)
 async function openChatList(){
   if(!AUTH.user){toast("로그인이 필요해요");loginWithGoogle();return;}
   curTab="chat";navSeq++;
@@ -4354,7 +4368,12 @@ async function openChatList(){
   leaveChat();
   closeNotif();
   syncTabs("chat");
-  document.getElementById("main").innerHTML='<div class="profile"><p style="padding:40px 0;text-align:center;color:var(--muted)">불러오는 중...</p></div>';
+  // 캐시가 있으면 즉시 그려서 대기 없이 바로 보이게(아래에서 최신 데이터로 교체). 없으면 로딩 표시.
+  if(chatListCache){
+    renderChatList(chatListCache.convs,chatListCache.partnerIds,chatListCache.nickById,chatListCache.avaById,chatListCache.lastMsgByConv,chatListCache.unreadByConv);
+  }else{
+    document.getElementById("main").innerHTML='<div class="profile"><p style="padding:40px 0;text-align:center;color:var(--muted)">불러오는 중...</p></div>';
+  }
 
   var convRes=await window.supabase.from("conversations").select("*")
     .or("user1_id.eq."+AUTH.user.id+",user2_id.eq."+AUTH.user.id)
@@ -4379,6 +4398,7 @@ async function openChatList(){
     if(m.sender_id!==AUTH.user.id&&!m.is_read)unreadByConv[m.conversation_id]=(unreadByConv[m.conversation_id]||0)+1;
   });
 
+  chatListCache={convs:convs,partnerIds:partnerIds,nickById:nickById,avaById:avaById,lastMsgByConv:lastMsgByConv,unreadByConv:unreadByConv}; // 다음 재방문 시 즉시 표시용
   if(mySeq!==navSeq)return; // 로딩이 끝났지만 그새 다른 탭으로 이동함 → 채팅으로 화면을 덮어쓰지 않음
   renderChatList(convs,partnerIds,nickById,avaById,lastMsgByConv,unreadByConv);
 }
@@ -4684,6 +4704,7 @@ function profileSignature(){
 // 내 프로필(AUTH.profile)과 글/후기(POSTS)를 다시 불러와, 내 정보 화면을 보고 있고 내용이 바뀐 경우에만 한 번 다시 그림.
 async function refreshProfile(){
   if(!window.supabase||profileRefreshing||!AUTH.user)return;
+  if(Date.now()-postsLoadedAt<REFRESH_THROTTLE_MS)return; // 홈에서 방금 불러왔으면 내 정보 진입 시 재조회 생략
   profileRefreshing=true;
   var before=profileSignature();
   try{await refreshMyProfile();await loadRealPosts(true);}catch(e){} // loadRealPosts(true)=피드는 안 그림
@@ -5511,7 +5532,7 @@ syncNotifBadge();
       if(sp){sp.style.transition="";sp.style.transform="";} // 인라인 회전 제거 → CSS 연속 스핀 애니메이션이 이어받음
       el.classList.add("spinning");
       el.style.opacity="1"; el.style.transform="translateY(34px)";
-      Promise.resolve(typeof refreshFeed==="function"?refreshFeed():null).then(function(){
+      Promise.resolve(typeof refreshFeed==="function"?refreshFeed(true):null).then(function(){
         setTimeout(function(){el.classList.remove("spinning");el.style.opacity="0";el.style.transform="translateY(0)";refreshing=false;},450);
       });
     }else{
