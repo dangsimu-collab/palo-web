@@ -610,13 +610,11 @@ function renderNav(el){
   });
   el.innerHTML=h;
 }
-// 상단 게시판 탭(catbar)용 짧은 이름 — 한 화면에 더 많은 게시판이 보이게(디시식). 왼쪽 서랍 메뉴엔 전체 이름 그대로 표시됨.
-var CHIP_SHORT={all:"전체",talk:"자유",ask:"질문",vote:"투표",crit:"피드백",collab:"협업",tip:"자료",recruit:"구인",used:"중고",suggest:"건의"};
 function renderChips(){
   var flat=[{id:"all",name:"전체 글"}];
   BOARDS.forEach(function(g){g.items.forEach(function(b){if(b.id!=="all")flat.push(b)})});
   document.getElementById("chips").innerHTML=flat.map(function(b){
-    return '<button class="chip'+(state.board===b.id?' on':'')+'" onclick="selectBoard(\''+b.id+'\')">'+(CHIP_SHORT[b.id]||b.name)+'</button>';
+    return '<button class="chip'+(state.board===b.id?' on':'')+'" onclick="selectBoard(\''+b.id+'\')">'+b.name+'</button>';
   }).join("");
 }
 function renderHot(){
@@ -910,18 +908,17 @@ function renderList(){
     var thumb=postThumbHTML(p);
     h+='<div class="post rip'+(isHot?' hot-post':'')+(READ.has(p.id)?' read':'')+(p.id===justAddedId?' justAdded':'')+'" tabindex="0" role="button" onclick="openPost('+p.id+')" onkeydown="if(event.key===\'Enter\')openPost('+p.id+')">'+
       '<div class="pmain">'+
-        '<div class="ptitle"><span class="cat '+c.cls+'">'+c.label+'</span>'+(p.isManagerPick?'<span class="pick-badge">📌 매니저 픽</span> ':'')+esc(p.title)+'</div>'+
+        '<div class="ptitle">'+(p.isManagerPick?'<span class="pick-badge">📌 매니저 픽</span> ':'')+esc(p.title)+'</div>'+
         '<div class="pmeta">'+
+          '<span class="cat '+c.cls+'">'+c.label+'</span>'+
           '<span class="who"'+(p.authorId?' style="cursor:pointer" onclick="event.stopPropagation();openUserProfile(\''+p.authorId+'\')"':'')+'>'+esc(dispName(p.author))+anonIpHTML(p.ipMasked)+'</span>'+
-          '<span class="pm-stats">'+
-            '<span class="mt">'+p.time+'</span>'+
-            '<span class="sep"></span><span class="mv">조회 '+fmtViews(p.views)+'</span>'+
-            (p.likes?'<span class="sep"></span><span class="ml">추천 '+p.likes+'</span>':'')+
-          '</span>'+
+          '<span class="sep"></span><span class="mt">'+p.time+'</span>'+
+          '<span class="sep"></span><span class="mv">조회 '+fmtViews(p.views)+'</span>'+
+          (p.likes?'<span class="sep"></span><span class="ml">추천 '+p.likes+'</span>':'')+
         '</div>'+
       '</div>'+
       thumb+
-      '<div class="pcmt"><span class="cn'+(p.comments.length?' has':'')+'">'+p.comments.length+'</span><span class="cl">댓글</span></div>'+
+      '<div class="pcmt"><span class="cn">'+p.comments.length+'</span><span class="cl">댓글</span></div>'+
     '</div>';
     postsSinceAd++;
     if(postsSinceAd>=adGap && idx!==visible.length-1){h+=adRow();postsSinceAd=0;adGap=10+Math.floor(Math.random()*6);}
@@ -5699,75 +5696,4 @@ function handleLoginError(){
   var msg={state:"보안 확인에 실패했어요. 다시 시도해 주세요.",no_email:"네이버 이메일 제공에 동의해야 로그인할 수 있어요.",config:"네이버 로그인이 아직 준비 중이에요. 잠시 후 다시 시도해 주세요.",token:"네이버 인증에 실패했어요. 다시 시도해 주세요.",profile:"네이버 정보를 불러오지 못했어요.",link:"로그인 처리에 실패했어요. 다시 시도해 주세요."}[code]||"네이버 로그인에 실패했어요.";
   toast(msg);
 }
-
-// ===== 게시글 이미지 미리보기 (PC 마우스 호버 / 모바일 길게 누르기) =====
-var _imgPrevEl=null,_imgPrevTimer=null,_imgPrevActive=false,_imgPrevStart=null,_imgPrevSuppressClick=false;
-var _canHover=(function(){try{return window.matchMedia("(hover:hover) and (pointer:fine)").matches;}catch(e){return false;}})();
-function _ensureImgPrev(){
-  if(_imgPrevEl)return _imgPrevEl;
-  _imgPrevEl=document.createElement("div");
-  _imgPrevEl.id="imgPreview";
-  _imgPrevEl.innerHTML='<img alt="미리보기">';
-  document.body.appendChild(_imgPrevEl);
-  return _imgPrevEl;
-}
-// 그 게시글에 이미지가 있으면 첫 이미지 주소 반환(미리보기용). 없으면 null.
-function _postImgSrc(post){var img=post&&post.querySelector(".nthumb img");return img?img.src:null;}
-function _placeImgPrev(x,y,fromTouch){
-  var el=_imgPrevEl;if(!el)return;
-  var w=el.offsetWidth||210,h=el.offsetHeight||250,pad=10;
-  var px,py;
-  if(fromTouch){ px=pad; py=y-h/2; }            // 모바일: 손가락 가리지 않게 왼쪽에
-  else { px=x+18; py=y-h/2; if(px+w>window.innerWidth-pad)px=x-w-18; } // PC: 커서 옆, 넘치면 반대쪽
-  if(px<pad)px=pad; if(px+w>window.innerWidth-pad)px=window.innerWidth-pad-w;
-  if(py<pad)py=pad; if(py+h>window.innerHeight-pad)py=window.innerHeight-pad-h;
-  el.style.left=px+"px";el.style.top=py+"px";
-}
-function showImgPreview(src,x,y,fromTouch){
-  if(!src)return;
-  var el=_ensureImgPrev(),im=el.querySelector("img");
-  if(im.getAttribute("src")!==src)im.src=src;
-  el.classList.add("show");
-  _placeImgPrev(x,y,fromTouch);
-}
-function hideImgPreview(){if(_imgPrevEl)_imgPrevEl.classList.remove("show");_imgPrevActive=false;}
-function initImgPreview(){
-  var main=document.getElementById("main");if(!main||main._imgPrevInit)return;main._imgPrevInit=true;
-  // PC: 호버 시 표시, 커서 따라 이동, 벗어나면 숨김
-  if(_canHover){
-    main.addEventListener("mouseover",function(e){
-      var post=e.target.closest(".post");if(!post)return;
-      var src=_postImgSrc(post);if(!src)return;
-      showImgPreview(src,e.clientX,e.clientY,false);
-    });
-    main.addEventListener("mousemove",function(e){
-      if(_imgPrevEl&&_imgPrevEl.classList.contains("show"))_placeImgPrev(e.clientX,e.clientY,false);
-    });
-    main.addEventListener("mouseout",function(e){
-      var post=e.target.closest(".post");
-      if(post&&(!e.relatedTarget||!post.contains(e.relatedTarget)))hideImgPreview();
-    });
-  }
-  // 모바일: 길게 누르면 표시(그냥 탭은 글 열기). 스크롤(이동)하면 취소.
-  main.addEventListener("touchstart",function(e){
-    var post=e.target.closest(".post");if(!post)return;
-    var src=_postImgSrc(post);if(!src)return;
-    var t=e.touches[0];_imgPrevStart={x:t.clientX,y:t.clientY};
-    clearTimeout(_imgPrevTimer);
-    _imgPrevTimer=setTimeout(function(){_imgPrevActive=true;showImgPreview(src,_imgPrevStart.x,_imgPrevStart.y,true);},280);
-  },{passive:true});
-  main.addEventListener("touchmove",function(e){
-    if(!_imgPrevStart)return;var t=e.touches[0];
-    if(Math.abs(t.clientX-_imgPrevStart.x)>10||Math.abs(t.clientY-_imgPrevStart.y)>10){clearTimeout(_imgPrevTimer);if(_imgPrevActive)hideImgPreview();}
-  },{passive:true});
-  main.addEventListener("touchend",function(e){
-    clearTimeout(_imgPrevTimer);
-    if(_imgPrevActive){hideImgPreview();_imgPrevSuppressClick=true;setTimeout(function(){_imgPrevSuppressClick=false;},450);}
-    _imgPrevStart=null;
-  });
-  main.addEventListener("touchcancel",function(){clearTimeout(_imgPrevTimer);if(_imgPrevActive)hideImgPreview();_imgPrevStart=null;});
-  // 길게 눌러 미리보기를 띄운 경우, 뒤이어 오는 click(글 열기)은 무시
-  main.addEventListener("click",function(e){if(_imgPrevSuppressClick){e.stopPropagation();e.preventDefault();}},true);
-}
-initImgPreview();
 

@@ -43,9 +43,9 @@
   .write-btn.commission-btn{background:var(--surface);color:var(--ink-2);border:1.5px solid var(--line-2);box-shadow:none}
   .write-btn.commission-btn:hover{border-color:var(--brand);color:var(--brand);transform:none;box-shadow:none}
 
-  .catbar{background:rgba(255,255,255,.86);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-bottom:1px solid var(--line);position:sticky;top:66px;z-index:55}
+  .catbar{background:rgba(253,247,249,.82);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-bottom:1px solid var(--line);position:sticky;top:66px;z-index:55}
   body.chat-open .catbar{display:none} /* 1:1 채팅 화면에선 게시판 탭 숨김 */
-  .catbar-inner{display:flex;gap:3px;overflow-x:auto;scrollbar-width:none;padding:6px 0}
+  .catbar-inner{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:12px 0}
   .catbar-inner::-webkit-scrollbar{display:none}
 
   .trendbar{background:var(--surface);border-bottom:1px solid var(--line)}
@@ -81,10 +81,9 @@
   .post .vote .vl{font-size:9px;font-weight:800;color:var(--muted-2)}
   .post.hot-post .vote{background:linear-gradient(150deg,#f6ece5,#f4e2ea)}
   .post.hot-post .vote .vn{color:#d98a6a}
-  /* 게시판 탭: 디시식 가벼운 텍스트 탭(무거운 pill 제거) → 한 화면에 더 많은 게시판, 바도 얇게. 선택된 탭만 소프트 브랜드 pill로 강조 */
-  .chip{flex-shrink:0;padding:7px 12px;border-radius:9px;font-size:13px;font-weight:700;color:var(--ink-2);background:none;transition:.14s;white-space:nowrap;cursor:pointer;border:none}
-  .chip:hover{background:var(--surface-2);color:var(--brand-2)}
-  .chip.on{background:var(--brand-soft);color:var(--brand-2);font-weight:800}
+  .chip{flex-shrink:0;padding:9px 17px;border-radius:13px;font-size:13px;font-weight:700;color:var(--ink-2);background:var(--surface);transition:.14s;white-space:nowrap;cursor:pointer;border:1.5px solid var(--line-2)}
+  .chip:hover{border-color:var(--brand);color:var(--brand)}
+  .chip.on{background:linear-gradient(120deg,var(--brand),var(--grape));color:#fff;border-color:transparent;box-shadow:0 3px 10px rgba(255,93,162,.3)}
 
   .grid{display:grid;grid-template-columns:212px minmax(0,1fr) 296px;gap:36px;padding:34px 0 96px;align-items:start}
   @media(max-width:1080px) and (min-width:861px){.grid{grid-template-columns:minmax(0,1fr) 288px}.side-l{position:absolute;width:0;height:0;overflow:hidden;visibility:hidden;left:-9999px}}
@@ -458,8 +457,8 @@
     .h-actions{gap:4px}
     .icon-btn .ic{width:21px;height:21px}
     /* category chips slimmer */
-    .catbar-inner{padding:5px 0;gap:2px}
-    .chip{padding:6px 10px;font-size:12.5px;border-radius:8px}
+    .catbar-inner{padding:8px 0;gap:5px}
+    .chip{padding:7px 13px;font-size:12.5px;border-radius:9px}
     /* board head compact */
     .board-head{margin-bottom:12px;gap:8px;padding:0 10px 0 2px}
     .board-head h1{font-size:18px}
@@ -496,7 +495,7 @@
     .post .vote{width:34px}
     .post .title{font-size:13px}
     .ember-card{width:170px}
-    .chip{padding:6px 9px;font-size:12px}
+    .chip{padding:6px 12px;font-size:12px}
   }
 
   .ei{font-style:normal;line-height:1;display:inline-block}
@@ -676,45 +675,6 @@
   .pmeta .cat{padding:2px 7px;font-size:10.5px;line-height:1.3}
   .pmeta{align-items:center}
 
-  /* ===== 게시글 목록 — 디시식 선-구분형 (2026-08-04): 카드 제거, 얇은 구분선, 촘촘 ===== */
-  /* (앞선 규칙들을 확실히 이기도록 맨 뒤에 둠) 리스트 카드(테두리·둥근모서리·배경·그림자) 제거 → 행은 아래 얇은 구분선으로만 */
-  .list{background:transparent;border:none;border-radius:0;overflow:visible;box-shadow:none}
-  .post{background:transparent;border:none;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;padding:11px 6px;gap:11px;align-items:center;min-height:0}
-  .post:hover{background:var(--surface-2)}
-  .post:active{transform:none;background:var(--surface-2)}
-  .pmain{flex:1;min-width:0;align-self:center}
-  /* 윗줄(제목): [말머리 뱃지] 제목 — 한 줄, 길면 말줄임 */
-  .ptitle{font-size:14.5px;font-weight:600;line-height:1.4;margin-bottom:5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-height:none}
-  .ptitle .cat{display:inline-block;vertical-align:middle;padding:1px 7px;font-size:10.5px;font-weight:800;line-height:1.6;border-radius:6px;margin-right:6px;position:relative;top:-1px}
-  .ptitle .pick-badge{vertical-align:middle}
-  /* 아랫줄(메타): 작성자(왼쪽) ─ 시간ㅣ조회ㅣ추천(오른쪽), 위아래 대칭 */
-  .pmeta{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:0;font-size:11.5px;color:var(--muted);flex-wrap:nowrap;overflow:hidden}
-  .pmeta .who{font-weight:700;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-  .pm-stats{display:flex;align-items:center;gap:6px;flex-shrink:0}
-  .pm-stats>span{white-space:nowrap}
-  .pmeta .sep{width:1px;height:10px;background:var(--line-2);border-radius:0}
-  /* 댓글수: 박스 없이 오른쪽 숫자만(댓글 있으면 브랜드색 강조) */
-  .pcmt{background:none;width:auto;min-width:24px;height:auto;flex-shrink:0;gap:0;align-self:center}
-  .pcmt .cn{font-size:14px;font-weight:800;color:var(--muted)}
-  .pcmt .cn.has{color:var(--brand)}
-  .pcmt .cl{display:none}
-  /* 썸네일: 이미지가 잘 보이게 살짝 크게 */
-  .nthumb{width:54px;height:54px;border-radius:9px;flex-shrink:0}
-  @media(max-width:860px){
-    .post{padding:10px 4px;gap:10px}
-    .ptitle{font-size:14px;margin-bottom:4px}
-    .pmeta{font-size:11px;gap:6px}
-    .pm-stats{gap:5px}
-    .pmeta .sep{height:9px}
-    .nthumb{width:50px;height:50px}
-    .pcmt .cn{font-size:13.5px}
-  }
-
-  /* 게시글 이미지 미리보기 팝업(PC 호버 / 모바일 길게 누르기) */
-  #imgPreview{position:fixed;z-index:200;display:none;pointer-events:none;background:var(--surface);border:1.5px solid var(--line-2);border-radius:14px;box-shadow:var(--sh-lg);padding:5px;opacity:0;transform:scale(.96);transition:opacity .12s,transform .12s}
-  #imgPreview.show{display:block;opacity:1;transform:scale(1)}
-  #imgPreview img{display:block;width:auto;height:auto;max-width:220px;max-height:300px;border-radius:9px;object-fit:contain;background:var(--surface-2)}
-  @media(max-width:860px){ #imgPreview img{max-width:190px;max-height:260px} }
 
   /* ===== 알림함 ===== */
   .notif-panel{position:fixed;top:74px;right:24px;width:344px;max-height:70vh;background:var(--surface);border:1.5px solid var(--line-2);border-radius:18px;box-shadow:var(--sh-lg);z-index:85;display:none;flex-direction:column;overflow:hidden}
