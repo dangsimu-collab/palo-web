@@ -5710,58 +5710,36 @@ function _ensureImgPrev(){
 }
 // 그 게시글에 이미지가 있으면 첫 이미지 주소 반환(미리보기용). 없으면 null.
 function _postImgSrc(post){var img=post&&post.querySelector(".nthumb img");return img?img.src:null;}
-function _placeImgPrev(x,y,fromTouch){
-  var el=_imgPrevEl;if(!el)return;
-  var w=el.offsetWidth||210,h=el.offsetHeight||250,pad=10;
-  // 뷰포트 크기(못 읽으면 0) — 0일 땐 화면밖 보정을 건너뛴다(잘못된 음수 위치 방지)
-  var vw=window.innerWidth||document.documentElement.clientWidth||0;
-  var vh=window.innerHeight||document.documentElement.clientHeight||0;
-  var px,py;
-  if(fromTouch){ px=pad; py=y-h/2; }            // 모바일: 손가락 가리지 않게 왼쪽에
-  else { px=x+18; py=y-h/2; if(vw&&px+w>vw-pad)px=x-w-18; } // PC: 커서 옆, 넘치면 반대쪽
-  if(px<pad)px=pad; if(vw&&px+w>vw-pad)px=Math.max(pad,vw-pad-w);
-  if(py<pad)py=pad; if(vh&&py+h>vh-pad)py=Math.max(pad,vh-pad-h);
-  el.style.left=px+"px";el.style.top=py+"px";
-}
-function showImgPreview(src,x,y,fromTouch){
+// 미리보기는 화면 왼쪽 아래에 고정 표시(위치 계산 없음 → 스크롤·손가락 이동과 무관하게 그대로 유지). 위치는 CSS가 담당.
+function showImgPreview(src){
   if(!src)return;
   var el=_ensureImgPrev(),im=el.querySelector("img");
   if(im.getAttribute("src")!==src)im.src=src;
   el.classList.add("show");
-  _placeImgPrev(x,y,fromTouch);
 }
 function hideImgPreview(){if(_imgPrevEl)_imgPrevEl.classList.remove("show");_imgPrevActive=false;}
 function initImgPreview(){
   var main=document.getElementById("main");if(!main||main._imgPrevInit)return;main._imgPrevInit=true;
-  // PC: 호버 시 표시, 커서 따라 이동, 벗어나면 숨김
+  // PC: 호버하면 왼쪽 아래에 표시, 글에서 벗어나면 숨김
   if(_canHover){
     main.addEventListener("mouseover",function(e){
       var post=e.target.closest(".post");if(!post)return;
       var src=_postImgSrc(post);if(!src)return;
-      showImgPreview(src,e.clientX,e.clientY,false);
-    });
-    main.addEventListener("mousemove",function(e){
-      if(_imgPrevEl&&_imgPrevEl.classList.contains("show"))_placeImgPrev(e.clientX,e.clientY,false);
+      showImgPreview(src);
     });
     main.addEventListener("mouseout",function(e){
       var post=e.target.closest(".post");
       if(post&&(!e.relatedTarget||!post.contains(e.relatedTarget)))hideImgPreview();
     });
   }
-  // 모바일: 손가락을 대면 곧바로 미리보기 표시. 스크롤(이동)하면 취소.
+  // 모바일: 손가락을 대면 곧바로 왼쪽 아래에 표시. 그대로 스크롤해도 미리보기는 유지되고, 손을 떼면 사라짐.
   // 짧게 탭하면 미리보기가 잠깐 보였다가 평소처럼 글이 열리고, 오래 누르고 있다가 떼면(=미리보기를 본 것) 글은 열지 않음.
   main.addEventListener("touchstart",function(e){
     var post=e.target.closest(".post");if(!post)return;
     var src=_postImgSrc(post);if(!src)return;
     var t=e.touches[0];_imgPrevStart={x:t.clientX,y:t.clientY,at:Date.now()};
     _imgPrevActive=true;
-    showImgPreview(src,t.clientX,t.clientY,true);
-  },{passive:true});
-  main.addEventListener("touchmove",function(e){
-    if(!_imgPrevStart)return;var t=e.touches[0];
-    if(Math.abs(t.clientX-_imgPrevStart.x)>10||Math.abs(t.clientY-_imgPrevStart.y)>10){
-      hideImgPreview();_imgPrevStart=null; // 스크롤 중 → 미리보기 취소(클릭도 막지 않음)
-    }
+    showImgPreview(src);
   },{passive:true});
   main.addEventListener("touchend",function(e){
     var held=_imgPrevStart?(Date.now()-_imgPrevStart.at):0;

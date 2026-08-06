@@ -677,7 +677,9 @@
 
 
   /* 게시글 이미지 미리보기 팝업(PC 호버 / 모바일 길게 누르기) */
-  #imgPreview{position:fixed;z-index:200;display:none;pointer-events:none;background:var(--surface);border:1.5px solid var(--line-2);border-radius:14px;box-shadow:var(--sh-lg);padding:5px;opacity:0;transform:scale(.96);transition:opacity .12s,transform .12s}
+  /* 화면 왼쪽 아래 고정 — 스크롤하거나 손가락을 움직여도 자리가 그대로 */
+  #imgPreview{position:fixed;left:14px;bottom:16px;z-index:200;display:none;pointer-events:none;background:var(--surface);border:1.5px solid var(--line-2);border-radius:14px;box-shadow:var(--sh-lg);padding:5px;opacity:0;transform:scale(.96);transition:opacity .12s,transform .12s}
+  @media(max-width:860px){ #imgPreview{left:10px;bottom:calc(env(safe-area-inset-bottom,8px) + 72px)} } /* 하단 탭바 위 */
   #imgPreview.show{display:block;opacity:1;transform:scale(1)}
   #imgPreview img{display:block;width:auto;height:auto;max-width:220px;max-height:300px;border-radius:9px;object-fit:contain;background:var(--surface-2)}
   @media(max-width:860px){ #imgPreview img{max-width:190px;max-height:260px} }
