@@ -647,9 +647,20 @@ function renderChips(){
 }
 // 목록을 다시 그리면 게시판 탭도 새로 만들어져 가로 스크롤이 맨 앞으로 초기화됨.
 // → 다시 그리기 직전 위치를 기억했다가 그대로 되돌려, 보고 있던 자리에 머무르게 한다.
-var _chipScrollLeft=0;
-function saveChipScroll(){var el=document.getElementById("chips");if(el)_chipScrollLeft=el.scrollLeft;}
-function syncChipScroll(){var el=document.getElementById("chips");if(el)el.scrollLeft=_chipScrollLeft;}
+var _chipScrollLeft=0,_tagScrollLeft=0,_tagScrollBoard=null; // 게시판 탭 / 말머리 바의 가로 스크롤 위치
+function saveChipScroll(){
+  var el=document.getElementById("chips");if(el)_chipScrollLeft=el.scrollLeft;
+  // 말머리는 게시판마다 목록이 다르므로, 화면에 그려져 있던 말머리가 지금 게시판 것일 때만 위치를 보존한다.
+  // (게시판을 바꾼 직후엔 state.board는 새 게시판인데 DOM은 아직 이전 게시판 말머리 → 그때는 0으로)
+  var tb=document.querySelector(".tagbar");
+  if(tb&&_tagScrollBoard===state.board)_tagScrollLeft=tb.scrollLeft;
+  else if(_tagScrollBoard!==state.board)_tagScrollLeft=0;
+}
+function syncChipScroll(){
+  var el=document.getElementById("chips");if(el)el.scrollLeft=_chipScrollLeft;
+  var tb=document.querySelector(".tagbar");if(tb)tb.scrollLeft=_tagScrollLeft;
+  _tagScrollBoard=state.board; // 방금 그린 말머리가 어느 게시판 것인지 기록
+}
 function renderHot(){
   var el=document.getElementById("hotList");if(!el)return;
   var top=sortHot(POSTS.filter(function(p){return p.board!=="trade"&&p.board!=="review"})).slice(0,3);
