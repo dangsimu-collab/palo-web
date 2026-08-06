@@ -592,13 +592,18 @@ async function emailLogin(){
     if(idOrEmail.indexOf("@")>-1){ // 이메일로 로그인
       var r=await window.supabase.auth.signInWithPassword({email:idOrEmail,password:pw});
       if(r.error){_lgHint(authErrMsg(r.error.message));_lgBusy(false);return;}
-    }else{ // 아이디로 로그인 — 서버가 계정을 찾아 로그인시키고 세션만 돌려줌
-      var res=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({loginId:idOrEmail.toLowerCase(),password:pw})});
-      var j=null;try{j=await res.json();}catch(e){}
-      if(!res.ok||!j||!j.ok){_lgHint((j&&j.message)||"아이디 또는 비밀번호가 맞지 않아요.");_lgBusy(false);return;}
-      var s=await window.supabase.auth.setSession({access_token:j.access_token,refresh_token:j.refresh_token});
-      if(s.error){_lgHint("로그인 처리에 실패했어요. 다시 시도해주세요.");_lgBusy(false);return;}
+    }else{
+      // 아이디 로그인 — 대부분은 '아이디@내부도메인'이므로 Supabase로 바로 시도(서버를 안 거쳐 빠름).
+      var direct=await window.supabase.auth.signInWithPassword({email:_idToEmail(idOrEmail),password:pw});
+      if(direct.error){
+        // 복구용 이메일을 등록해 로그인 이메일이 바뀐 계정일 수 있으니, 그때만 서버에서 계정을 찾아 처리
+        var res=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({loginId:idOrEmail.toLowerCase(),password:pw})});
+        var j=null;try{j=await res.json();}catch(e){}
+        if(!res.ok||!j||!j.ok){_lgHint((j&&j.message)||"아이디 또는 비밀번호가 맞지 않아요.");_lgBusy(false);return;}
+        var s=await window.supabase.auth.setSession({access_token:j.access_token,refresh_token:j.refresh_token});
+        if(s.error){_lgHint("로그인 처리에 실패했어요. 다시 시도해주세요.");_lgBusy(false);return;}
+      }
     }
     closeLoginModal();toast("로그인했어요","✓"); // 세션 반영은 onAuthStateChange가 처리
   }catch(e){_lgHint(authErrMsg(e&&e.message));}
@@ -4889,11 +4894,11 @@ function openProfile(){
     if(!authReady){
       // 세션 확인이 아직 안 끝남 — 로그인돼 있는데 로그아웃 화면이 잠깐 뜨는 걸 막기 위해 로딩 표시
       document.getElementById("main").innerHTML=
-        '<div class="profile" id="myProfileView"><div class="empty" style="color:var(--muted)">불러오는 중…</div></div>';
+        '<div class="profile" id="myProfileView" data-auth="loading"><div class="empty" style="color:var(--muted)">불러오는 중…</div></div>';
       syncTabs("me");return;
     }
     document.getElementById("main").innerHTML=
-      '<div class="profile" id="myProfileView"><div class="empty"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>'+
+      '<div class="profile" id="myProfileView" data-auth="out"><div class="empty"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>'+
       '<h3>로그인이 필요해요</h3><p>로그인하면 내 닉네임으로 글을 쓰고 활동을 볼 수 있어요.</p>'+
       '<button onclick="loginWithGoogle()">로그인하기</button></div></div>';
     syncTabs("me");window.scrollTo({top:0,behavior:"smooth"});
@@ -4901,7 +4906,10 @@ function openProfile(){
   }
   // 이미 내 정보 화면이면 캐시로 다시 안 그림(스크롤만) → refreshProfile이 내용 바뀐 경우에만 한 번 그림.
   // 다른 화면에서 왔으면 캐시로 즉시 렌더.
-  if(document.getElementById("myProfileView")){syncTabs("me");pfScrollAfterRender();}
+  // 이미 '로그인된 내 정보'가 그려져 있을 때만 다시 안 그림.
+  // (로그아웃·로딩 화면도 같은 id를 쓰기 때문에 data-auth로 구분 — 안 그러면 로그인 직후에도 옛 화면이 남음)
+  var _pv=document.getElementById("myProfileView");
+  if(_pv&&_pv.getAttribute("data-auth")==="in"){syncTabs("me");pfScrollAfterRender();}
   else renderMyProfile();
   refreshProfile();
 }
@@ -4920,7 +4928,7 @@ function renderMyProfile(){
   var lvName=levelName(myLevel);
   var prog=levelProgress(myScore,myLevel);
   var myReviewStats=pfReviewStats(AUTH.user.id,ME.nick);
-  var h='<div class="profile" id="myProfileView">';
+  var h='<div class="profile" id="myProfileView" data-auth="in">';
   h+=pfHeroHTML({nickname:ME.nick,level:myLevel,avatar_url:AUTH.profile&&AUTH.profile.avatar_url,
     cover_url:AUTH.profile&&AUTH.profile.cover_url,bio:AUTH.profile&&AUTH.profile.bio,
     sns_twitter:AUTH.profile&&AUTH.profile.sns_twitter,sns_instagram:AUTH.profile&&AUTH.profile.sns_instagram,sns_email:AUTH.profile&&AUTH.profile.sns_email},
