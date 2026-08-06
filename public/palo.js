@@ -668,6 +668,11 @@ async function emailSignup(){
 async function sendResetEmail(){
   var email=((_lgEl("lgEmail")||{}).value||"").trim();
   if(!email){_lgHint("가입한 이메일을 입력해주세요.");return;}
+  // 아이디 계정의 내부 주소(아이디@users.commi.kr)는 실제로 받는 사람이 없어 메일이 반송된다.
+  // 반송이 쌓이면 발송 평판이 나빠지므로 아예 보내지 않고 안내한다.
+  if(new RegExp("@"+LOGIN_ID_DOMAIN.replace(/\./g,"\\.")+"$","i").test(email)){
+    _lgHint("아이디로 가입한 계정은 먼저 '내 정보 → 설정 → 복구용 이메일'을 등록해야 재설정 링크를 받을 수 있어요.");return;
+  }
   _lgBusy(true,"메일 보내는 중…");
   try{
     var r=await window.supabase.auth.resetPasswordForEmail(email,{redirectTo:location.origin});
