@@ -409,7 +409,7 @@ window.addEventListener("popstate",function(){
   // 구글 로그인 리다이렉트 직후 Supabase가 URL의 인증 토큰을 정리하면서 popstate 이벤트를
   // 발생시키는 경우가 있음 — 그때 postsLoaded가 아직 false면(실제 글을 아직 못 불러온 상태)
   // 더미 글로 목록을 그리지 않고 기다림(loadRealPosts()가 끝나면 스스로 그림).
-  else if(postsLoaded||!window.supabase){if(state.board!=="all")selectBoard("all");else renderList();}
+  else if(postsLoaded||!window.__paloHasBackend){if(state.board!=="all")selectBoard("all");else renderList();}
 });
 
 /* ---------- 로그인 (Supabase Auth) ---------- */
@@ -4332,7 +4332,7 @@ if(!getPostIdFromPath()&&!getUserIdFromPath()&&!getCommissionIdFromPath()){
   // 실제 글은 loadRealPosts()가 곧 채워줌 — 여기서 더미 글로 renderList()를 한 번 더 돌리면
   // "더미 글이 잠깐 보였다 실제 글로 바뀌는" 깜빡임과 그로 인한 스크롤 튐이 생김.
   // Supabase 연동이 없는 로컬 데모 환경 등에서만 폴백으로 더미 글을 보여줌.
-  if(!window.supabase){renderTrend();renderList();}
+  if(!window.__paloHasBackend){renderTrend();renderList();}
 }
 
 var toTop=document.getElementById('toTop');
@@ -6138,14 +6138,21 @@ function saveRead(){ try{var a=Array.from(READ);if(a.length>1000)a=a.slice(a.len
 loadReadCache();
 (function primeFromCache(){
   if(getPostIdFromPath()||getUserIdFromPath()||getCommissionIdFromPath()||userLeftHome)return;
-  if(!window.supabase)return; // supabase 없는 로컬 데모는 기존 폴백에 맡김
+  if(!window.__paloHasBackend)return; // 백엔드 없는 로컬 데모는 기존 폴백에 맡김
   var cached=loadFeedCache();
   if(cached&&cached.length){
     POSTS=cached.concat(POSTS.filter(function(p){return !p.dbId;}));
     try{renderChips();renderHot();renderTrend();renderList();}catch(e){}
   }
 })();
-initAuth().then(function(){loadRealPosts();handleNotifSettingsDeeplink();handleLoginError();});
+// palo.js는 이제 하이드레이션 전에 실행된다(위 primeFromCache가 캐시 피드를 즉시 그림).
+// window.supabase는 React 모듈이 평가될 때 주입되므로, 준비 신호를 받고 나서 이어간다.
+// 이미 와 있으면(스크립트 순서가 뒤바뀐 경우) 곧바로 시작 — 어느 쪽이든 한 번만 돈다.
+function _bootBackend(){
+  initAuth().then(function(){loadRealPosts();handleNotifSettingsDeeplink();handleLoginError();});
+}
+if(window.supabase)_bootBackend();
+else window.addEventListener("palo-supabase-ready",_bootBackend,{once:true});
 // 네이버 로그인 실패 시 서버가 /?login_error=... 로 돌려보냄 → 사유를 토스트로 안내하고 주소 정리
 function handleLoginError(){
   var params;try{params=new URLSearchParams(location.search);}catch(e){return;}

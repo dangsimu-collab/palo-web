@@ -46,8 +46,10 @@ const siteJsonLd = {
 };
 
 export default function RootLayout({ children }) {
+  // suppressHydrationWarning: palo.js가 하이드레이션 전에 <html>에 --cm-tabbar-h(하단 탭 높이)를
+  // 심기 때문에, React가 서버 HTML과 다르다고 경고하는 것을 막는다.
   return (
-    <html lang="ko">
+    <html lang="ko" suppressHydrationWarning>
       <body>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }} />
         {/* 글 목록 선요청 — palo.js는 next/script의 afterInteractive라서 React 하이드레이션이
@@ -57,10 +59,13 @@ export default function RootLayout({ children }) {
             REST를 직접 호출한다. 실패해도 palo.js가 평소대로 다시 부르므로 안전하다. */}
         <Script id="palo-prefetch" strategy="beforeInteractive">
           {`(function(){try{
-  var p=location.pathname;
-  if(!(p==="/"||p.indexOf("/board/")===0||p.indexOf("/post/")===0))return; // 목록을 쓰는 화면에서만
   var U=${JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_URL || "")};
   var K=${JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "")};
+  // palo.js가 하이드레이션보다 먼저 실행되므로, 그 시점엔 window.supabase가 아직 없다.
+  // "백엔드가 아예 없는 환경(로컬 데모)"과 "아직 안 온 것"을 구분하는 표식.
+  window.__paloHasBackend=!!(U&&K);
+  var p=location.pathname;
+  if(!(p==="/"||p.indexOf("/board/")===0||p.indexOf("/post/")===0))return; // 목록을 쓰는 화면에서만
   if(!U||!K)return;
   // 로그인 상태면 건너뛴다 — 여기선 anon 권한으로만 읽을 수 있어서,
   // 로그인 사용자에게만 보이는 행(예: 본인의 가려진 글)이 빠질 수 있다.
