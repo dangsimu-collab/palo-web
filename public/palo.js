@@ -1844,65 +1844,35 @@ function reportChat(){
 }
 function closeReport(){
   reportingPostId=null;reportingConversationId=null;reportingReportedUserId=null;reportingAdId=null;
-  reportCategory=null;
   document.getElementById("reportModal").classList.remove("open");
 }
 
-/* ===== 신고 유형 =====
-   자유 서술만 받으면 긴급 사안과 단순 불만이 섞여 들어와 우선순위를 못 매긴다.
-   urgent:true 두 개(불법촬영물·아동성착취물)는 관리자 신고함에서 맨 위로 정렬된다.
-   ⚠️ 자동으로 글을 가리지는 않는다 — 신고 한 번으로 남의 글을 내릴 수 있으면
-      그 자체가 공격 수단이 되기 때문. 조치는 관리자가 직접 판단해서 건다. */
-var REPORT_CATS=[
-  {id:"illegal_filming",label:"불법촬영물",     urgent:true,  desc:"동의 없이 촬영·유포된 사진이나 영상"},
-  {id:"csam",           label:"아동 성착취물", urgent:true,  desc:"아동·청소년이 등장하는 성적 콘텐츠"},
-  {id:"real_person",    label:"실존 인물 대상", urgent:false, desc:"실제 인물을 성적으로 묘사"},
-  {id:"defamation",     label:"명예훼손·모욕",  urgent:false, desc:"특정인을 향한 비방·괴롭힘"},
-  {id:"copyright",      label:"저작권 침해",    urgent:false, desc:"내 그림을 무단으로 올렸어요"},
-  {id:"rating",         label:"수위 위반",      urgent:false, desc:"게시판 허용 수위를 넘었어요"},
-  {id:"spam",           label:"광고·도배",      urgent:false, desc:"홍보 글이나 반복 게시"},
-  {id:"etc",            label:"기타",           urgent:false, desc:""}
-];
-var reportCategory=null;
-function reportCatsHTML(){
-  return REPORT_CATS.map(function(c){
-    return '<button type="button" class="rp-cat'+(c.urgent?' urgent':'')+'" data-cat="'+c.id+'" '+
-      'onclick="pickReportCat(\''+c.id+'\')">'+(c.urgent?'⚠️ ':'')+c.label+'</button>';
-  }).join("");
+/* ===== 신고 =====
+   유형을 미리 정해 고르게 하지 않고 신고자가 직접 쓰게 한다.
+   목록을 주면 거기에 없는 문제는 '기타'로 뭉뚱그려지고 정작 필요한 맥락이 빠진다.
+   대신 서술을 **필수**로 받는다 — 빈 신고는 운영자가 판단할 근거가 없다. */
+var URGENT_WORDS=["불법촬영","몰카","리벤지","아동","미성년","성착취","아청","초등","중학생"];
+// 관리자 신고함에서 긴급해 보이는 신고를 위로 올리기 위한 판별(표시·정렬 전용).
+// 자동으로 글을 가리는 등의 조치는 일절 하지 않는다.
+function _isUrgentReport(r){
+  var t=String((r&&r.reason)||"");
+  return URGENT_WORDS.some(function(w){return t.indexOf(w)>-1;});
 }
-function pickReportCat(id){
-  reportCategory=id;
-  var box=document.getElementById("reportCats");
-  if(box)Array.prototype.forEach.call(box.querySelectorAll(".rp-cat"),function(b){
-    b.classList.toggle("on",b.getAttribute("data-cat")===id);
-  });
-  var c=REPORT_CATS.find(function(x){return x.id===id;});
-  var hint=document.getElementById("reportCatHint");
-  if(hint&&c){
-    hint.textContent=c.urgent
-      ? "긴급 신고예요. 운영진이 가장 먼저 확인하고 24시간 안에 조치해요."
-      : (c.desc||"신고 내용은 운영진만 확인할 수 있어요.");
-    hint.classList.toggle("rp-urgent",!!c.urgent);
-  }
-}
-// 신고창을 열 때마다 유형 선택을 초기화(이전 신고의 선택이 남지 않게)
+// 신고창을 열 때마다 안내를 기본 문구로 되돌린다(이전 신고의 경고가 남지 않게)
 function _resetReportForm(){
-  reportCategory=null;
-  var box=document.getElementById("reportCats");
-  if(box)box.innerHTML=reportCatsHTML();
   var hint=document.getElementById("reportCatHint");
   if(hint){hint.textContent="신고 내용은 운영진만 확인할 수 있어요.";hint.classList.remove("rp-urgent");}
 }
 async function submitReport(){
-  if(!reportCategory){
+  var reason=document.getElementById("reportReasonInput").value.trim();
+  if(reason.length<5){
     var hint=document.getElementById("reportCatHint");
-    if(hint){hint.textContent="신고 유형을 먼저 골라주세요.";hint.classList.add("rp-urgent");}
+    if(hint){hint.textContent="어떤 점이 문제인지 조금만 더 적어주세요.";hint.classList.add("rp-urgent");}
     return;
   }
-  var reason=document.getElementById("reportReasonInput").value.trim()||null;
   if(reportingConversationId){
     var convId=reportingConversationId,reportedUserId=reportingReportedUserId;
-    var res=await window.supabase.from("reports").insert({conversation_id:convId,reported_user_id:reportedUserId,reporter_id:AUTH.user.id,reason:reason,category:reportCategory});
+    var res=await window.supabase.from("reports").insert({conversation_id:convId,reported_user_id:reportedUserId,reporter_id:AUTH.user.id,reason:reason});
     closeReport();
     if(res.error){toast("신고 접수 실패: "+res.error.message);return;}
     toast("신고가 접수되었어요");
@@ -1910,19 +1880,17 @@ async function submitReport(){
   }
   if(reportingAdId){
     var adId=reportingAdId;
-    var res=await window.supabase.from("reports").insert({ad_id:adId,reporter_id:AUTH.user?AUTH.user.id:null,reason:reason,category:reportCategory});
+    var res=await window.supabase.from("reports").insert({ad_id:adId,reporter_id:AUTH.user?AUTH.user.id:null,reason:reason});
     closeReport();
     if(res.error){toast("신고 접수 실패: "+res.error.message);return;}
     toast("신고가 접수되었어요");
     return;
   }
   var id=reportingPostId;var p=POSTS.find(function(x){return x.id===id});if(!p)return;
-  var cat=REPORT_CATS.find(function(x){return x.id===reportCategory;});
-  var res=await window.supabase.from("reports").insert({post_id:p.dbId,reporter_id:AUTH.user?AUTH.user.id:null,reason:reason,category:reportCategory});
+  var res=await window.supabase.from("reports").insert({post_id:p.dbId,reporter_id:AUTH.user?AUTH.user.id:null,reason:reason});
   closeReport();
   if(res.error){toast("신고 접수 실패: "+res.error.message);return;}
-  if(cat&&cat.urgent)toast("긴급 신고로 접수했어요. 가장 먼저 확인할게요","⚠️");
-  else toast("신고가 접수되었어요");
+  toast("신고가 접수되었어요");
 }
 function confirmDialog(message){
   return new Promise(function(resolve){
@@ -5318,7 +5286,7 @@ async function openAdminReports(){
   var reports=res.data;
   // 긴급 신고(불법촬영물·아동성착취물)를 맨 위로 올린다 — 시간순만으로는 묻히기 때문
   reports.sort(function(a,b){
-    var ua=_isUrgentCat(a.category)?0:1, ub=_isUrgentCat(b.category)?0:1;
+    var ua=_isUrgentReport(a)?0:1, ub=_isUrgentReport(b)?0:1;
     if(ua!==ub)return ua-ub;
     return new Date(b.created_at)-new Date(a.created_at);
   });
@@ -5363,7 +5331,7 @@ async function openAdminReports(){
         var post=postById[r.post_id];
         var blinded=post&&post.blinded;
         h+='<div class="post rip"><div class="pmain"'+(post?' style="cursor:pointer" onclick="openPost('+(100000+post.id)+')"':'')+'>'+
-          '<div class="ptitle">'+(blinded?'<span class="blind-tag">가림</span>':'')+_reportCatBadge(r.category)+(post?esc(post.title):"(이미 삭제된 글)")+'</div>'+
+          '<div class="ptitle">'+(blinded?'<span class="blind-tag">가림</span>':'')+(_isUrgentReport(r)?'<span class="blind-tag">⚠️ 확인 요망</span>':'')+(post?esc(post.title):"(이미 삭제된 글)")+'</div>'+
           '<div class="pmeta"><span class="mt">'+timeAgo(r.created_at)+'</span>'+(r.reason?'<span class="sep"></span><span class="mv">사유: '+esc(r.reason)+'</span>':'')+'</div></div>'+
           '<div style="display:flex;gap:8px;flex-shrink:0">'+
             (post?(blinded
@@ -5379,17 +5347,6 @@ async function openAdminReports(){
   h+='<button class="pf-edit" onclick="openProfile()" style="margin-top:16px">내 정보로 돌아가기</button></div>';
   document.getElementById("main").innerHTML=h;
   window.scrollTo({top:0,behavior:"smooth"});
-}
-function _isUrgentCat(id){
-  var c=REPORT_CATS.find(function(x){return x.id===id;});
-  return !!(c&&c.urgent);
-}
-function _reportCatBadge(id){
-  if(!id)return "";
-  var c=REPORT_CATS.find(function(x){return x.id===id;});
-  if(!c)return "";
-  return '<span class="blind-tag"'+(c.urgent?'':' style="background:var(--surface-2);color:var(--ink-2);border-color:var(--line)"')+'>'+
-    (c.urgent?'⚠️ ':'')+esc(c.label)+'</span>';
 }
 // 조치 이력 기록 — 이의신청이나 분쟁이 생겼을 때 근거가 된다. 실패해도 조치 자체는 진행.
 async function _logModeration(action,postId,reportId,note){

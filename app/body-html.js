@@ -246,8 +246,7 @@ export const BODY_HTML = `
 <div class="rules-scrim" id="reportModal" onclick="if(event.target===this)closeReport()">
   <div class="rules">
     <h3>🚩 신고하기</h3>
-    <div class="rp-cats" id="reportCats"></div>
-    <textarea id="reportReasonInput" class="nick-in" style="height:80px;resize:vertical" placeholder="자세한 내용을 알려주세요 (선택사항)"></textarea>
+    <textarea id="reportReasonInput" class="nick-in" style="height:110px;resize:vertical" placeholder="어떤 점이 문제인지 알려주세요"></textarea>
     <p class="nick-hint" id="reportCatHint">신고 내용은 운영진만 확인할 수 있어요.</p>
     <button class="r-ok" onclick="submitReport()">신고 접수</button>
   </div>
