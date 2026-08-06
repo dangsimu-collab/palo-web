@@ -678,7 +678,7 @@
   /* ===== 게시글 목록 — 디시식 선-구분형 (2026-08-04): 카드 없이 얇은 구분선, 촘촘하게 =====
      (앞의 규칙들을 확실히 이기도록 목록 CSS 맨 뒤에 둠. 읽기·터치 편한 선은 유지) */
   .list{background:transparent;border:none;border-radius:0;overflow:visible;box-shadow:none;gap:0}
-  .post{background:transparent;border:none;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;padding:10px 6px;gap:11px;align-items:center;min-height:0}
+  .post{background:transparent;border:none;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;padding:13px 6px;gap:12px;align-items:center;min-height:0}
   .post:hover{background:var(--surface-2)}
   .post:active{transform:none;background:var(--surface-2)}
   .pmain{flex:1;min-width:0;align-self:center}
@@ -695,13 +695,13 @@
   .pcmt .cn{font-size:14px;font-weight:800;color:var(--muted)}
   .pcmt .cn.has{color:var(--brand)}
   .pcmt .cl{display:none}
-  .nthumb{width:46px;height:46px;border-radius:8px;flex-shrink:0}
+  .nthumb{width:60px;height:60px;border-radius:9px;flex-shrink:0}
   @media(max-width:860px){
-    .post{padding:9px 4px;gap:10px}
+    .post{padding:12px 4px;gap:11px}
     .ptitle{font-size:14px;margin-bottom:3px}
     .pmeta{font-size:11px;gap:5px}
     .pmeta .sep{height:9px}
-    .nthumb{width:42px;height:42px}
+    .nthumb{width:56px;height:56px}
     .pcmt .cn{font-size:13.5px}
   }
 
