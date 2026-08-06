@@ -707,6 +707,33 @@
     .pcmt .cn{font-size:13.5px}
   }
 
+  /* ===== 상단 게시판 탭 · 공지 · 정렬/보기 탭도 선-구분형으로 통일 (2026-08-04) ===== */
+  /* 게시판 탭: 알약(pill) 대신 텍스트 탭 + 사이 세로선, 선택된 탭은 브랜드색 + 아래 밑줄 */
+  .catbar{background:rgba(255,255,255,.9)}
+  .catbar-inner{gap:0;padding:0}
+  .chip{background:none;border:none;border-radius:0;padding:10px 13px;font-size:13px;font-weight:700;color:var(--muted);position:relative;transition:color .14s,box-shadow .14s}
+  .chip+.chip::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:1px;height:11px;background:var(--line)}
+  .chip:hover{background:none;color:var(--brand-2)}
+  .chip.on{background:none;color:var(--brand-2);font-weight:800;box-shadow:inset 0 -2.5px 0 var(--brand)}
+  /* 정렬(최신·인기) / 보기(목록형·앨범형) 탭도 같은 방식 */
+  .sortbar{background:none;border:none;border-radius:0;padding:0;gap:0}
+  .sortbar button{background:none;border-radius:0;padding:7px 11px;font-size:12.5px;font-weight:700;color:var(--muted);position:relative}
+  .sortbar button+button::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:1px;height:11px;background:var(--line)}
+  .sortbar button.on{background:none;color:var(--brand-2);font-weight:800;box-shadow:inset 0 -2.5px 0 var(--brand)}
+  .bh-controls{gap:14px}
+  /* 공지: 그라데이션 카드 → 아래 선으로만 구분되는 한 줄 */
+  .notice{background:none;border:none;border-bottom:1px solid var(--line);border-radius:0;padding:11px 6px;margin-bottom:0;gap:8px}
+  .notice:hover{transform:none;box-shadow:none;background:var(--surface-2)}
+  .notice .pin{background:none;color:var(--brand);border:1px solid var(--brand);padding:1px 7px;font-size:10px;font-weight:800;border-radius:5px}
+  .notice .nt{font-size:13.5px;font-weight:600}
+  @media(max-width:860px){
+    .chip{padding:9px 11px;font-size:12.5px}
+    .sortbar button{padding:6px 9px;font-size:12px}
+    .bh-controls{gap:10px}
+    .notice{padding:10px 4px}
+    .notice .nt{font-size:12.5px}
+  }
+
   /* 게시글 이미지 미리보기 팝업(PC 호버 / 모바일 길게 누르기) */
   /* 선택한 게시글의 왼쪽 아래에 붙어서 표시(문서 좌표라 그 글과 함께 스크롤됨). 위치는 JS가 지정 */
   #imgPreview{position:absolute;z-index:200;display:none;pointer-events:none;background:var(--surface);border:1.5px solid var(--line-2);border-radius:14px;box-shadow:var(--sh-lg);padding:5px;opacity:0;transform:scale(.96);transition:opacity .12s,transform .12s}
