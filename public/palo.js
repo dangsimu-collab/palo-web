@@ -634,7 +634,16 @@ function boardTabsHTML(){
 }
 function renderChips(){
   var el=document.getElementById("chips"); // 목록 화면이 아닐 땐(커미션·프로필 등) 없으므로 건너뜀
-  if(el)el.innerHTML=chipsHTML();
+  if(el){el.innerHTML=chipsHTML();syncChipScroll();}
+}
+// 목록을 다시 그리면 게시판 탭도 새로 만들어져 가로 스크롤이 맨 앞으로 초기화됨.
+// → 선택한 게시판이 화면에 보이도록(가능하면 가운데) 스크롤 위치를 맞춰준다.
+function syncChipScroll(){
+  var el=document.getElementById("chips");if(!el)return;
+  var on=el.querySelector(".chip.on");if(!on)return;
+  var er=el.getBoundingClientRect(),orct=on.getBoundingClientRect();
+  var delta=(orct.left-er.left)-(er.width-orct.width)/2;
+  el.scrollLeft=Math.max(0,el.scrollLeft+delta);
 }
 function renderHot(){
   var el=document.getElementById("hotList");if(!el)return;
@@ -897,14 +906,14 @@ function renderList(){
   }
   if(arr.length===0){
     h+='<div class="empty"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg><h3>아직 글이 없어요</h3><p>이 게시판의 첫 글을 남겨보세요.</p><button onclick="openWrite()">글쓰기</button></div>';
-    main.innerHTML=h;return;
+    main.innerHTML=h;syncChipScroll();return;
   }
   var totalPages=Math.max(1,Math.ceil(arr.length/PER));if(page>totalPages)page=totalPages;var visible=arr.slice((page-1)*PER,page*PER);
   if(state.board==="all"&&!state.query&&state.sort==="new")h+=emberHTML();
   if(state.board==="review"&&!state.query){
     h+=reviewAlbumHTML(visible);
     if(totalPages>1)h+=pagerHTML(totalPages);
-    main.innerHTML=h;
+    main.innerHTML=h;syncChipScroll();
     return;
   }
   if(state.viewMode==="album"){
@@ -917,7 +926,7 @@ function renderList(){
       h+=postAlbumHTML(albumVisible);
       if(albumTotalPages>1)h+=pagerHTML(albumTotalPages);
     }
-    main.innerHTML=h;
+    main.innerHTML=h;syncChipScroll();
     return;
   }
   h+='<div class="list">';
@@ -946,6 +955,7 @@ function renderList(){
   h+='</div>';
   if(totalPages>1)h+=pagerHTML(totalPages);
   main.innerHTML=h;
+  syncChipScroll();
   observeAdBanners();
 }
 function openPost(id){
