@@ -1045,6 +1045,27 @@
   .emo-del{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;border:none;
     background:rgba(0,0,0,.55);color:#fff;font-size:14px;line-height:1;cursor:pointer;padding:0}
 
+  /* 입력칸 아래 이모티콘 줄 — 버튼을 눌러 창을 여는 대신 바로 고를 수 있게 */
+  .emo-strip{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:8px 0 2px;align-items:center}
+  .emo-strip::-webkit-scrollbar{display:none}
+  .emo-s{flex:0 0 auto;width:42px;height:42px;padding:3px;background:none;border:none;border-radius:9px;
+    cursor:pointer;transition:background .12s}
+  .emo-s:hover{background:var(--surface-2)}
+  .emo-s img{width:100%;height:100%;object-fit:contain;display:block}
+  .emo-s.more{font-size:17px;color:var(--muted);font-weight:800;font-family:inherit}
+  .emo-strip-go{background:var(--surface-2);border:1px solid var(--line);border-radius:999px;
+    padding:7px 13px;font-size:12.5px;font-weight:700;color:var(--ink-2);cursor:pointer;font-family:inherit;white-space:nowrap}
+  /* 등록 전 공개 안내 */
+  .emo-notice{background:#fdf6f9;border:1px solid var(--line);border-radius:12px;padding:11px 13px;
+    font-size:12.5px;line-height:1.7;color:var(--ink-2);margin:10px 0 4px}
+  .emo-notice b{color:var(--brand-2)}
+  /* 관리 화면 */
+  .emo-mrow{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px}
+  .emo-mname{font-size:13.5px;font-weight:800;color:var(--ink)}
+  .emo-msub{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-top:2px}
+  .emo-macts{display:flex;gap:6px;flex-shrink:0}
+
   /* 신고 안내 문구 강조(입력이 부족할 때) */
   .nick-hint.rp-urgent,.login-hint.rp-urgent{color:#c0392b;font-weight:700}
   /* 블라인드된 글 — 작성자·운영자에게만 보이므로 상태를 분명히 알린다 */

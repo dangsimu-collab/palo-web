@@ -382,6 +382,7 @@ function cmShare(id){
 var screenStack=[];        // [{key, back}] — 열려 있는 앱 내부 화면들의 '뒤로' 함수
 var navigatingBack=false;  // popstate로 뒤로 가는 중이면 true(중복 push 방지)
 function enterScreen(key,back){
+  if(typeof syncKbOpen==="function")syncKbOpen(); // 화면 전환 때 하단 탭 상태 정리
   if(navigatingBack)return;                      // 뒤로 가는 중엔 새 항목을 쌓지 않음
   var top=screenStack[screenStack.length-1];
   if(top&&top.key===key){top.back=back;return;}  // 같은 화면 재렌더/내부 탭 전환은 갱신만
@@ -393,6 +394,7 @@ function resetScreens(){screenStack=[];}                     // 최상위(탭)�
 window.addEventListener("popstate",function(){
   if(screenStack.length){                        // 커미션·채팅 등 앱 내부 화면이 열려 있으면
     var item=screenStack.pop();
+    if(typeof syncKbOpen==="function")syncKbOpen();
     navigatingBack=true;
     try{item.back();}catch(e){}
     navigatingBack=false;
@@ -1344,7 +1346,8 @@ function renderPostDetail(id){
     '<div class="comments"><div class="cm-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>훈수 · 크리틱 '+p.comments.length+'</div>'+
     (p.board==='crit'?'<div class="cm-accept-info">💡 마음에 든 피드백을 <b>채택</b>하면 그 작성자에게 <b>광고 25점 + 활동 25점</b>을 지급해요 (하루 최대 100점).</div>':'')+
     '<div class="cm-write"><div class="d-ava serif" id="cmAva">'+avatarHTML("나",AUTH.profile&&AUTH.profile.avatar_url)+'</div><div class="box"><textarea id="cmInput" placeholder="따뜻한 피드백을 남겨주세요. 사람보다 그림을 이야기해요."></textarea>'+
-    '<div class="row"><button class="emo-btn" type="button" onclick="openEmoticonPicker(&quot;cmInput&quot;)" aria-label="이모티콘">🙂</button><span class="hint">인신공격·조롱은 삭제될 수 있어요</span><button class="send" onclick="addComment('+p.id+')">등록</button></div></div></div>'+
+    '<div class="emo-strip">'+emoStripHTML()+'</div>'+
+    '<div class="row"><span class="hint">인신공격·조롱은 삭제될 수 있어요</span><button class="send" onclick="addComment('+p.id+')">등록</button></div></div></div>'+
     '<div class="ad d-ad" role="complementary" aria-label="광고"><span class="ad-label">AD</span><div class="ad-ph"><svg viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"1.6\\" style=\\"width:22px;height:22px\\"><rect x=\\"3\\" y=\\"4\\" width=\\"18\\" height=\\"16\\" rx=\\"2\\"/><circle cx=\\"8.5\\" cy=\\"9.5\\" r=\\"1.6\\"/><path d=\\"m4 18 5-5 4 3 3-2 4 4\\"/></svg></div><div class="ad-body"><div class="ad-t">열심히 활동해서 포인트를 모아보세요!</div><div class="ad-d">포인트를 사용하여 이 자리에 광고를 집행할 수 있어요!</div></div></div>'+'<div class="cm-list" id="cmList">'+renderComments(p)+'</div></div></div>';
   main.innerHTML=h;
   renderDetailAd();
@@ -4098,8 +4101,8 @@ function renderEmoticonPicker(){
   body.innerHTML='<div class="emo-tabs">'+tabs+'</div><div class="emo-grid">'+grid+'</div>';
 }
 // 입력창 커서 위치에 토큰을 넣는다
-function pickEmoticon(id){
-  var inp=document.getElementById(EMO_PICKER_TARGET||"cmInput");
+function pickEmoticon(id,target){
+  var inp=document.getElementById(target||EMO_PICKER_TARGET||"cmInput");
   if(!inp){closeEmoticonPicker();return;}
   var tok="[[e:"+id+"]]";
   var s=inp.selectionStart==null?inp.value.length:inp.selectionStart;
@@ -4109,6 +4112,93 @@ function pickEmoticon(id){
   try{inp.setSelectionRange(pos,pos);}catch(err){}
   inp.focus();
   closeEmoticonPicker();
+}
+
+/* 입력칸 아래에 담아둔 이모티콘을 바로 펼쳐 둔다.
+   버튼을 눌러 창을 여는 것보다 한 번 덜 누르고, 이모티콘이 있다는 걸 눈으로 알 수 있다. */
+function emoStripHTML(){
+  var flat=[];
+  MY_EMO_PACKS.forEach(function(p){
+    p.items.forEach(function(e){if(flat.length<14)flat.push(e);});
+  });
+  if(!flat.length){
+    return '<button type="button" class="emo-strip-go" onclick="openEmoticonMarket()">🙂 이모티콘 담으러 가기</button>';
+  }
+  return flat.map(function(e){
+    // 대상 입력칸을 넘기지 않으면 pickEmoticon이 댓글 입력칸(cmInput)으로 넣는다
+    return '<button type="button" class="emo-s" onclick="pickEmoticon('+e.id+')"><img src="'+esc(e.url)+'" alt="" loading="lazy"></button>';
+  }).join("")+'<button type="button" class="emo-s more" onclick="openEmoticonPicker(&quot;cmInput&quot;)" aria-label="이모티콘 전체 보기">⋯</button>';
+}
+// 이모티콘함이 바뀌면 열려 있는 댓글 입력줄도 갱신
+function refreshEmoStrip(){
+  var el=document.querySelector(".emo-strip");
+  if(el)el.innerHTML=emoStripHTML();
+}
+
+/* ── 내 이모티콘 관리 ── */
+async function openEmoticonManage(){
+  if(!AUTH.user||!window.supabase){toast("로그인이 필요해요");return;}
+  enterScreen("emoManage",openEmoticonMarket);
+  document.getElementById("main").innerHTML='<div class="profile"><div class="pf-sec">🗂 이모티콘 관리</div><div class="pf-empty">불러오는 중…</div></div>';
+  var res=await Promise.all([
+    window.supabase.from("emoticon_packs").select("id,title,status,created_at").eq("author_id",AUTH.user.id).order("created_at",{ascending:false}),
+    window.supabase.from("user_emoticon_packs").select("pack_id")
+  ]);
+  var made=res[0].data||[];
+  var addedIds=(res[1].data||[]).map(function(r){return r.pack_id;});
+  var madeIds=made.map(function(p){return p.id;});
+  var cntRes=madeIds.length?await window.supabase.from("emoticons").select("id,pack_id").in("pack_id",madeIds):{data:[]};
+  var cnt={};(cntRes.data||[]).forEach(function(e){cnt[e.pack_id]=(cnt[e.pack_id]||0)+1;});
+  // 담은 팩 중 내가 만들지 않은 것(내가 만든 건 위에 이미 나옴)
+  var otherIds=addedIds.filter(function(id){return madeIds.indexOf(id)<0;});
+  var otherRes=otherIds.length?await window.supabase.from("emoticon_packs").select("id,title").in("id",otherIds):{data:[]};
+
+  var h='<div class="profile">'+
+    '<button class="d-back" onclick="screenBack()">← 이모티콘으로</button>'+
+    '<div class="pf-sec">✏️ 내가 만든 이모티콘 ('+made.length+')</div>';
+  h+= made.length ? made.map(function(p){
+    return '<div class="emo-mrow"><div class="emo-mname">'+esc(p.title)+
+      '<span class="emo-msub">'+(cnt[p.id]||0)+'개'+(p.status!=="public"?' · 비공개 처리됨':'')+'</span></div>'+
+      '<div class="emo-macts">'+
+        '<button class="d-act" onclick="renameEmoticonPack('+p.id+',&quot;'+esc(p.title).replace(/"/g,"&quot;")+'&quot;)">이름 변경</button>'+
+        '<button class="d-act" onclick="deleteEmoticonPack('+p.id+')">삭제</button>'+
+      '</div></div>';
+  }).join("") : '<div class="pf-empty">아직 만든 이모티콘이 없어요.</div>';
+
+  h+='<div class="pf-sec" style="margin-top:20px">📥 담아둔 이모티콘 ('+(otherRes.data||[]).length+')</div>';
+  h+= (otherRes.data||[]).length ? (otherRes.data||[]).map(function(p){
+    return '<div class="emo-mrow"><div class="emo-mname">'+esc(p.title)+'</div>'+
+      '<div class="emo-macts"><button class="d-act" onclick="unaddEmoticonPack('+p.id+')">빼기</button></div></div>';
+  }).join("") : '<div class="pf-empty">담아둔 이모티콘이 없어요.</div>';
+  h+='</div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+async function renameEmoticonPack(id,cur){
+  var v=prompt("팩 이름을 입력하세요",cur||"");
+  if(v==null)return;
+  v=v.trim();
+  if(v.length<2){toast("2자 이상 적어주세요");return;}
+  var r=await window.supabase.from("emoticon_packs").update({title:v}).eq("id",id);
+  if(r.error){toast("변경 실패: "+r.error.message);return;}
+  toast("이름을 바꿨어요");
+  await loadMyEmoticons();
+  openEmoticonManage();
+}
+async function deleteEmoticonPack(id){
+  if(!(await confirmDialog("이 이모티콘 팩을 삭제할까요? 담아간 사람들에게서도 사라지고, 이미 쓴 댓글에서는 보이지 않게 됩니다.")))return;
+  var r=await window.supabase.from("emoticon_packs").delete().eq("id",id);
+  if(r.error){toast("삭제 실패: "+r.error.message);return;}
+  toast("삭제했어요","🗑");
+  await loadMyEmoticons();
+  openEmoticonManage();
+}
+async function unaddEmoticonPack(id){
+  var r=await window.supabase.from("user_emoticon_packs").delete().eq("user_id",AUTH.user.id).eq("pack_id",id);
+  if(r.error){toast("실패: "+r.error.message);return;}
+  toast("이모티콘함에서 뺐어요");
+  await loadMyEmoticons();
+  openEmoticonManage();
 }
 
 /* ── 이모티콘 둘러보기 ── */
@@ -4143,7 +4233,8 @@ function renderEmoticonMarket(){
   var h='<div class="profile">'+
     '<button class="d-back" onclick="screenBack()">← 내 정보로</button>'+
     '<div class="pf-sec">🙂 이모티콘</div>'+
-    (AUTH.user?'<button class="pf-edit" onclick="openEmoticonStudio()" style="margin-bottom:14px">+ 내 이모티콘 만들기</button>':'');
+    (AUTH.user?'<button class="pf-edit" onclick="openEmoticonStudio()">+ 내 이모티콘 만들기</button>'+
+      '<button class="pf-edit" onclick="openEmoticonManage()" style="margin:8px 0 14px">🗂 내 이모티콘 관리</button>':'');
   if(!EMO_MARKET.length){
     h+='<div class="pf-empty">아직 등록된 이모티콘이 없어요.<br>처음으로 만들어보세요!</div>';
   }else{
@@ -4173,6 +4264,7 @@ async function togglePack(packId){
     p.mine=true;toast("이모티콘함에 담았어요","🙂");
   }
   await loadMyEmoticons();
+  refreshEmoStrip();
   renderEmoticonMarket();
 }
 
@@ -4185,24 +4277,34 @@ function openEmoticonStudio(){
   renderEmoticonStudio();
 }
 function renderEmoticonStudio(){
-  var imgs=emoStudio.images.map(function(url,i){
-    return '<div class="emo-slot"><img src="'+esc(url)+'" alt=""><button class="emo-del" onclick="emoRemoveImage('+i+')">×</button></div>';
-  }).join("");
-  var canAdd=emoStudio.images.length<24;
   document.getElementById("main").innerHTML='<div class="profile">'+
     '<button class="d-back" onclick="screenBack()">← 이모티콘 목록으로</button>'+
     '<div class="pf-sec">✏️ 이모티콘 만들기</div>'+
     '<input id="emoTitle" class="nick-in" maxlength="20" placeholder="팩 이름 (예: 우리 고양이)" value="'+esc(emoStudio.title)+'" oninput="emoStudio.title=this.value">'+
     '<p class="nick-hint">투명 배경 PNG를 권장해요. 움직이는 GIF도 됩니다. 2~24개까지 넣을 수 있어요.</p>'+
-    '<div class="emo-slots">'+imgs+
-      (canAdd?'<button class="emo-slot add" onclick="document.getElementById(\'emoFile\').click()">+</button>':'')+
-    '</div>'+
+    '<div class="emo-notice"><b>등록하면 모든 회원이 담아서 쓸 수 있어요.</b><br>'+
+      '나만 쓰는 이모티콘으로는 만들 수 없어요. 직접 그렸거나 사용 허락을 받은 그림만 올려주세요 — '+
+      '남의 그림을 올리면 저작권 침해로 삭제·제재될 수 있어요.</div>'+
+    '<div class="emo-slots" id="emoSlots">'+emoSlotsHTML()+'</div>'+
     '<p class="login-hint" id="emoStudioHint"></p>'+
     '<button class="r-ok" id="emoSaveBtn" onclick="saveEmoticonPack()" style="margin-top:6px">이모티콘 등록</button>'+
     '</div>';
   window.scrollTo({top:0,behavior:"smooth"});
 }
-function emoRemoveImage(i){emoStudio.images.splice(i,1);renderEmoticonStudio();}
+// 슬롯만 따로 그린다 — 이미지를 추가할 때 화면 전체를 다시 그리면
+// 제목 입력칸이 사라지면서 입력 중이던 커서와 포커스가 날아간다.
+function emoSlotsHTML(){
+  var imgs=emoStudio.images.map(function(url,i){
+    return '<div class="emo-slot"><img src="'+esc(url)+'" alt=""><button class="emo-del" onclick="emoRemoveImage('+i+')">×</button></div>';
+  }).join("");
+  return imgs+(emoStudio.images.length<24
+    ? '<button class="emo-slot add" onclick="document.getElementById(&quot;emoFile&quot;).click()">+</button>' : '');
+}
+function renderEmoSlots(){
+  var el=document.getElementById("emoSlots");
+  if(el)el.innerHTML=emoSlotsHTML(); else renderEmoticonStudio();
+}
+function emoRemoveImage(i){emoStudio.images.splice(i,1);renderEmoSlots();}
 async function onEmoticonFile(ev){
   var files=Array.from(ev.target.files||[]);ev.target.value="";
   if(!files.length)return;
@@ -4220,7 +4322,7 @@ async function onEmoticonFile(ev){
     var url=await uploadToStorage(blob,"emoticon");
     if(!url)break;
     emoStudio.images.push(url);
-    renderEmoticonStudio();
+    renderEmoSlots();
   }
   toast("이미지를 넣었어요");
 }
@@ -4230,6 +4332,7 @@ async function saveEmoticonPack(){
   var title=(emoStudio.title||"").trim();
   if(title.length<2){setHint("팩 이름을 2자 이상 적어주세요.");return;}
   if(emoStudio.images.length<2){setHint("이모티콘을 2개 이상 넣어주세요.");return;}
+  if(!(await confirmDialog("‘"+title+"’ 이모티콘을 등록할까요? 등록하면 모든 회원이 담아서 쓸 수 있어요.")))return;
   var btn=document.getElementById("emoSaveBtn");
   if(btn){btn.disabled=true;btn.textContent="등록 중…";}
   var pack=await window.supabase.from("emoticon_packs")
@@ -6288,6 +6391,12 @@ syncNotifBadge();
   function touchKeyboard(){return !!(window.matchMedia&&window.matchMedia("(pointer: coarse)").matches);}
   document.addEventListener("focusin",function(e){if(isTextInput(e.target)&&touchKeyboard())document.body.classList.add("kb-open");});
   document.addEventListener("focusout",function(e){if(isTextInput(e.target))document.body.classList.remove("kb-open");});
+  // 포커스된 입력칸이 화면 교체로 **사라지면 focusout이 오지 않는** 브라우저가 있다.
+  // 그러면 하단 탭이 숨은 채 남는다 → 화면이 바뀔 때 실제 포커스를 보고 맞춘다.
+  window.syncKbOpen=function(){
+    var a=document.activeElement;
+    if(!(a&&isTextInput(a)&&touchKeyboard()))document.body.classList.remove("kb-open");
+  };
 })();
 
 // ===== 피드 pull-to-refresh: 목록 최상단에서 아래로 당기면 새로고침 =====
