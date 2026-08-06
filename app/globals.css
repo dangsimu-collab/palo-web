@@ -424,20 +424,6 @@
   .tab.on .ic{stroke-width:2.4}
   .tab .badge{position:absolute;top:-2px;right:calc(50% - 20px);min-width:16px;height:16px;background:var(--brand);color:#fff;font-size:9px;font-weight:800;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--surface)}
   .tab .lbl{display:block}
-  /* 글쓰기만 '이동'이 아니라 '행동'이라 아이콘을 채워서 구분한다.
-     라벨·아이콘 크기는 그대로 두고, 늘어난 만큼 세로 여백을 줄여 하단바 높이도 유지한다
-     (탭 하나만 커지면 줄이 흐트러지고 과해 보인다). */
-  /* 아이콘만 튀게 하는 대신 '칸'을 옅은 브랜드색으로 채워 구분한다.
-     배경은 가상 요소로 깔아 레이아웃(아이콘·라벨 위치, 탭바 높이)은 전혀 건드리지 않는다. */
-  .tab.write{position:relative;color:var(--brand-2)}
-  .tab.write::before{
-    content:"";position:absolute;inset:0 5px;border-radius:14px;
-    background:var(--brand-soft);border:1px solid #f0d5e3;
-    transition:background .14s
-  }
-  .tab.write>*{position:relative} /* 아이콘·라벨을 배경 위로 올림 */
-  .tab.write .ic{stroke-width:2.3}
-  .tab.write:active::before{background:#f2dae8}
 
   @media(max-width:860px){
     .menu-btn{display:block}.search.desktop{display:none}.write-btn{display:none}
