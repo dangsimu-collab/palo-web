@@ -424,6 +424,20 @@
   .tab.on .ic{stroke-width:2.4}
   .tab .badge{position:absolute;top:-2px;right:calc(50% - 20px);min-width:16px;height:16px;background:var(--brand);color:#fff;font-size:9px;font-weight:800;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--surface)}
   .tab .lbl{display:block}
+  /* 글쓰기만 '이동'이 아니라 '행동'이라 아이콘을 채워서 구분한다.
+     라벨·아이콘 크기는 그대로 두고, 늘어난 만큼 세로 여백을 줄여 하단바 높이도 유지한다
+     (탭 하나만 커지면 줄이 흐트러지고 과해 보인다). */
+  .tab.write{color:var(--ink-2)}
+  .tab.write .ic{
+    /* padding으로 배경을 키우고 같은 크기의 음수 margin으로 자리를 되돌린다.
+       그래야 아이콘 글리프와 라벨이 다른 탭과 같은 높이에 그대로 남는다
+       (자리까지 커지면 글쓰기 라벨만 아래로 밀려 줄이 어긋난다). */
+    box-sizing:content-box;padding:4px;margin:-4px;border-radius:10px;
+    background:linear-gradient(120deg,var(--brand),var(--grape));color:#fff;stroke-width:2.2;
+    box-shadow:0 3px 9px rgba(224,122,166,.32);
+    transition:transform .14s,box-shadow .14s
+  }
+  .tab.write:active .ic{transform:scale(.93);box-shadow:0 2px 6px rgba(224,122,166,.28)}
 
   @media(max-width:860px){
     .menu-btn{display:block}.search.desktop{display:none}.write-btn{display:none}
