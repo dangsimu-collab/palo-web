@@ -3953,37 +3953,6 @@ async function submitPost(){
 var drawer=document.getElementById('drawer'),scrim=document.getElementById('scrim');
 function openDrawer(){drawer.classList.add('open');scrim.classList.add('open');document.body.style.overflow='hidden'}
 function closeDrawer(){drawer.classList.remove('open');scrim.classList.remove('open');document.body.style.overflow=''}
-/* 화면 왼쪽 가장자리에서 오른쪽으로 밀면 게시판 목록(드로어)이 열림.
-   가로 스크롤 영역(게시판 탭·말머리 등)이나 앱 내부 화면(커미션·채팅=뒤로가기 스와이프와 겹침),
-   모달이 떠 있을 땐 동작하지 않는다. */
-(function(){
-  var sx=0,sy=0,tracking=false;
-  var EDGE=30;   // 이 픽셀 안쪽에서 시작해야 인식
-  var THRESH=55; // 이만큼 오른쪽으로 밀면 열림
-  function canOpen(e){
-    if(!drawer||drawer.classList.contains('open'))return false;
-    if(document.body.classList.contains('kb-open'))return false;
-    if(screenStack.length)return false; // 커미션·채팅 등 내부 화면에선 뒤로가기 제스처 우선
-    if(document.querySelector('.rules-scrim.open,#writeModal.open,.sheet.open,.msearch.open'))return false;
-    if(e.target.closest&&e.target.closest('.catbar-inner,.tagbar,.cm-slider,.trend-inner,.review-album,.post-album'))return false; // 가로 스크롤 영역 보호
-    return true;
-  }
-  document.addEventListener('touchstart',function(e){
-    tracking=false;
-    if(e.touches.length!==1||!canOpen(e))return;
-    var t=e.touches[0];
-    if(t.clientX>EDGE)return;
-    sx=t.clientX;sy=t.clientY;tracking=true;
-  },{passive:true});
-  document.addEventListener('touchmove',function(e){
-    if(!tracking)return;
-    var t=e.touches[0],dx=t.clientX-sx,dy=t.clientY-sy;
-    if(Math.abs(dy)>Math.abs(dx)){tracking=false;return;} // 세로로 움직이면 스크롤로 간주
-    if(dx>THRESH){tracking=false;hideImgPreview();openDrawer();}
-  },{passive:true});
-  document.addEventListener('touchend',function(){tracking=false;},{passive:true});
-  document.addEventListener('touchcancel',function(){tracking=false;},{passive:true});
-})();
 document.getElementById('menuBtn').addEventListener('click',openDrawer);
 document.getElementById('drawerClose').addEventListener('click',closeDrawer);
 scrim.addEventListener('click',closeDrawer);
