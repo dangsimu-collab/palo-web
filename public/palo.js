@@ -1823,34 +1823,84 @@ function reportAd(adId,e){
   if(!window.supabase){toast("사용할 수 없어요");return;}
   reportingAdId=adId;
   document.getElementById("reportReasonInput").value="";
+  _resetReportForm();
   document.getElementById("reportModal").classList.add("open");
-  setTimeout(function(){document.getElementById("reportReasonInput").focus()},60);
 }
 function reportPost(id){
   var p=POSTS.find(function(x){return x.id===id});if(!p)return;
   if(!p.dbId||!window.supabase){toast("신고가 접수되었어요");return;}
   reportingPostId=id;
   document.getElementById("reportReasonInput").value="";
+  _resetReportForm();
   document.getElementById("reportModal").classList.add("open");
-  setTimeout(function(){document.getElementById("reportReasonInput").focus()},60);
 }
 function reportChat(){
   if(!AUTH.user||!currentConversationId){toast("로그인이 필요해요");return;}
   reportingConversationId=currentConversationId;
   reportingReportedUserId=currentChatPartnerId;
   document.getElementById("reportReasonInput").value="";
+  _resetReportForm();
   document.getElementById("reportModal").classList.add("open");
-  setTimeout(function(){document.getElementById("reportReasonInput").focus()},60);
 }
 function closeReport(){
   reportingPostId=null;reportingConversationId=null;reportingReportedUserId=null;reportingAdId=null;
+  reportCategory=null;
   document.getElementById("reportModal").classList.remove("open");
 }
+
+/* ===== 신고 유형 =====
+   자유 서술만 받으면 긴급 사안과 단순 불만이 섞여 들어와 우선순위를 못 매긴다.
+   urgent:true 두 개(불법촬영물·아동성착취물)는 DB 트리거가 즉시 임시조치(블라인드)를 건다. */
+var REPORT_CATS=[
+  {id:"illegal_filming",label:"불법촬영물",     urgent:true,  desc:"동의 없이 촬영·유포된 사진이나 영상"},
+  {id:"csam",           label:"아동 성착취물", urgent:true,  desc:"아동·청소년이 등장하는 성적 콘텐츠"},
+  {id:"real_person",    label:"실존 인물 대상", urgent:false, desc:"실제 인물을 성적으로 묘사"},
+  {id:"defamation",     label:"명예훼손·모욕",  urgent:false, desc:"특정인을 향한 비방·괴롭힘"},
+  {id:"copyright",      label:"저작권 침해",    urgent:false, desc:"내 그림을 무단으로 올렸어요"},
+  {id:"rating",         label:"수위 위반",      urgent:false, desc:"게시판 허용 수위를 넘었어요"},
+  {id:"spam",           label:"광고·도배",      urgent:false, desc:"홍보 글이나 반복 게시"},
+  {id:"etc",            label:"기타",           urgent:false, desc:""}
+];
+var reportCategory=null;
+function reportCatsHTML(){
+  return REPORT_CATS.map(function(c){
+    return '<button type="button" class="rp-cat'+(c.urgent?' urgent':'')+'" data-cat="'+c.id+'" '+
+      'onclick="pickReportCat(\''+c.id+'\')">'+(c.urgent?'⚠️ ':'')+c.label+'</button>';
+  }).join("");
+}
+function pickReportCat(id){
+  reportCategory=id;
+  var box=document.getElementById("reportCats");
+  if(box)Array.prototype.forEach.call(box.querySelectorAll(".rp-cat"),function(b){
+    b.classList.toggle("on",b.getAttribute("data-cat")===id);
+  });
+  var c=REPORT_CATS.find(function(x){return x.id===id;});
+  var hint=document.getElementById("reportCatHint");
+  if(hint&&c){
+    hint.textContent=c.urgent
+      ? "긴급 신고예요. 접수 즉시 글이 가려지고 운영진이 바로 확인해요."
+      : (c.desc||"신고 내용은 운영진만 확인할 수 있어요.");
+    hint.classList.toggle("rp-urgent",!!c.urgent);
+  }
+}
+// 신고창을 열 때마다 유형 선택을 초기화(이전 신고의 선택이 남지 않게)
+function _resetReportForm(){
+  reportCategory=null;
+  var box=document.getElementById("reportCats");
+  if(box)box.innerHTML=reportCatsHTML();
+  var hint=document.getElementById("reportCatHint");
+  if(hint){hint.textContent="신고 내용은 운영진만 확인할 수 있어요.";hint.classList.remove("rp-urgent");}
+}
 async function submitReport(){
+  if(!reportCategory){
+    var hint=document.getElementById("reportCatHint");
+    if(hint){hint.textContent="신고 유형을 먼저 골라주세요.";hint.classList.add("rp-urgent");}
+    return;
+  }
   var reason=document.getElementById("reportReasonInput").value.trim()||null;
   if(reportingConversationId){
     var convId=reportingConversationId,reportedUserId=reportingReportedUserId;
-    var res=await window.supabase.from("reports").insert({conversation_id:convId,reported_user_id:reportedUserId,reporter_id:AUTH.user.id,reason:reason});
+    var res=await window.supabase.from("reports").insert({conversation_id:convId,reported_user_id:reportedUserId,reporter_id:AUTH.user.id,reason:reason,category:reportCategory});
     closeReport();
     if(res.error){toast("신고 접수 실패: "+res.error.message);return;}
     toast("신고가 접수되었어요");
@@ -1858,17 +1908,21 @@ async function submitReport(){
   }
   if(reportingAdId){
     var adId=reportingAdId;
-    var res=await window.supabase.from("reports").insert({ad_id:adId,reporter_id:AUTH.user?AUTH.user.id:null,reason:reason});
+    var res=await window.supabase.from("reports").insert({ad_id:adId,reporter_id:AUTH.user?AUTH.user.id:null,reason:reason,category:reportCategory});
     closeReport();
     if(res.error){toast("신고 접수 실패: "+res.error.message);return;}
     toast("신고가 접수되었어요");
     return;
   }
   var id=reportingPostId;var p=POSTS.find(function(x){return x.id===id});if(!p)return;
-  var res=await window.supabase.from("reports").insert({post_id:p.dbId,reporter_id:AUTH.user?AUTH.user.id:null,reason:reason});
+  var cat=REPORT_CATS.find(function(x){return x.id===reportCategory;});
+  var res=await window.supabase.from("reports").insert({post_id:p.dbId,reporter_id:AUTH.user?AUTH.user.id:null,reason:reason,category:reportCategory});
   closeReport();
   if(res.error){toast("신고 접수 실패: "+res.error.message);return;}
-  toast("신고가 접수되었어요");
+  if(cat&&cat.urgent){
+    toast("긴급 신고로 접수했어요. 글을 바로 가렸어요","⚠️");
+    postsLoadedAt=0; // 가려진 글이 목록에서 빠지도록 다음 이동 때 새로 불러옴
+  }else toast("신고가 접수되었어요");
 }
 function confirmDialog(message){
   return new Promise(function(resolve){
@@ -5262,8 +5316,14 @@ async function openAdminReports(){
   var res=await window.supabase.from("reports").select("*").eq("resolved",false).order("created_at",{ascending:false});
   if(res.error){toast("불러오기 실패: "+res.error.message);return;}
   var reports=res.data;
+  // 긴급 신고(불법촬영물·아동성착취물)를 맨 위로 올린다 — 시간순만으로는 묻히기 때문
+  reports.sort(function(a,b){
+    var ua=_isUrgentCat(a.category)?0:1, ub=_isUrgentCat(b.category)?0:1;
+    if(ua!==ub)return ua-ub;
+    return new Date(b.created_at)-new Date(a.created_at);
+  });
   var postIds=Array.from(new Set(reports.filter(function(r){return r.post_id}).map(function(r){return r.post_id})));
-  var postRes=postIds.length?await window.supabase.from("posts").select("id,title,board").in("id",postIds):{data:[]};
+  var postRes=postIds.length?await window.supabase.from("posts").select("id,title,board,blinded").in("id",postIds):{data:[]};
   var postById={};(postRes.data||[]).forEach(function(pr){postById[pr.id]=pr;});
   var adIds=Array.from(new Set(reports.filter(function(r){return r.ad_id}).map(function(r){return r.ad_id})));
   var adRes=adIds.length?await window.supabase.from("user_ads").select("id,user_id,image_url,status,linked_post_id,linked_commission_id").in("id",adIds):{data:[]};
@@ -5301,9 +5361,14 @@ async function openAdminReports(){
           '</div></div>';
       }else{
         var post=postById[r.post_id];
-        h+='<div class="post rip"><div class="pmain"'+(post?' style="cursor:pointer" onclick="openPost('+(100000+post.id)+')"':'')+'><div class="ptitle">'+(post?esc(post.title):"(이미 삭제된 글)")+'</div>'+
+        var blinded=post&&post.blinded;
+        h+='<div class="post rip"><div class="pmain"'+(post?' style="cursor:pointer" onclick="openPost('+(100000+post.id)+')"':'')+'>'+
+          '<div class="ptitle">'+(blinded?'<span class="blind-tag">가림</span>':'')+_reportCatBadge(r.category)+(post?esc(post.title):"(이미 삭제된 글)")+'</div>'+
           '<div class="pmeta"><span class="mt">'+timeAgo(r.created_at)+'</span>'+(r.reason?'<span class="sep"></span><span class="mv">사유: '+esc(r.reason)+'</span>':'')+'</div></div>'+
           '<div style="display:flex;gap:8px;flex-shrink:0">'+
+            (post?(blinded
+              ?'<button class="d-act" onclick="adminBlindPost('+r.id+','+post.id+',false)">가림 해제</button>'
+              :'<button class="d-act" onclick="adminBlindPost('+r.id+','+post.id+',true)">임시 가림</button>'):'')+
             (post?'<button class="d-act" onclick="adminDeleteReportedPost('+r.id+','+post.id+')">글 삭제</button>':'')+
             '<button class="d-act" onclick="dismissReport('+r.id+')">무시</button>'+
           '</div></div>';
@@ -5315,9 +5380,46 @@ async function openAdminReports(){
   document.getElementById("main").innerHTML=h;
   window.scrollTo({top:0,behavior:"smooth"});
 }
+function _isUrgentCat(id){
+  var c=REPORT_CATS.find(function(x){return x.id===id;});
+  return !!(c&&c.urgent);
+}
+function _reportCatBadge(id){
+  if(!id)return "";
+  var c=REPORT_CATS.find(function(x){return x.id===id;});
+  if(!c)return "";
+  return '<span class="blind-tag"'+(c.urgent?'':' style="background:var(--surface-2);color:var(--ink-2);border-color:var(--line)"')+'>'+
+    (c.urgent?'⚠️ ':'')+esc(c.label)+'</span>';
+}
+// 조치 이력 기록 — 이의신청이나 분쟁이 생겼을 때 근거가 된다. 실패해도 조치 자체는 진행.
+async function _logModeration(action,postId,reportId,note){
+  try{
+    await window.supabase.from("moderation_log").insert({
+      post_id:postId||null,report_id:reportId||null,
+      actor_id:AUTH.user?AUTH.user.id:null,action:action,note:note||null
+    });
+  }catch(e){}
+}
+/* 임시조치(블라인드) — 삭제와 달리 글은 남고 작성자·운영자에게만 보인다.
+   판단이 끝나기 전에 노출만 멈추는 조치라, 오신고였으면 되돌릴 수 있다.
+   (정보통신망법 제44조의2가 말하는 '임시조치'에 해당) */
+async function adminBlindPost(reportId,postDbId,on){
+  if(on&&!(await confirmDialog("이 글을 임시로 가릴까요?\\n작성자와 운영자에게만 보이게 됩니다.")))return;
+  if(!on&&!(await confirmDialog("가림을 해제할까요? 다시 모두에게 보이게 됩니다.")))return;
+  var res=await window.supabase.from("posts").update(
+    on?{blinded:true,blinded_at:new Date().toISOString(),blind_reason:"운영자 임시조치"}
+      :{blinded:false,blinded_at:null,blind_reason:null}
+  ).eq("id",postDbId);
+  if(res.error){toast("처리 실패: "+res.error.message);return;}
+  await _logModeration(on?"blind":"unblind",postDbId,reportId,null);
+  postsLoadedAt=0; // 목록에 반영되도록 다음 이동 때 새로 불러옴
+  toast(on?"글을 가렸어요":"가림을 해제했어요");
+  openAdminReports();
+}
 async function dismissReport(reportId){
   var res=await window.supabase.from("reports").update({resolved:true}).eq("id",reportId);
   if(res.error){toast("처리 실패: "+res.error.message);return;}
+  await _logModeration("dismiss",null,reportId,null);
   toast("신고를 처리했어요");
   openAdminReports();
 }
@@ -5326,6 +5428,7 @@ async function adminDeleteReportedPost(reportId,postDbId){
   var res=await window.supabase.from("posts").delete().eq("id",postDbId);
   if(res.error){toast("삭제 실패: "+res.error.message);return;}
   await window.supabase.from("reports").update({resolved:true}).eq("id",reportId);
+  await _logModeration("delete",postDbId,reportId,null);
   POSTS=POSTS.filter(function(x){return x.dbId!==postDbId});
   toast("글을 삭제했어요");
   openAdminReports();

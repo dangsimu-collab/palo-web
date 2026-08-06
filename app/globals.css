@@ -997,6 +997,18 @@
   .rules ol{margin:0 0 18px 20px;font-size:13.5px;line-height:1.9;color:var(--ink-2)}
   .rules ol li{margin-bottom:6px}
   .rules .r-ok{width:100%;background:linear-gradient(120deg,var(--brand),var(--grape));color:#fff;border:none;padding:13px;border-radius:13px;font-weight:800;font-size:14px;cursor:pointer;font-family:inherit}
+  /* 신고 유형 선택 — 긴급 항목은 색으로 구분해 오선택을 줄인다 */
+  .rp-cats{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+  .rp-cat{background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line);border-radius:999px;
+    padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .12s}
+  .rp-cat:hover{border-color:var(--line-2)}
+  .rp-cat.on{background:var(--brand);border-color:var(--brand);color:#fff}
+  .rp-cat.urgent{color:#c0392b;border-color:#e8b4ac;background:#fdf0ee}
+  .rp-cat.urgent.on{background:#c0392b;border-color:#c0392b;color:#fff}
+  .nick-hint.rp-urgent,.login-hint.rp-urgent{color:#c0392b;font-weight:700}
+  /* 블라인드된 글 — 작성자·운영자에게만 보이므로 상태를 분명히 알린다 */
+  .blind-tag{display:inline-flex;align-items:center;gap:4px;background:#fdf0ee;color:#c0392b;
+    border:1px solid #e8b4ac;border-radius:6px;padding:2px 7px;font-size:11px;font-weight:800;margin-right:6px}
   /* 보조 버튼(취소/나중에) — .r-ok 아래에 놓이는 낮은 위계의 선택지 */
   .rules .r-no{width:100%;background:transparent;color:var(--ink-2);border:1px solid var(--line);padding:12px;border-radius:13px;font-weight:700;font-size:13.5px;cursor:pointer;font-family:inherit;margin-top:8px}
   .rules .r-no:hover{background:var(--surface-2)}
