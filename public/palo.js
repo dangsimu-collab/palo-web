@@ -226,15 +226,24 @@ async function loadRealPosts(skipRender){
   if(!window.supabase)return;
   var sb=window.supabase;
   var nowIso=new Date().toISOString();
+  // layout.js가 HTML 파싱 직후에 띄워둔 선요청(있으면 재사용). palo.js는 하이드레이션 이후에야
+  // 실행되므로, 여기 도달했을 땐 이미 응답이 와 있어 왕복 한 번을 통째로 아낀다.
+  // 첫 호출에서만 쓰고 비운다 — 새로고침·재조회 때 낡은 데이터를 재사용하면 안 되므로.
+  var pre=window.__paloPre||{};
+  window.__paloPre=null;
+  function preOr(key,fallback){
+    if(!pre[key])return fallback();
+    return pre[key].then(function(r){return r||fallback();}); // 선요청이 실패했으면 평소 경로로
+  }
   // ── 1차: 서로 독립적인 쿼리 7개를 병렬로 실행(예전엔 하나씩 순서대로 await해서 왕복 지연이 그대로 누적됐음) ──
   var wave1=await Promise.all([
-    sb.from("notices").select("*").order("created_at",{ascending:false}).limit(1),
-    sb.from("level_thresholds").select("*").order("level"),
+    preOr("notices",function(){return sb.from("notices").select("*").order("created_at",{ascending:false}).limit(1);}),
+    preOr("levels",function(){return sb.from("level_thresholds").select("*").order("level");}),
     sb.from("user_ads").select("id,image_url,linked_post_id,linked_commission_id,points_spent").eq("status","active").gt("expires_at",nowIso),
     sb.rpc("get_servable_ads"),
     sb.from("user_ads").select("linked_post_id,linked_commission_id,status,expires_at").in("status",["pending","active"]),
-    sb.from("posts").select("*").order("created_at",{ascending:false}),
-    sb.from("profiles").select("id,nickname,level,avatar_url")
+    preOr("posts",function(){return sb.from("posts").select("*").order("created_at",{ascending:false});}),
+    preOr("profiles",function(){return sb.from("profiles").select("id,nickname,level,avatar_url");})
   ]);
   var noticeRes=wave1[0],lvRes=wave1[1],adRes=wave1[2],campRes=wave1[3],adLockRes=wave1[4],res=wave1[5],profRes=wave1[6];
   if(!noticeRes.error&&noticeRes.data.length)LATEST_NOTICE=noticeRes.data[0];

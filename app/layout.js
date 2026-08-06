@@ -50,6 +50,39 @@ export default function RootLayout({ children }) {
     <html lang="ko">
       <body>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }} />
+        {/* 글 목록 선요청 — palo.js는 next/script의 afterInteractive라서 React 하이드레이션이
+            끝나야(실측 약 2.5초) 실행되고, 그때부터 데이터를 부르기 시작했다.
+            이 인라인 스크립트는 HTML 파싱 직후(약 0.1초)에 곧바로 요청을 띄워두므로,
+            palo.js가 깨어날 때쯤이면 응답이 이미 도착해 있다. supabase-js가 필요 없도록
+            REST를 직접 호출한다. 실패해도 palo.js가 평소대로 다시 부르므로 안전하다. */}
+        <Script id="palo-prefetch" strategy="beforeInteractive">
+          {`(function(){try{
+  var p=location.pathname;
+  if(!(p==="/"||p.indexOf("/board/")===0||p.indexOf("/post/")===0))return; // 목록을 쓰는 화면에서만
+  var U=${JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_URL || "")};
+  var K=${JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "")};
+  if(!U||!K)return;
+  // 로그인 상태면 건너뛴다 — 여기선 anon 권한으로만 읽을 수 있어서,
+  // 로그인 사용자에게만 보이는 행(예: 본인의 가려진 글)이 빠질 수 있다.
+  for(var i=0;i<localStorage.length;i++){
+    var k=localStorage.key(i);
+    if(k&&k.indexOf("sb-")===0&&k.indexOf("auth-token")>-1)return;
+  }
+  var h={apikey:K,Authorization:"Bearer "+K};
+  function q(path){
+    return fetch(U+"/rest/v1/"+path,{headers:h})
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(d){return d?{data:d,error:null}:null;})
+      .catch(function(){return null;});
+  }
+  window.__paloPre={
+    posts:q("posts?select=*&order=created_at.desc"),
+    profiles:q("profiles?select=id,nickname,level,avatar_url"),
+    notices:q("notices?select=*&order=created_at.desc&limit=1"),
+    levels:q("level_thresholds?select=*&order=level.asc")
+  };
+}catch(e){}})();`}
+        </Script>
         {children}
         <Analytics />
         {GA_ID && (
