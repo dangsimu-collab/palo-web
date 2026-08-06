@@ -21,9 +21,19 @@ if (typeof window !== 'undefined') {
 // (앱 내 이동은 전부 <a href>라 클라이언트 라우팅으로 이 HTML이 재삽입될 일은 없다.)
 const APP_HTML = BODY_HTML + `<script src="/palo.js?v=${process.env.NEXT_PUBLIC_BUILD_ID}"></script>`;
 
+// preconnect용 — 키가 아니라 주소만 쓴다
+const SUPABASE_ORIGIN = (() => {
+  try { return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin; } catch { return ''; }
+})();
+
 export default function PaloApp() {
   return (
     <>
+      {/* 화면을 그리는 건 palo.js 하나뿐인데, React 청크 192KB와 대역폭을 나눠 쓰느라
+          받는 데 오래 걸렸다(실측 835ms). 미리 높은 우선순위로 당겨온다.
+          Supabase는 미리 연결해두면 데이터 요청 때 DNS·TLS 왕복을 아낀다. */}
+      <link rel="preload" as="script" fetchPriority="high" href={`/palo.js?v=${process.env.NEXT_PUBLIC_BUILD_ID}`} />
+      {SUPABASE_ORIGIN && <link rel="preconnect" href={SUPABASE_ORIGIN} crossOrigin="anonymous" />}
       {/* palo.js가 하이드레이션 전에 이 안의 DOM을 이미 바꿔놓기 때문에(글 목록 렌더 등)
           React가 서버 HTML과 다르다고 경고한다. 이 영역은 palo.js가 소유하므로 대조를 끈다. */}
       <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: APP_HTML }} />
