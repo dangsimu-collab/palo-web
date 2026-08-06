@@ -620,13 +620,21 @@ function renderNav(el){
 // 상단 게시판 탭에 붙는 이모지(게시판 성격에 맞춤). 왼쪽 서랍 메뉴는 기존 선 아이콘 그대로.
 var CHIP_EMOJI={all:"📋",intro:"👋",talk:"💬",doodle:"✏️",wip:"🎨",sketch:"📚",ask:"❓",vote:"📊",crit:"🔍",
   collab:"🤝",challenge:"🏆",tip:"💡",request:"🙏",recruit:"💼",used:"📦",suggest:"🛠"};
-function renderChips(){
+function chipsHTML(){
   var flat=[{id:"all",name:"전체 글"}];
   BOARDS.forEach(function(g){g.items.forEach(function(b){if(b.id!=="all")flat.push(b)})});
-  document.getElementById("chips").innerHTML=flat.map(function(b){
+  return flat.map(function(b){
     var emo=CHIP_EMOJI[b.id]?'<span class="chip-emo">'+CHIP_EMOJI[b.id]+'</span>':'';
     return '<button class="chip'+(state.board===b.id?' on':'')+'" onclick="selectBoard(\''+b.id+'\')">'+emo+b.name+'</button>';
   }).join("");
+}
+// 게시판 탭은 화면 최상단이 아니라 목록 위(최신·인기 탭 바로 아래)에 그림 → renderList가 이 HTML을 끼워 넣음
+function boardTabsHTML(){
+  return '<div class="boardtabs" id="catbar"><div class="catbar-inner" id="chips">'+chipsHTML()+'</div></div>';
+}
+function renderChips(){
+  var el=document.getElementById("chips"); // 목록 화면이 아닐 땐(커미션·프로필 등) 없으므로 건너뜀
+  if(el)el.innerHTML=chipsHTML();
 }
 function renderHot(){
   var el=document.getElementById("hotList");if(!el)return;
@@ -881,6 +889,7 @@ function renderList(){
       '<div class="sortbar viewbar"><button class="'+(state.viewMode==="list"?"on":"")+'" onclick="setViewMode(\'list\')">☰ 목록형</button><button class="'+(state.viewMode==="album"?"on":"")+'" onclick="setViewMode(\'album\')">▦ 앨범형</button></div>'+
     '</div>'+
     '</div>';
+  h+=boardTabsHTML(); // 게시판 선택 탭(최신·인기 바로 아래)
   h+=tagFilterBarHTML();
   if(state.board==="all"&&!state.query){
     if(LATEST_NOTICE)h+='<div class="notice" onclick="showNotice()"><span class="pin">공지</span><span class="nt">📢 '+esc(LATEST_NOTICE.title)+'</span></div>';
