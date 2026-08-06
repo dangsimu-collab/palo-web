@@ -3657,7 +3657,10 @@ function goHome(){
   var onHomeFeed=(!userLeftHome&&state.board==="all"&&!state.query&&!state.tag);
   resetScreens();userLeftHome=false;
   selectBoard("all",onHomeFeed);
-  refreshFeed();
+  // 홈 탭을 누르는 건 "지금 새로 보여줘"라는 명시적 요청이다.
+  // force로 넘겨서 8초 쓰로틀을 건너뛰고, 새 글이 없어도 화면을 다시 그린다
+  // (그래야 조회수·시간 표시 같은 것도 최신으로 바뀐다).
+  refreshFeed(true);
 }
 // 홈 피드를 DB에서 다시 불러와 갱신. goHome이 이미 캐시로 한 번 그렸으므로, 재조회 후에는
 // 내용이 실제로 바뀐 경우에만 딱 한 번 더 그림(안 바뀌면 다시 안 그려서 껌뻑임 없음).
@@ -3672,7 +3675,10 @@ async function refreshFeed(force){
   var before=feedSignature();
   try{await loadRealPosts(true);}catch(e){} // true = loadRealPosts는 목록을 안 그림(중복 렌더 방지)
   feedRefreshing=false;
-  if(!userLeftHome&&feedSignature()!==before)renderList(); // 내용 바뀌었고 아직 홈일 때만 한 번 갱신
+  // 홈 탭·당겨서 새로고침처럼 사용자가 직접 요청한 경우(force)는 내용이 그대로여도 다시 그린다.
+  // 안 그러면 "눌러도 아무 일도 안 일어나는" 것처럼 보인다(새 글이 없으면 서명이 같아서 건너뛰므로).
+  // 반대로 배경 자동 갱신은 예전대로 — 바뀐 게 있을 때만 그려서 목록이 껌뻑이지 않게 둔다.
+  if(!userLeftHome&&(force||feedSignature()!==before))renderList();
 }
 var _searchT;
 function liveSearch(v){clearTimeout(_searchT);_searchT=setTimeout(function(){doSearch(v)},180);}
