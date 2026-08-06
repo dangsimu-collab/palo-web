@@ -6,6 +6,10 @@ import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
+// ── 대량 가입 방지(같은 회선에서 계정을 여러 개 찍어내는 것 차단) ──
+const SIGNUP_LIMIT_PER_DAY = 5;   // 같은 IP에서 24시간 동안 만들 수 있는 계정 수
+const SIGNUP_MIN_INTERVAL_SEC = 30; // 연속 가입 최소 간격(자동화 스크립트 차단)
+
 const ID_DOMAIN = "users.commi.kr";        // 실제로 메일을 받지 않는 내부 전용 도메인
 const ID_RE = /^[a-z][a-z0-9_]{3,19}$/;    // 영문 소문자로 시작, 영문·숫자·밑줄 4~20자
 const RESERVED = new Set([
@@ -15,6 +19,35 @@ const RESERVED = new Set([
 
 function bad(message, status = 400) {
   return Response.json({ ok: false, message }, { status });
+}
+
+// 접속자 IP(프록시를 거치므로 헤더에서 읽음)
+function clientIp(request) {
+  const h = request.headers;
+  const xff = h.get("x-forwarded-for") || "";
+  return (h.get("cf-connecting-ip") || xff.split(",")[0] || h.get("x-real-ip") || "").trim() || null;
+}
+
+// 같은 IP에서 가입이 지나치게 많은지 확인.
+// signup_log 표가 없거나 조회에 실패하면 가입을 막지 않는다(정상 이용자를 잠그지 않기 위해).
+async function signupBlockedReason(supa, ip) {
+  if (!ip) return null;
+  try {
+    const dayAgo = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    const day = await supa.from("signup_log")
+      .select("id", { count: "exact", head: true }).eq("ip", ip).gte("created_at", dayAgo);
+    if (day.error) return null; // 표가 없는 등 조회 불가 → 통과
+    if ((day.count || 0) >= SIGNUP_LIMIT_PER_DAY) {
+      return "이 인터넷 회선에서는 오늘 만들 수 있는 계정 수를 넘었어요. 내일 다시 시도해주세요.";
+    }
+    const justNow = new Date(Date.now() - SIGNUP_MIN_INTERVAL_SEC * 1000).toISOString();
+    const recent = await supa.from("signup_log")
+      .select("id", { count: "exact", head: true }).eq("ip", ip).gte("created_at", justNow);
+    if (!recent.error && (recent.count || 0) > 0) {
+      return "잠시 후 다시 시도해주세요.";
+    }
+  } catch (e) { /* 조회 실패 시 가입을 막지 않음 */ }
+  return null;
 }
 
 export async function POST(request) {
@@ -41,6 +74,12 @@ export async function POST(request) {
   if (!url || !key) return bad("서버 설정이 준비되지 않았어요.", 500);
 
   const supa = createClient(url, key, { auth: { persistSession: false } });
+
+  // 대량 가입 차단 — 계정을 만들기 전에 확인
+  const ip = clientIp(request);
+  const blocked = await signupBlockedReason(supa, ip);
+  if (blocked) return bad(blocked, 429);
+
   const email = loginId + "@" + ID_DOMAIN;
 
   const { data, error } = await supa.auth.admin.createUser({
@@ -76,6 +115,9 @@ export async function POST(request) {
       return bad("가입에 실패했어요. 잠시 후 다시 시도해주세요.", 500);
     }
   }
+
+  // 가입 기록(다음 요청부터 위 제한 계산에 쓰임). 실패해도 가입 자체는 성공 처리.
+  try { await supa.from("signup_log").insert({ ip, login_id: loginId }); } catch (e) {}
 
   return Response.json({ ok: true, userId });
 }
