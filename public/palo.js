@@ -634,17 +634,13 @@ function boardTabsHTML(){
 }
 function renderChips(){
   var el=document.getElementById("chips"); // 목록 화면이 아닐 땐(커미션·프로필 등) 없으므로 건너뜀
-  if(el){el.innerHTML=chipsHTML();syncChipScroll();}
+  if(el){saveChipScroll();el.innerHTML=chipsHTML();syncChipScroll();}
 }
 // 목록을 다시 그리면 게시판 탭도 새로 만들어져 가로 스크롤이 맨 앞으로 초기화됨.
-// → 선택한 게시판이 화면에 보이도록(가능하면 가운데) 스크롤 위치를 맞춰준다.
-function syncChipScroll(){
-  var el=document.getElementById("chips");if(!el)return;
-  var on=el.querySelector(".chip.on");if(!on)return;
-  var er=el.getBoundingClientRect(),orct=on.getBoundingClientRect();
-  var delta=(orct.left-er.left)-(er.width-orct.width)/2;
-  el.scrollLeft=Math.max(0,el.scrollLeft+delta);
-}
+// → 다시 그리기 직전 위치를 기억했다가 그대로 되돌려, 보고 있던 자리에 머무르게 한다.
+var _chipScrollLeft=0;
+function saveChipScroll(){var el=document.getElementById("chips");if(el)_chipScrollLeft=el.scrollLeft;}
+function syncChipScroll(){var el=document.getElementById("chips");if(el)el.scrollLeft=_chipScrollLeft;}
 function renderHot(){
   var el=document.getElementById("hotList");if(!el)return;
   var top=sortHot(POSTS.filter(function(p){return p.board!=="trade"&&p.board!=="review"})).slice(0,3);
@@ -884,6 +880,7 @@ if(typeof document!=="undefined"){
 }
 function renderList(){
   leaveChat();
+  saveChipScroll(); // 다시 그리기 전에 게시판 탭의 가로 스크롤 위치를 기억(아래에서 그대로 복원)
   if(!state.query){ // 게시판별 URL(공유·SEO). 검색 중엔 주소를 바꾸지 않음.
     var _wantPath=(state.board!=="all")?("/board/"+state.board):"/";
     if(location.pathname!==_wantPath){history.pushState({},"",_wantPath);}
