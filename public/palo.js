@@ -582,17 +582,24 @@ function boardName(id){
   return"전체 글";
 }
 function catFor(p){return CATMAP[p.board]||{label:"글",cls:"free-c"}}
+// 작업 단계(러프/선화/채색/완성) 라벨은 그 개념이 있는 게시판에서만 표시.
+// 자유게시판 등에 그냥 올린 그림에 "완성"이 붙던 문제 방지(예전에 저장된 글도 함께 해결).
+function stageTagHTML(p){
+  if(!p.stage)return"";
+  if(p.board!=="wip"&&p.board!=="sketch")return"";
+  return '<span class="nstage">'+esc(p.stage)+'</span>';
+}
 function postThumbHTML(p){
   var imgCount=p.images?p.images.length:((p.thumb!=="none")?(Math.floor(p.likes/18)%6+1):0); // demo image-count badge
   if(p.images&&p.images.length){
     return '<div class="nthumb"><img src="'+esc(p.images[0])+'" alt="" style="width:100%;height:100%;object-fit:cover">'+
-      (p.stage?'<span class="nstage">'+p.stage+'</span>':'')+
+      stageTagHTML(p)+
       (imgCount>1?'<span class="ncount">'+imgCount+'+</span>':'')+
     '</div>';
   }
   if(p.thumb==="none")return"";
   return '<div class="nthumb '+p.thumb+'">'+
-    (p.stage?'<span class="nstage">'+p.stage+'</span>':'')+
+    stageTagHTML(p)+
     (imgCount>1?'<span class="ncount">'+imgCount+'+</span>':'')+
   '</div>';
 }
@@ -3800,7 +3807,7 @@ async function submitPost(){
     if(window.supabase&&ep.dbId){
       var upd=await window.supabase.from("posts").update({
         board:edState.board,category:edState.tag,title:title,content:text,content_html:html||null,
-        stage:edState.img?(stage||"완성"):null,reviewed_nickname:reviewedNick,reviewed_user_id:reviewedUserId,commission_post_id:commissionPostId,
+        stage:edState.img?stage:null,reviewed_nickname:reviewedNick,reviewed_user_id:reviewedUserId,commission_post_id:commissionPostId,
         commission_sentiment:sentiment
       }).eq("id",ep.dbId);
       if(upd.error){toast("수정 실패: "+upd.error.message);return;}
@@ -3813,7 +3820,7 @@ async function submitPost(){
       }
     }
     ep.board=edState.board;ep.category=edState.tag;ep.title=title;
-    ep.stage=edState.img?(stage||"완성"):null;
+    ep.stage=edState.img?stage:null;
     ep.images=edState.images.length?edState.images.slice():undefined;
     ep.reviewedNickname=reviewedNick;
     ep.reviewedUserId=reviewedUserId;
@@ -3835,7 +3842,7 @@ async function submitPost(){
       title:title,
       content:text,
       content_html:html||null,
-      stage:edState.img?(stage||"완성"):null,
+      stage:edState.img?stage:null,
       reviewed_nickname:reviewedNick,
       reviewed_user_id:reviewedUserId,
       commission_post_id:commissionPostId,
@@ -3876,7 +3883,7 @@ async function submitPost(){
   }
 
   var np={id:Date.now(),board:edState.board,title:title,author:"나",time:"방금",createdAt:new Date().toISOString(),likes:0,views:1,
-    thumb:edState.img?"t1":"none",stage:edState.img?(stage||"완성"):null,
+    thumb:edState.img?"t1":"none",stage:edState.img?stage:null,
     images:edState.images.length?edState.images.slice():undefined,
     dbId:saved&&saved.data?saved.data.id:undefined,authorId:saved&&saved.data?saved.data.author_id:undefined,
     reviewedNickname:reviewedNick,reviewedUserId:reviewedUserId,commissionPostId:commissionPostId,commissionSentiment:sentiment,
