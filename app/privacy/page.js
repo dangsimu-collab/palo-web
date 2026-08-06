@@ -99,7 +99,7 @@ export default function PrivacyPage() {
               <tr><td>Google LLC</td><td>로그인 계정 정보, 서비스 이용 기록, 접속 정보</td><td>로그인 및 서비스 이용 시점에 암호화된 통신을 통해 자동 이전</td><td>미국</td><td>googlekrsupport@google.com</td><td>소셜 로그인 인증, 이용 통계 분석</td><td>개인정보 보호법 제28조의8 제1항 제1호</td><td>위탁 계약 종료 시까지</td></tr>
               <tr><td>네이버(주)</td><td>로그인 계정 정보(이메일·별명·식별자·프로필 이미지)</td><td>로그인 시점에 암호화된 통신을 통해 처리</td><td>대한민국</td><td>privacy@navercorp.com</td><td>소셜 로그인 인증</td><td>개인정보 보호법 제26조(처리위탁)</td><td>위탁 계약 종료 또는 회원 탈퇴 시까지</td></tr>
               <tr><td>KG이니시스(주)</td><td>본인확인 요청·결과 정보(이름, 생년월일, 성별, 휴대전화번호, 연계정보(CI))</td><td>본인확인 시점에 암호화된 통신을 통해 처리</td><td>대한민국</td><td>privacy@kggroup.co.kr</td><td>「청소년 보호법」에 따른 연령 확인(성인 게시판 이용 시)</td><td>개인정보 보호법 제26조(처리위탁)</td><td>위탁 계약 종료 시까지</td></tr>
-              <tr><td>포트원(PortOne)</td><td>본인확인 요청·결과 정보</td><td>본인확인 시점에 암호화된 통신을 통해 중계 처리</td><td>대한민국</td><td>support@portone.io</td><td>본인확인 서비스 연동(중계)</td><td>개인정보 보호법 제26조(처리위탁)</td><td>위탁 계약 종료 시까지</td></tr>
+              <tr><td>주식회사 코리아포트원</td><td>본인확인 요청·결과 정보</td><td>본인확인 시점에 암호화된 통신을 통해 중계 처리</td><td>대한민국</td><td>support@portone.io</td><td>본인확인 서비스 연동(중계)</td><td>개인정보 보호법 제26조(처리위탁)</td><td>위탁 계약 종료 시까지</td></tr>
             </tbody>
           </table>
         </div>
