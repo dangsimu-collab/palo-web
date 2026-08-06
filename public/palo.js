@@ -4284,15 +4284,26 @@ async function openEmoticonMarket(){
   await reloadEmoticonMarket();
 }
 async function reloadEmoticonMarket(){
-  var q=window.supabase.from("emoticon_packs")
-    .select("id,title,author_id,created_at,saved_count").eq("status","public");
+  // 인기순은 점수를 계산해 둔 뷰(emoticon_pack_rank)에서 가져온다.
+  // 점수 = 최근 사용 40% + 최근 담김 30% + 누적 사용 20% + 누적 담김 10% (+ 신규 보정)
+  var hot=(EMO_SORT==="hot");
+  var q=window.supabase.from(hot?"emoticon_pack_rank":"emoticon_packs")
+    .select(hot?"id,title,author_id,created_at,saved_count,use_count,recent_saves,recent_uses,score"
+               :"id,title,author_id,created_at,saved_count,use_count")
+    .eq("status","public");
   if(EMO_QUERY)q=q.ilike("title","%"+EMO_QUERY+"%");
-  q=(EMO_SORT==="hot")?q.order("saved_count",{ascending:false}).order("created_at",{ascending:false})
-                      :q.order("created_at",{ascending:false});
+  q=hot?q.order("score",{ascending:false}).order("created_at",{ascending:false})
+       :q.order("created_at",{ascending:false});
   var res=await Promise.all([
     q.limit(60),
     AUTH.user?window.supabase.from("user_emoticon_packs").select("pack_id"):Promise.resolve({data:[]})
   ]);
+  // 3차 SQL을 아직 실행하지 않아 점수 뷰가 없으면, 담은 수 기준으로라도 보여준다
+  if(hot&&res[0].error){
+    res[0]=await window.supabase.from("emoticon_packs")
+      .select("id,title,author_id,created_at,saved_count")
+      .eq("status","public").order("saved_count",{ascending:false}).limit(60);
+  }
   var packs=res[0].data||[];
   var mineSet={};(res[1].data||[]).forEach(function(r){mineSet[r.pack_id]=true;});
   var ids=packs.map(function(p){return p.id;});
@@ -4307,7 +4318,8 @@ async function reloadEmoticonMarket(){
   var nick={};(profRes.data||[]).forEach(function(p){nick[p.id]=p.nickname;});
   EMO_MARKET=packs.map(function(p){
     return {id:p.id,title:p.title,author:nick[p.author_id]||"알 수 없음",authorId:p.author_id,
-      saved:p.saved_count||0,items:byPack[p.id]||[],count:(byPack[p.id]||[]).length,mine:!!mineSet[p.id]};
+      saved:p.saved_count||0,used:p.use_count||0,recentUses:p.recent_uses||0,
+      items:byPack[p.id]||[],count:(byPack[p.id]||[]).length,mine:!!mineSet[p.id]};
   });
   renderEmoticonMarket();
 }
@@ -4327,7 +4339,8 @@ function renderEmoticonMarket(){
     '<div class="emo-sorts">'+
       '<button class="emo-sort'+(EMO_SORT==="hot"?" on":"")+'" onclick="setEmoticonSort(&quot;hot&quot;)">🔥 인기순</button>'+
       '<button class="emo-sort'+(EMO_SORT==="new"?" on":"")+'" onclick="setEmoticonSort(&quot;new&quot;)">🆕 최신순</button>'+
-    '</div>';
+    '</div>'+
+    (EMO_SORT==="hot"&&!EMO_QUERY?'<p class="emo-rank-note">최근에 실제로 쓰인 이모티콘을 먼저 보여줘요</p>':'');
   if(!EMO_MARKET.length){
     h+='<div class="pf-empty">'+(EMO_QUERY?'검색 결과가 없어요.':'아직 등록된 이모티콘이 없어요.<br>처음으로 만들어보세요!')+'</div>';
   }else{
@@ -4339,7 +4352,7 @@ function renderEmoticonMarket(){
         '<div class="emo-pack-head">'+
           '<div class="emo-pack-info" onclick="openEmoticonPack('+p.id+')">'+rank+
             '<div><div class="emo-pack-title">'+esc(p.title)+'</div>'+
-            '<div class="emo-pack-sub">'+esc(p.author)+' · '+p.count+'개 · 담음 '+p.saved+'</div></div></div>'+
+            '<div class="emo-pack-sub">'+esc(p.author)+' · '+p.count+'개 · 담음 '+p.saved+' · 사용 '+p.used+'</div></div></div>'+
           (AUTH.user?'<button class="emo-add'+(p.mine?' on':'')+'" onclick="togglePack('+p.id+')">'+(p.mine?'담음':'담기')+'</button>':'')+
         '</div>'+
         '<div class="emo-pack-prev" onclick="openEmoticonPack('+p.id+')">'+prev+'</div>'+
@@ -4372,7 +4385,7 @@ function openEmoticonPack(packId){
     '<div class="pf-sec">'+esc(p.title)+'</div>'+
     '<div class="emo-pack-sub" style="margin-bottom:12px">'+
       (p.authorId?'<span style="cursor:pointer;text-decoration:underline" onclick="openUserProfile(\''+p.authorId+'\')">'+esc(p.author)+'</span>':esc(p.author))+
-      ' · '+p.count+'개 · 담음 '+p.saved+'</div>'+
+      ' · '+p.count+'개 · 담음 '+p.saved+' · 사용 '+p.used+'</div>'+
     (AUTH.user?'<button class="pf-edit" onclick="togglePack('+p.id+')">'+(p.mine?'이모티콘함에서 빼기':'이모티콘함에 담기')+'</button>':'')+
     '<div class="emo-slots" style="margin-top:14px">'+grid+'</div>'+
     (AUTH.user?'<div class="emo-pack-foot" style="margin-top:10px"><button onclick="reportEmoticonPack('+p.id+')">🚩 신고</button>'+
