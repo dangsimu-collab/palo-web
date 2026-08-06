@@ -5748,24 +5748,31 @@ function initImgPreview(){
       if(post&&(!e.relatedTarget||!post.contains(e.relatedTarget)))hideImgPreview();
     });
   }
-  // 모바일: 길게 누르면 표시(그냥 탭은 글 열기). 스크롤(이동)하면 취소.
+  // 모바일: 손가락을 대면 곧바로 미리보기 표시. 스크롤(이동)하면 취소.
+  // 짧게 탭하면 미리보기가 잠깐 보였다가 평소처럼 글이 열리고, 오래 누르고 있다가 떼면(=미리보기를 본 것) 글은 열지 않음.
   main.addEventListener("touchstart",function(e){
     var post=e.target.closest(".post");if(!post)return;
     var src=_postImgSrc(post);if(!src)return;
-    var t=e.touches[0];_imgPrevStart={x:t.clientX,y:t.clientY};
-    clearTimeout(_imgPrevTimer);
-    _imgPrevTimer=setTimeout(function(){_imgPrevActive=true;showImgPreview(src,_imgPrevStart.x,_imgPrevStart.y,true);},280);
+    var t=e.touches[0];_imgPrevStart={x:t.clientX,y:t.clientY,at:Date.now()};
+    _imgPrevActive=true;
+    showImgPreview(src,t.clientX,t.clientY,true);
   },{passive:true});
   main.addEventListener("touchmove",function(e){
     if(!_imgPrevStart)return;var t=e.touches[0];
-    if(Math.abs(t.clientX-_imgPrevStart.x)>10||Math.abs(t.clientY-_imgPrevStart.y)>10){clearTimeout(_imgPrevTimer);if(_imgPrevActive)hideImgPreview();}
+    if(Math.abs(t.clientX-_imgPrevStart.x)>10||Math.abs(t.clientY-_imgPrevStart.y)>10){
+      hideImgPreview();_imgPrevStart=null; // 스크롤 중 → 미리보기 취소(클릭도 막지 않음)
+    }
   },{passive:true});
   main.addEventListener("touchend",function(e){
-    clearTimeout(_imgPrevTimer);
-    if(_imgPrevActive){hideImgPreview();_imgPrevSuppressClick=true;setTimeout(function(){_imgPrevSuppressClick=false;},450);}
+    var held=_imgPrevStart?(Date.now()-_imgPrevStart.at):0;
+    if(_imgPrevActive){
+      hideImgPreview();
+      // 오래 눌렀다 뗀 경우에만 뒤따르는 click(글 열기)을 막음 — 짧은 탭은 그대로 글이 열림
+      if(held>=350){_imgPrevSuppressClick=true;setTimeout(function(){_imgPrevSuppressClick=false;},450);}
+    }
     _imgPrevStart=null;
   });
-  main.addEventListener("touchcancel",function(){clearTimeout(_imgPrevTimer);if(_imgPrevActive)hideImgPreview();_imgPrevStart=null;});
+  main.addEventListener("touchcancel",function(){if(_imgPrevActive)hideImgPreview();_imgPrevStart=null;});
   // 길게 눌러 미리보기를 띄운 경우, 뒤이어 오는 click(글 열기)은 무시
   main.addEventListener("click",function(e){if(_imgPrevSuppressClick){e.stopPropagation();e.preventDefault();}},true);
 }
