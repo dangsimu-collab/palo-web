@@ -22,6 +22,13 @@ var BOARDS=[
     {id:"suggest",name:"버그·건의사항",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z\"/><path d=\"M12 9v3M12 15h.01\"/></svg>"},
     {id:"adult",name:"에치치",icon:"<span class=\"ic\" style=\"font-size:18px;line-height:1\">🔞</span>"}]}
 ];
+// 성인(에치치) 게시판 노출 스위치 — 네이버 로그인 검수 기간 동안 비공개.
+// 검수 승인 후 다시 열려면 이 값만 true로 바꾸면 됨(게시판 정의·라벨·안내문구는 그대로 남아 있음).
+var ADULT_BOARD_ENABLED=false;
+if(!ADULT_BOARD_ENABLED){
+  BOARDS.forEach(function(g){g.items=g.items.filter(function(b){return b.id!=="adult";});});
+  BOARDS=BOARDS.filter(function(g){return g.items.length;}); // 항목이 없어진 그룹은 메뉴에서 숨김
+}
 var CATMAP={talk:{label:"수다",cls:"talk-c"},ask:{label:"고민",cls:"help-c"},crit:{label:"피드백",cls:"crit-c"},
   wip:{label:"작업과정",cls:"crit-c"},doodle:{label:"낙서",cls:"talk-c"},tip:{label:"팁",cls:"tip-c"},challenge:{label:"챌린지",cls:"chal-c"},collab:{label:"협업",cls:"help-c"},
   sketch:{label:"그림공부",cls:"tip-c"},trade:{label:"거래",cls:"free-c"},used:{label:"중고",cls:"free-c"},
