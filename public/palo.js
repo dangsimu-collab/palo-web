@@ -524,6 +524,10 @@ function closeLoginModal(){var m=document.getElementById("loginModal");if(m)m.cl
    가입 시 handle_new_user 트리거가 프로필·닉네임을 만들고, 약관 동의 창도 동일하게 뜬다.
    모드: login(로그인) / signup(회원가입) / reset(비밀번호 찾기) / newpw(새 비밀번호 설정) */
 var _loginMode="login";
+var LOGIN_ID_DOMAIN="users.commi.kr"; // 아이디 계정을 Supabase에 저장할 때 쓰는 내부 도메인(메일 발송 없음)
+var LOGIN_ID_RE=/^[a-z][a-z0-9_]{3,19}$/;
+// 아이디로 입력했으면 내부 이메일로 바꿔줌. '@'가 있으면 이메일로 그대로 사용.
+function _idToEmail(v){v=String(v||"").trim();return v.indexOf("@")>-1?v:(v.toLowerCase()+"@"+LOGIN_ID_DOMAIN);}
 function _lgEl(id){return document.getElementById(id);}
 function _lgSubmitLabel(mode){return mode==="signup"?"가입하기":mode==="reset"?"재설정 메일 보내기":mode==="newpw"?"비밀번호 변경":"로그인";}
 function setLoginMode(mode){
@@ -540,10 +544,17 @@ function setLoginMode(mode){
   show("lgNick",isSignup);
   show("lgToSignup",isLogin); show("lgToReset",isLogin); show("lgToLogin",isSignup||isReset);
   if(title)title.textContent=isSignup?"commi 회원가입":isReset?"비밀번호 찾기":isNew?"새 비밀번호 설정":"commi 시작하기";
-  if(desc)desc.textContent=isSignup?"이메일과 비밀번호로 가입해요. 닉네임은 나중에 바꿀 수 있어요."
-    :isReset?"가입한 이메일로 비밀번호 재설정 링크를 보내드려요."
+  if(desc)desc.textContent=isSignup?"이메일 없이 아이디만으로 가입할 수 있어요."
+    :isReset?"이메일로 가입한 계정만 재설정 링크를 받을 수 있어요."
     :isNew?"새로 사용할 비밀번호를 입력해주세요."
-    :(NAVER_LOGIN_ENABLED?"구글·네이버 계정 또는 이메일로 시작해요.":"구글 계정 또는 이메일로 시작해요.");
+    :(NAVER_LOGIN_ENABLED?"구글·네이버 계정 또는 아이디로 시작해요.":"구글 계정 또는 아이디로 시작해요.");
+  var idIn=_lgEl("lgEmail");
+  if(idIn){
+    idIn.placeholder=isSignup?"아이디 (영문 소문자·숫자 4~20자)":isReset?"가입한 이메일":"아이디 또는 이메일";
+    idIn.type=isReset?"email":"text";
+    idIn.setAttribute("autocomplete",isSignup?"username":isReset?"email":"username");
+  }
+  var nick=_lgEl("lgNick");if(nick)nick.placeholder="닉네임 (2~12자, 미입력 시 아이디)";
   if(submit)submit.textContent=_lgSubmitLabel(mode);
   var pw=_lgEl("lgPw");if(pw){pw.placeholder=isSignup||isNew?"비밀번호 (8자 이상)":"비밀번호";pw.setAttribute("autocomplete",isSignup||isNew?"new-password":"current-password");}
 }
@@ -574,38 +585,37 @@ function _lgBusy(on,label){
 }
 function _lgHint(text){var h=_lgEl("loginHint");if(h)h.textContent=text||"";}
 async function emailLogin(){
-  var email=(_lgEl("lgEmail")||{}).value||"",pw=(_lgEl("lgPw")||{}).value||"";
-  if(!email.trim()||!pw){_lgHint("이메일과 비밀번호를 입력해주세요.");return;}
+  var idOrEmail=((_lgEl("lgEmail")||{}).value||"").trim(),pw=(_lgEl("lgPw")||{}).value||"";
+  if(!idOrEmail||!pw){_lgHint("아이디와 비밀번호를 입력해주세요.");return;}
   _lgBusy(true,"로그인 중…");
   try{
-    var r=await window.supabase.auth.signInWithPassword({email:email.trim(),password:pw});
+    var r=await window.supabase.auth.signInWithPassword({email:_idToEmail(idOrEmail),password:pw});
     if(r.error){_lgHint(authErrMsg(r.error.message));_lgBusy(false);return;}
     closeLoginModal();toast("로그인했어요","✓"); // 세션 반영은 onAuthStateChange가 처리
   }catch(e){_lgHint(authErrMsg(e&&e.message));}
   _lgBusy(false);
 }
+// 아이디 회원가입 — 서버(/api/auth/signup)가 인증 완료 상태로 계정을 만들고, 이어서 바로 로그인시킨다.
 async function emailSignup(){
-  var email=((_lgEl("lgEmail")||{}).value||"").trim();
+  var loginId=((_lgEl("lgEmail")||{}).value||"").trim().toLowerCase();
   var pw=(_lgEl("lgPw")||{}).value||"",pw2=(_lgEl("lgPw2")||{}).value||"";
   var nick=((_lgEl("lgNick")||{}).value||"").trim();
-  if(!email){_lgHint("이메일을 입력해주세요.");return;}
+  if(!loginId){_lgHint("아이디를 입력해주세요.");return;}
+  if(!LOGIN_ID_RE.test(loginId)){_lgHint("아이디는 영문 소문자로 시작하는 4~20자(영문·숫자·밑줄)로 만들어주세요.");return;}
   if(pw.length<8){_lgHint("비밀번호는 8자 이상으로 만들어주세요.");return;}
   if(pw!==pw2){_lgHint("비밀번호가 서로 달라요.");return;}
   if(nick&&(nick.length<2||nick.length>12)){_lgHint("닉네임은 2~12자로 입력해주세요.");return;}
   _lgBusy(true,"가입 중…");
   try{
-    // name은 handle_new_user 트리거가 닉네임을 만들 때 사용(중복이면 자동으로 숫자를 붙임)
-    var r=await window.supabase.auth.signUp({email:email,password:pw,
-      options:{data:{name:nick||"새싹작가"},emailRedirectTo:location.origin}});
-    if(r.error){_lgHint(authErrMsg(r.error.message));_lgBusy(false);return;}
-    if(r.data&&r.data.session){ // 이메일 인증이 꺼져 있으면 바로 로그인됨
-      closeLoginModal();toast("환영해요! 가입이 완료됐어요","🎉");
-    }else{ // 인증 메일 발송됨
-      setLoginMode("login");
-      _lgHint("가입 확인 메일을 보냈어요. 메일함에서 링크를 눌러 인증을 완료해주세요.");
-      toast("가입 확인 메일을 보냈어요 ✉️");
-    }
-  }catch(e){_lgHint(authErrMsg(e&&e.message));}
+    var res=await fetch("/api/auth/signup",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({loginId:loginId,password:pw,nickname:nick})});
+    var j=null;try{j=await res.json();}catch(e){}
+    if(!res.ok||!j||!j.ok){_lgHint((j&&j.message)||"가입에 실패했어요. 잠시 후 다시 시도해주세요.");_lgBusy(false);return;}
+    // 가입 직후 바로 로그인
+    var r=await window.supabase.auth.signInWithPassword({email:_idToEmail(loginId),password:pw});
+    if(r.error){setLoginMode("login");_lgHint("가입은 됐어요. 아이디와 비밀번호로 로그인해주세요.");_lgBusy(false);return;}
+    closeLoginModal();toast("환영해요! 가입이 완료됐어요","🎉");
+  }catch(e){_lgHint("가입 중 오류가 났어요: "+((e&&e.message)||e));}
   _lgBusy(false);
 }
 async function sendResetEmail(){
