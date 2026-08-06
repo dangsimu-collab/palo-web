@@ -1059,6 +1059,30 @@
   .emo-notice{background:#fdf6f9;border:1px solid var(--line);border-radius:12px;padding:11px 13px;
     font-size:12.5px;line-height:1.7;color:var(--ink-2);margin:10px 0 4px}
   .emo-notice b{color:var(--brand-2)}
+  /* 검색·정렬 */
+  .emo-search{display:flex;gap:6px;margin:10px 0 8px}
+  .emo-search input{flex:1;min-width:0;border:1px solid var(--line);border-radius:11px;padding:10px 12px;
+    font-size:13.5px;font-family:inherit;background:var(--surface);color:var(--ink)}
+  .emo-search button{background:var(--brand);color:#fff;border:none;border-radius:11px;padding:0 14px;
+    font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;flex-shrink:0}
+  .emo-search button.clear{background:var(--surface-2);color:var(--muted);border:1px solid var(--line);padding:0 12px}
+  .emo-sorts{display:flex;gap:6px;margin-bottom:12px}
+  .emo-sort{background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:7px 13px;
+    font-size:12.5px;font-weight:700;color:var(--ink-2);cursor:pointer;font-family:inherit}
+  .emo-sort.on{background:var(--brand);border-color:var(--brand);color:#fff}
+  /* 순위 뱃지 */
+  .emo-pack-info{display:flex;align-items:center;gap:9px;cursor:pointer;min-width:0;flex:1}
+  .emo-rank{flex-shrink:0;width:24px;height:24px;border-radius:8px;display:flex;align-items:center;
+    justify-content:center;font-size:12.5px;font-weight:900;color:#fff;background:var(--muted-2)}
+  .emo-rank.r1{background:linear-gradient(135deg,#f5c451,#e0a074)}
+  .emo-rank.r2{background:linear-gradient(135deg,#c9ccd4,#a7abb5)}
+  .emo-rank.r3{background:linear-gradient(135deg,#dda87a,#c08a5c)}
+  /* 팩 하단 액션(신고·삭제) */
+  .emo-pack-foot{display:flex;gap:6px;justify-content:flex-end;margin-top:8px}
+  .emo-pack-foot button{background:none;border:1px solid var(--line);border-radius:9px;padding:5px 10px;
+    font-size:11.5px;font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit}
+  .emo-pack-foot button:hover{color:var(--ink-2);border-color:var(--line-2)}
+  .emo-pack-foot button.danger{color:#c0392b;border-color:#e8b4ac}
   /* 관리 화면 */
   .emo-mrow{display:flex;align-items:center;justify-content:space-between;gap:10px;
     background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px}

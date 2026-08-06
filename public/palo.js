@@ -1827,6 +1827,7 @@ var reportingPostId=null;
 var reportingConversationId=null;
 var reportingReportedUserId=null;
 var reportingAdId=null;
+var reportingEmoticonPackId=null; // 이모티콘 팩 신고 대상
 function reportAd(adId,e){
   if(e)e.stopPropagation();
   if(!window.supabase){toast("사용할 수 없어요");return;}
@@ -1852,7 +1853,7 @@ function reportChat(){
   document.getElementById("reportModal").classList.add("open");
 }
 function closeReport(){
-  reportingPostId=null;reportingConversationId=null;reportingReportedUserId=null;reportingAdId=null;
+  reportingPostId=null;reportingConversationId=null;reportingReportedUserId=null;reportingAdId=null;reportingEmoticonPackId=null;
   document.getElementById("reportModal").classList.remove("open");
 }
 
@@ -1882,6 +1883,14 @@ async function submitReport(){
   if(reportingConversationId){
     var convId=reportingConversationId,reportedUserId=reportingReportedUserId;
     var res=await window.supabase.from("reports").insert({conversation_id:convId,reported_user_id:reportedUserId,reporter_id:AUTH.user.id,reason:reason});
+    closeReport();
+    if(res.error){toast("신고 접수 실패: "+res.error.message);return;}
+    toast("신고가 접수되었어요");
+    return;
+  }
+  if(reportingEmoticonPackId){
+    var packId=reportingEmoticonPackId;
+    var res=await window.supabase.from("reports").insert({emoticon_pack_id:packId,reporter_id:AUTH.user?AUTH.user.id:null,reason:reason});
     closeReport();
     if(res.error){toast("신고 접수 실패: "+res.error.message);return;}
     toast("신고가 접수되었어요");
@@ -4022,6 +4031,12 @@ async function deleteFromStorage(urls){
 var EMO_BY_ID={};      // 번호 → {url} — 화면에 그릴 때 쓰는 캐시
 var MY_EMO_PACKS=[];   // 내 이모티콘함(담아둔 팩)
 var EMO_PICKER_TARGET=null; // 이모티콘을 넣을 입력창 id
+var EMO_RECENT=[];          // 최근 쓴 이모티콘 번호(최신순) — 자주 쓰는 걸 앞에 두려고
+try{var _er=JSON.parse(localStorage.getItem("palo_emo_recent")||"[]");if(Array.isArray(_er))EMO_RECENT=_er;}catch(e){}
+function noteEmoticonUsed(id){
+  EMO_RECENT=[id].concat(EMO_RECENT.filter(function(x){return x!==id;})).slice(0,20);
+  try{localStorage.setItem("palo_emo_recent",JSON.stringify(EMO_RECENT));}catch(e){}
+}
 
 function emoIdsIn(text){
   var ids=[],m,re=/\[\[e:(\d+)\]\]/g;
@@ -4102,6 +4117,7 @@ function renderEmoticonPicker(){
 }
 // 입력창 커서 위치에 토큰을 넣는다
 function pickEmoticon(id,target){
+  noteEmoticonUsed(id);
   var inp=document.getElementById(target||EMO_PICKER_TARGET||"cmInput");
   if(!inp){closeEmoticonPicker();return;}
   var tok="[[e:"+id+"]]";
@@ -4117,9 +4133,13 @@ function pickEmoticon(id,target){
 /* 입력칸 아래에 담아둔 이모티콘을 바로 펼쳐 둔다.
    버튼을 눌러 창을 여는 것보다 한 번 덜 누르고, 이모티콘이 있다는 걸 눈으로 알 수 있다. */
 function emoStripHTML(){
-  var flat=[];
+  var owned={};
+  MY_EMO_PACKS.forEach(function(p){p.items.forEach(function(e){owned[e.id]=e;});});
+  // 최근 쓴 것 → 나머지 순. 매번 팩을 넘기지 않아도 자주 쓰는 게 바로 잡힌다.
+  var flat=[],seen={};
+  EMO_RECENT.forEach(function(id){if(owned[id]&&!seen[id]&&flat.length<14){flat.push(owned[id]);seen[id]=1;}});
   MY_EMO_PACKS.forEach(function(p){
-    p.items.forEach(function(e){if(flat.length<14)flat.push(e);});
+    p.items.forEach(function(e){if(!seen[e.id]&&flat.length<14){flat.push(e);seen[e.id]=1;}});
   });
   if(!flat.length){
     return '<button type="button" class="emo-strip-go" onclick="openEmoticonMarket()">🙂 이모티콘 담으러 가기</button>';
@@ -4138,6 +4158,7 @@ function refreshEmoStrip(){
 /* ── 내 이모티콘 관리 ── */
 async function openEmoticonManage(){
   if(!AUTH.user||!window.supabase){toast("로그인이 필요해요");return;}
+  emoEditPackId=null;
   enterScreen("emoManage",openEmoticonMarket);
   document.getElementById("main").innerHTML='<div class="profile"><div class="pf-sec">🗂 이모티콘 관리</div><div class="pf-empty">불러오는 중…</div></div>';
   var res=await Promise.all([
@@ -4160,6 +4181,7 @@ async function openEmoticonManage(){
     return '<div class="emo-mrow"><div class="emo-mname">'+esc(p.title)+
       '<span class="emo-msub">'+(cnt[p.id]||0)+'개'+(p.status!=="public"?' · 비공개 처리됨':'')+'</span></div>'+
       '<div class="emo-macts">'+
+        '<button class="d-act" onclick="openEmoticonPackEdit('+p.id+')">편집</button>'+
         '<button class="d-act" onclick="renameEmoticonPack('+p.id+',&quot;'+esc(p.title).replace(/"/g,"&quot;")+'&quot;)">이름 변경</button>'+
         '<button class="d-act" onclick="deleteEmoticonPack('+p.id+')">삭제</button>'+
       '</div></div>';
@@ -4174,6 +4196,49 @@ async function openEmoticonManage(){
   document.getElementById("main").innerHTML=h;
   window.scrollTo({top:0,behavior:"smooth"});
 }
+var emoEditPackId=null; // 편집 중인 팩(파일 선택 시 이 팩에 바로 넣는다)
+async function openEmoticonPackEdit(packId){
+  if(!AUTH.user||!window.supabase)return;
+  emoEditPackId=packId;
+  enterScreen("emoPackEdit",openEmoticonManage);
+  document.getElementById("main").innerHTML='<div class="profile"><div class="pf-sec">✏️ 팩 편집</div><div class="pf-empty">불러오는 중…</div></div>';
+  await renderEmoticonPackEdit();
+}
+async function renderEmoticonPackEdit(){
+  var res=await Promise.all([
+    window.supabase.from("emoticon_packs").select("id,title").eq("id",emoEditPackId).single(),
+    window.supabase.from("emoticons").select("id,url,sort").eq("pack_id",emoEditPackId).order("sort")
+  ]);
+  var pack=res[0].data,items=res[1].data||[];
+  if(!pack){toast("팩을 찾을 수 없어요");screenBack();return;}
+  var grid=items.map(function(e){
+    return '<div class="emo-slot"><img src="'+esc(e.url)+'" alt="">'+
+      '<button class="emo-del" onclick="removeEmoticonFromPack('+e.id+')">×</button></div>';
+  }).join("");
+  document.getElementById("main").innerHTML='<div class="profile">'+
+    '<button class="d-back" onclick="screenBack()">← 관리로</button>'+
+    '<div class="pf-sec">✏️ '+esc(pack.title)+'</div>'+
+    '<p class="nick-hint">× 를 눌러 잘못 넣은 이모티콘을 뺄 수 있어요. 최소 1개는 남아야 합니다.</p>'+
+    '<div class="emo-slots">'+grid+
+      (items.length<24?'<button class="emo-slot add" onclick="document.getElementById(&quot;emoFile&quot;).click()">+</button>':'')+
+    '</div>'+
+    '<p class="nick-hint">현재 '+items.length+'개 / 최대 24개</p>'+
+    '</div>';
+}
+async function removeEmoticonFromPack(emoId){
+  var cnt=await window.supabase.from("emoticons").select("id").eq("pack_id",emoEditPackId);
+  if((cnt.data||[]).length<=1){toast("최소 1개는 남아야 해요");return;}
+  if(!(await confirmDialog("이 이모티콘을 팩에서 뺄까요?")))return;
+  var row=(cnt.data||[]).find(function(x){return x.id===emoId;});
+  var urlRes=await window.supabase.from("emoticons").select("url").eq("id",emoId).single();
+  var r=await window.supabase.from("emoticons").delete().eq("id",emoId);
+  if(r.error){toast("실패: "+r.error.message);return;}
+  if(urlRes.data&&urlRes.data.url)deleteFromStorage([urlRes.data.url]); // 저장소 파일도 정리
+  delete EMO_BY_ID[emoId];
+  await loadMyEmoticons();refreshEmoStrip();
+  toast("뺐어요");
+  renderEmoticonPackEdit();
+}
 async function renameEmoticonPack(id,cur){
   var v=prompt("팩 이름을 입력하세요",cur||"");
   if(v==null)return;
@@ -4187,10 +4252,17 @@ async function renameEmoticonPack(id,cur){
 }
 async function deleteEmoticonPack(id){
   if(!(await confirmDialog("이 이모티콘 팩을 삭제할까요? 담아간 사람들에게서도 사라지고, 이미 쓴 댓글에서는 보이지 않게 됩니다.")))return;
+  // 지우기 전에 파일 주소를 모아둔다(행이 사라지면 알 수 없다)
+  var urls=[];
+  try{
+    var u=await window.supabase.from("emoticons").select("url").eq("pack_id",id);
+    urls=(u.data||[]).map(function(x){return x.url;}).filter(Boolean);
+  }catch(e){}
   var r=await window.supabase.from("emoticon_packs").delete().eq("id",id);
   if(r.error){toast("삭제 실패: "+r.error.message);return;}
+  if(urls.length)deleteFromStorage(urls); // 저장소에 파일만 남지 않게
   toast("삭제했어요","🗑");
-  await loadMyEmoticons();
+  await loadMyEmoticons();refreshEmoStrip();
   openEmoticonManage();
 }
 async function unaddEmoticonPack(id){
@@ -4203,12 +4275,22 @@ async function unaddEmoticonPack(id){
 
 /* ── 이모티콘 둘러보기 ── */
 var EMO_MARKET=[]; // 공개된 팩 목록
+var EMO_SORT="hot";   // hot(인기순) / new(최신순)
+var EMO_QUERY="";
 async function openEmoticonMarket(){
   if(!window.supabase)return;
   enterScreen("emoMarket",openProfile); // 뒤로가기가 프로필로 복귀
   document.getElementById("main").innerHTML='<div class="profile"><div class="pf-sec">🙂 이모티콘</div><div class="pf-empty">불러오는 중…</div></div>';
+  await reloadEmoticonMarket();
+}
+async function reloadEmoticonMarket(){
+  var q=window.supabase.from("emoticon_packs")
+    .select("id,title,author_id,created_at,saved_count").eq("status","public");
+  if(EMO_QUERY)q=q.ilike("title","%"+EMO_QUERY+"%");
+  q=(EMO_SORT==="hot")?q.order("saved_count",{ascending:false}).order("created_at",{ascending:false})
+                      :q.order("created_at",{ascending:false});
   var res=await Promise.all([
-    window.supabase.from("emoticon_packs").select("id,title,author_id,created_at").eq("status","public").order("created_at",{ascending:false}).limit(60),
+    q.limit(60),
     AUTH.user?window.supabase.from("user_emoticon_packs").select("pack_id"):Promise.resolve({data:[]})
   ]);
   var packs=res[0].data||[];
@@ -4225,32 +4307,101 @@ async function openEmoticonMarket(){
   var nick={};(profRes.data||[]).forEach(function(p){nick[p.id]=p.nickname;});
   EMO_MARKET=packs.map(function(p){
     return {id:p.id,title:p.title,author:nick[p.author_id]||"알 수 없음",authorId:p.author_id,
-      items:(byPack[p.id]||[]).slice(0,6),count:(byPack[p.id]||[]).length,mine:!!mineSet[p.id]};
+      saved:p.saved_count||0,items:byPack[p.id]||[],count:(byPack[p.id]||[]).length,mine:!!mineSet[p.id]};
   });
   renderEmoticonMarket();
 }
 function renderEmoticonMarket(){
+  var isAdmin=!!(AUTH.profile&&AUTH.profile.is_admin);
   var h='<div class="profile">'+
     '<button class="d-back" onclick="screenBack()">← 내 정보로</button>'+
     '<div class="pf-sec">🙂 이모티콘</div>'+
     (AUTH.user?'<button class="pf-edit" onclick="openEmoticonStudio()">+ 내 이모티콘 만들기</button>'+
-      '<button class="pf-edit" onclick="openEmoticonManage()" style="margin:8px 0 14px">🗂 내 이모티콘 관리</button>':'');
+      '<button class="pf-edit" onclick="openEmoticonManage()" style="margin:8px 0 4px">🗂 내 이모티콘 관리</button>':'')+
+    '<div class="emo-search">'+
+      '<input id="emoSearchInput" placeholder="이모티콘 이름 검색" value="'+esc(EMO_QUERY)+'" '+
+        'onkeydown="if(event.key===&quot;Enter&quot;)doEmoticonSearch()">'+
+      '<button onclick="doEmoticonSearch()">검색</button>'+
+      (EMO_QUERY?'<button class="clear" onclick="clearEmoticonSearch()">×</button>':'')+
+    '</div>'+
+    '<div class="emo-sorts">'+
+      '<button class="emo-sort'+(EMO_SORT==="hot"?" on":"")+'" onclick="setEmoticonSort(&quot;hot&quot;)">🔥 인기순</button>'+
+      '<button class="emo-sort'+(EMO_SORT==="new"?" on":"")+'" onclick="setEmoticonSort(&quot;new&quot;)">🆕 최신순</button>'+
+    '</div>';
   if(!EMO_MARKET.length){
-    h+='<div class="pf-empty">아직 등록된 이모티콘이 없어요.<br>처음으로 만들어보세요!</div>';
+    h+='<div class="pf-empty">'+(EMO_QUERY?'검색 결과가 없어요.':'아직 등록된 이모티콘이 없어요.<br>처음으로 만들어보세요!')+'</div>';
   }else{
-    h+=EMO_MARKET.map(function(p){
-      var prev=p.items.map(function(e){return '<img src="'+esc(e.url)+'" alt="" loading="lazy">';}).join("");
+    h+=EMO_MARKET.map(function(p,i){
+      // 인기순으로 볼 때, 검색 중이 아니면 상위 3개에 순위를 붙인다
+      var rank=(EMO_SORT==="hot"&&!EMO_QUERY&&i<3)?'<span class="emo-rank r'+(i+1)+'">'+(i+1)+'</span>':'';
+      var prev=p.items.slice(0,6).map(function(e){return '<img src="'+esc(e.url)+'" alt="" loading="lazy">';}).join("");
       return '<div class="emo-pack">'+
-        '<div class="emo-pack-head"><div><div class="emo-pack-title">'+esc(p.title)+'</div>'+
-        '<div class="emo-pack-sub">'+esc(p.author)+' · '+p.count+'개</div></div>'+
-        (AUTH.user?'<button class="emo-add'+(p.mine?' on':'')+'" onclick="togglePack('+p.id+')">'+(p.mine?'담음':'담기')+'</button>':'')+
-        '</div><div class="emo-pack-prev">'+prev+'</div></div>';
+        '<div class="emo-pack-head">'+
+          '<div class="emo-pack-info" onclick="openEmoticonPack('+p.id+')">'+rank+
+            '<div><div class="emo-pack-title">'+esc(p.title)+'</div>'+
+            '<div class="emo-pack-sub">'+esc(p.author)+' · '+p.count+'개 · 담음 '+p.saved+'</div></div></div>'+
+          (AUTH.user?'<button class="emo-add'+(p.mine?' on':'')+'" onclick="togglePack('+p.id+')">'+(p.mine?'담음':'담기')+'</button>':'')+
+        '</div>'+
+        '<div class="emo-pack-prev" onclick="openEmoticonPack('+p.id+')">'+prev+'</div>'+
+        '<div class="emo-pack-foot">'+
+          (AUTH.user?'<button onclick="reportEmoticonPack('+p.id+')">🚩 신고</button>':'')+
+          (isAdmin?'<button class="danger" onclick="adminDeleteEmoticonPack('+p.id+')">삭제</button>':'')+
+        '</div></div>';
     }).join("");
   }
   h+='</div>';
   document.getElementById("main").innerHTML=h;
   window.scrollTo({top:0,behavior:"smooth"});
 }
+function setEmoticonSort(v){EMO_SORT=v;reloadEmoticonMarket();}
+function doEmoticonSearch(){
+  var el=document.getElementById("emoSearchInput");
+  EMO_QUERY=el?el.value.trim():"";
+  reloadEmoticonMarket();
+}
+function clearEmoticonSearch(){EMO_QUERY="";reloadEmoticonMarket();}
+
+// 팩 상세 — 미리보기 6개 말고 전부 보기
+function openEmoticonPack(packId){
+  var p=EMO_MARKET.find(function(x){return x.id===packId;});if(!p)return;
+  enterScreen("emoPack",openEmoticonMarket);
+  var grid=p.items.map(function(e){return '<div class="emo-slot"><img src="'+esc(e.url)+'" alt=""></div>';}).join("");
+  var isAdmin=!!(AUTH.profile&&AUTH.profile.is_admin);
+  document.getElementById("main").innerHTML='<div class="profile">'+
+    '<button class="d-back" onclick="screenBack()">← 이모티콘으로</button>'+
+    '<div class="pf-sec">'+esc(p.title)+'</div>'+
+    '<div class="emo-pack-sub" style="margin-bottom:12px">'+
+      (p.authorId?'<span style="cursor:pointer;text-decoration:underline" onclick="openUserProfile(\''+p.authorId+'\')">'+esc(p.author)+'</span>':esc(p.author))+
+      ' · '+p.count+'개 · 담음 '+p.saved+'</div>'+
+    (AUTH.user?'<button class="pf-edit" onclick="togglePack('+p.id+')">'+(p.mine?'이모티콘함에서 빼기':'이모티콘함에 담기')+'</button>':'')+
+    '<div class="emo-slots" style="margin-top:14px">'+grid+'</div>'+
+    (AUTH.user?'<div class="emo-pack-foot" style="margin-top:10px"><button onclick="reportEmoticonPack('+p.id+')">🚩 신고</button>'+
+      (isAdmin?'<button class="danger" onclick="adminDeleteEmoticonPack('+p.id+')">삭제</button>':'')+'</div>':'')+
+    '</div>';
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+// 신고 — 기존 신고창을 그대로 쓴다(사유를 직접 적는 방식)
+function reportEmoticonPack(packId){
+  if(!AUTH.user){toast("로그인이 필요해요");return;}
+  reportingEmoticonPackId=packId;
+  document.getElementById("reportReasonInput").value="";
+  _resetReportForm();
+  document.getElementById("reportModal").classList.add("open");
+}
+// 관리자는 신고가 없어도 바로 내릴 수 있다
+async function adminDeleteEmoticonPack(packId){
+  if(!(AUTH.profile&&AUTH.profile.is_admin))return;
+  if(!(await confirmDialog("이 이모티콘 팩을 삭제할까요? 담아간 사람들에게서도 사라집니다.")))return;
+  var r=await window.supabase.from("emoticon_packs").delete().eq("id",packId);
+  if(r.error){toast("삭제 실패: "+r.error.message);return;}
+  await _logModeration("delete",null,null,"이모티콘 팩 #"+packId);
+  toast("이모티콘을 삭제했어요","🗑");
+  await loadMyEmoticons();refreshEmoStrip();
+  reloadEmoticonMarket();
+}
+
+
 async function togglePack(packId){
   if(!AUTH.user){toast("로그인이 필요해요");return;}
   var p=EMO_MARKET.find(function(x){return x.id===packId;});if(!p)return;
@@ -4273,6 +4424,7 @@ var emoStudio={title:"",images:[]};
 function openEmoticonStudio(){
   if(!AUTH.user){toast("로그인이 필요해요");return;}
   emoStudio={title:"",images:[]};
+  emoEditPackId=null; // 새로 만드는 중 — 파일 선택이 편집 팩으로 새지 않게
   enterScreen("emoStudio",openEmoticonMarket);
   renderEmoticonStudio();
 }
@@ -4308,6 +4460,7 @@ function emoRemoveImage(i){emoStudio.images.splice(i,1);renderEmoSlots();}
 async function onEmoticonFile(ev){
   var files=Array.from(ev.target.files||[]);ev.target.value="";
   if(!files.length)return;
+  if(emoEditPackId){await addEmoticonsToPack(files);return;} // 팩 편집 중이면 그 팩에 바로 추가
   for(var i=0;i<files.length;i++){
     if(emoStudio.images.length>=24){toast("24개까지만 넣을 수 있어요");break;}
     var f=files[i];
@@ -4325,6 +4478,29 @@ async function onEmoticonFile(ev){
     renderEmoSlots();
   }
   toast("이미지를 넣었어요");
+}
+// 이미 만든 팩에 이모티콘을 더 넣는다
+async function addEmoticonsToPack(files){
+  var cur=await window.supabase.from("emoticons").select("id,sort").eq("pack_id",emoEditPackId).order("sort");
+  var n=(cur.data||[]).length;
+  var nextSort=n?((cur.data[n-1].sort||0)+1):0;
+  for(var i=0;i<files.length;i++){
+    if(n>=24){toast("24개까지만 넣을 수 있어요");break;}
+    var f=files[i];
+    if(ALLOWED_IMAGE_TYPES.indexOf(f.type)===-1){toast("이미지 파일만 올릴 수 있어요");continue;}
+    if(f.size>MAX_IMAGE_BYTES){toast("40MB 이하만 올릴 수 있어요");continue;}
+    toast("올리는 중… ("+(i+1)+"/"+files.length+")");
+    var blob=f;
+    if(f.type!=="image/gif"){try{var c=await compressImage(f);blob=c.blob;}catch(e){}}
+    var url=await uploadToStorage(blob,"emoticon");
+    if(!url)break;
+    var ins=await window.supabase.from("emoticons").insert({pack_id:emoEditPackId,url:url,sort:nextSort++});
+    if(ins.error){toast("추가 실패: "+ins.error.message);break;}
+    n++;
+  }
+  await loadMyEmoticons();refreshEmoStrip();
+  toast("이모티콘을 추가했어요");
+  renderEmoticonPackEdit();
 }
 async function saveEmoticonPack(){
   var hint=document.getElementById("emoStudioHint");
@@ -5674,6 +5850,9 @@ async function openAdminReports(){
   var postIds=Array.from(new Set(reports.filter(function(r){return r.post_id}).map(function(r){return r.post_id})));
   var postRes=postIds.length?await window.supabase.from("posts").select("id,title,board,blinded").in("id",postIds):{data:[]};
   var postById={};(postRes.data||[]).forEach(function(pr){postById[pr.id]=pr;});
+  var emoIds=Array.from(new Set(reports.filter(function(r){return r.emoticon_pack_id}).map(function(r){return r.emoticon_pack_id})));
+  var emoRes=emoIds.length?await window.supabase.from("emoticon_packs").select("id,title,author_id").in("id",emoIds):{data:[]};
+  var emoById={};(emoRes.data||[]).forEach(function(e){emoById[e.id]=e;});
   var adIds=Array.from(new Set(reports.filter(function(r){return r.ad_id}).map(function(r){return r.ad_id})));
   var adRes=adIds.length?await window.supabase.from("user_ads").select("id,user_id,image_url,status,linked_post_id,linked_commission_id").in("id",adIds):{data:[]};
   var adById={};(adRes.data||[]).forEach(function(a){adById[a.id]=a;});
@@ -5694,6 +5873,15 @@ async function openAdminReports(){
           '<div class="pmeta"><span class="mt">'+timeAgo(r.created_at)+'</span>'+(r.reason?'<span class="sep"></span><span class="mv">사유: '+esc(r.reason)+'</span>':'')+'</div></div>'+
           '<div style="display:flex;gap:8px;flex-shrink:0">'+
             '<button class="d-act" onclick="adminViewConversation('+r.conversation_id+','+r.id+',\'reports\')">대화 보기</button>'+
+            '<button class="d-act" onclick="dismissReport('+r.id+')">무시</button>'+
+          '</div></div>';
+      }else if(r.emoticon_pack_id){
+        var pack=emoById[r.emoticon_pack_id];
+        h+='<div class="post rip"><div class="pmain">'+
+          '<div class="ptitle">🙂 이모티콘 신고 — '+(pack?esc(pack.title):"(이미 삭제된 팩)")+'</div>'+
+          '<div class="pmeta"><span class="mt">'+timeAgo(r.created_at)+'</span>'+(r.reason?'<span class="sep"></span><span class="mv">사유: '+esc(r.reason)+'</span>':'')+'</div></div>'+
+          '<div style="display:flex;gap:8px;flex-shrink:0">'+
+            (pack?'<button class="d-act" onclick="adminDeleteReportedEmoticon('+r.id+','+r.emoticon_pack_id+')">팩 삭제</button>':'')+
             '<button class="d-act" onclick="dismissReport('+r.id+')">무시</button>'+
           '</div></div>';
       }else if(r.ad_id){
@@ -5752,6 +5940,16 @@ async function adminBlindPost(reportId,postDbId,on){
   await _logModeration(on?"blind":"unblind",postDbId,reportId,null);
   postsLoadedAt=0; // 목록에 반영되도록 다음 이동 때 새로 불러옴
   toast(on?"글을 가렸어요":"가림을 해제했어요");
+  openAdminReports();
+}
+async function adminDeleteReportedEmoticon(reportId,packId){
+  if(!(await confirmDialog("이 이모티콘 팩을 삭제할까요? 담아간 사람들에게서도 사라집니다.")))return;
+  var r=await window.supabase.from("emoticon_packs").delete().eq("id",packId);
+  if(r.error){toast("삭제 실패: "+r.error.message);return;}
+  await window.supabase.from("reports").update({resolved:true}).eq("id",reportId);
+  await _logModeration("delete",null,reportId,"이모티콘 팩 #"+packId);
+  toast("이모티콘을 삭제했어요","🗑");
+  await loadMyEmoticons();refreshEmoStrip();
   openAdminReports();
 }
 async function dismissReport(reportId){
