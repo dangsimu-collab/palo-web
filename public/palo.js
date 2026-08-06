@@ -5697,3 +5697,77 @@ function handleLoginError(){
   toast(msg);
 }
 
+// ===== 게시글 이미지 미리보기 (PC 마우스 호버 / 모바일 길게 누르기) =====
+var _imgPrevEl=null,_imgPrevTimer=null,_imgPrevActive=false,_imgPrevStart=null,_imgPrevSuppressClick=false;
+var _canHover=(function(){try{return window.matchMedia("(hover:hover) and (pointer:fine)").matches;}catch(e){return false;}})();
+function _ensureImgPrev(){
+  if(_imgPrevEl)return _imgPrevEl;
+  _imgPrevEl=document.createElement("div");
+  _imgPrevEl.id="imgPreview";
+  _imgPrevEl.innerHTML='<img alt="미리보기">';
+  document.body.appendChild(_imgPrevEl);
+  return _imgPrevEl;
+}
+// 그 게시글에 이미지가 있으면 첫 이미지 주소 반환(미리보기용). 없으면 null.
+function _postImgSrc(post){var img=post&&post.querySelector(".nthumb img");return img?img.src:null;}
+function _placeImgPrev(x,y,fromTouch){
+  var el=_imgPrevEl;if(!el)return;
+  var w=el.offsetWidth||210,h=el.offsetHeight||250,pad=10;
+  // 뷰포트 크기(못 읽으면 0) — 0일 땐 화면밖 보정을 건너뛴다(잘못된 음수 위치 방지)
+  var vw=window.innerWidth||document.documentElement.clientWidth||0;
+  var vh=window.innerHeight||document.documentElement.clientHeight||0;
+  var px,py;
+  if(fromTouch){ px=pad; py=y-h/2; }            // 모바일: 손가락 가리지 않게 왼쪽에
+  else { px=x+18; py=y-h/2; if(vw&&px+w>vw-pad)px=x-w-18; } // PC: 커서 옆, 넘치면 반대쪽
+  if(px<pad)px=pad; if(vw&&px+w>vw-pad)px=Math.max(pad,vw-pad-w);
+  if(py<pad)py=pad; if(vh&&py+h>vh-pad)py=Math.max(pad,vh-pad-h);
+  el.style.left=px+"px";el.style.top=py+"px";
+}
+function showImgPreview(src,x,y,fromTouch){
+  if(!src)return;
+  var el=_ensureImgPrev(),im=el.querySelector("img");
+  if(im.getAttribute("src")!==src)im.src=src;
+  el.classList.add("show");
+  _placeImgPrev(x,y,fromTouch);
+}
+function hideImgPreview(){if(_imgPrevEl)_imgPrevEl.classList.remove("show");_imgPrevActive=false;}
+function initImgPreview(){
+  var main=document.getElementById("main");if(!main||main._imgPrevInit)return;main._imgPrevInit=true;
+  // PC: 호버 시 표시, 커서 따라 이동, 벗어나면 숨김
+  if(_canHover){
+    main.addEventListener("mouseover",function(e){
+      var post=e.target.closest(".post");if(!post)return;
+      var src=_postImgSrc(post);if(!src)return;
+      showImgPreview(src,e.clientX,e.clientY,false);
+    });
+    main.addEventListener("mousemove",function(e){
+      if(_imgPrevEl&&_imgPrevEl.classList.contains("show"))_placeImgPrev(e.clientX,e.clientY,false);
+    });
+    main.addEventListener("mouseout",function(e){
+      var post=e.target.closest(".post");
+      if(post&&(!e.relatedTarget||!post.contains(e.relatedTarget)))hideImgPreview();
+    });
+  }
+  // 모바일: 길게 누르면 표시(그냥 탭은 글 열기). 스크롤(이동)하면 취소.
+  main.addEventListener("touchstart",function(e){
+    var post=e.target.closest(".post");if(!post)return;
+    var src=_postImgSrc(post);if(!src)return;
+    var t=e.touches[0];_imgPrevStart={x:t.clientX,y:t.clientY};
+    clearTimeout(_imgPrevTimer);
+    _imgPrevTimer=setTimeout(function(){_imgPrevActive=true;showImgPreview(src,_imgPrevStart.x,_imgPrevStart.y,true);},280);
+  },{passive:true});
+  main.addEventListener("touchmove",function(e){
+    if(!_imgPrevStart)return;var t=e.touches[0];
+    if(Math.abs(t.clientX-_imgPrevStart.x)>10||Math.abs(t.clientY-_imgPrevStart.y)>10){clearTimeout(_imgPrevTimer);if(_imgPrevActive)hideImgPreview();}
+  },{passive:true});
+  main.addEventListener("touchend",function(e){
+    clearTimeout(_imgPrevTimer);
+    if(_imgPrevActive){hideImgPreview();_imgPrevSuppressClick=true;setTimeout(function(){_imgPrevSuppressClick=false;},450);}
+    _imgPrevStart=null;
+  });
+  main.addEventListener("touchcancel",function(){clearTimeout(_imgPrevTimer);if(_imgPrevActive)hideImgPreview();_imgPrevStart=null;});
+  // 길게 눌러 미리보기를 띄운 경우, 뒤이어 오는 click(글 열기)은 무시
+  main.addEventListener("click",function(e){if(_imgPrevSuppressClick){e.stopPropagation();e.preventDefault();}},true);
+}
+initImgPreview();
+
