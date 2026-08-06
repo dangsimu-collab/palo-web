@@ -430,6 +430,15 @@ async function initAuth(){
       try{history.replaceState({},"",location.pathname);}catch(e){} // 새로고침 시 또 뜨지 않게 주소 정리
     },400);
   }
+  // 모바일에서 성인 본인확인을 마치고 리다이렉트로 돌아온 경우 이어서 처리
+  if(typeof resumeAdultVerification==="function")resumeAdultVerification();
+  // /board/adult 주소로 바로 들어온 경우 — 로그인 상태를 알게 된 지금 다시 판단한다
+  // (딥링크 처리는 부팅 시점에 일어나서 그때는 인증 여부를 알 수 없다)
+  if(state.board==="adult"&&!isAdultVerified()){
+    state.board="all";
+    if(typeof renderList==="function")renderList();
+    setTimeout(function(){AUTH.user?openAdultGate():openLoginModal();},300);
+  }
   // PWA(홈 화면 추가)에서 백그라운드→복귀 시 세션이 로그아웃처럼 보이던 문제 완화:
   // 화면이 다시 보일 때 세션을 재확인해서 살아있으면 로그인 상태를 자동 복원(자동 토큰 갱신도 재개됨).
   document.addEventListener("visibilitychange",function(){
@@ -638,6 +647,112 @@ function openRecoveryEmail(){
   m.classList.add("open");document.body.style.overflow="hidden";
 }
 function closeRecoveryEmail(){var m=document.getElementById("recoveryModal");if(m)m.classList.remove("open");document.body.style.overflow="";}
+
+/* ===== 성인 게시판 본인확인(연령 확인) =====
+   포트원(PortOne) V2 + KG이니시스 통합 본인인증.
+   ⚠️ 여기서 하는 건 "인증창을 띄우고 결과 id를 서버로 넘기는 것"까지다.
+      실제 합격 판정은 /api/auth/adult-verify 가 포트원 API로 다시 조회해서 내린다.
+      (브라우저가 보낸 값을 믿으면 콘솔에서 한 줄로 우회당한다.)                     */
+var PORTONE_STORE_ID="";    // 관리자 콘솔 → 결제 연동에서 확인 (계약 후 입력)
+var PORTONE_CHANNEL_KEY="";  // 채널 관리 탭의 KG이니시스 통합 본인인증 채널 키
+var ADULT_VERIFY_READY=!!(PORTONE_STORE_ID&&PORTONE_CHANNEL_KEY);
+
+function isAdultVerified(){return !!(AUTH.profile&&AUTH.profile.adult_verified);}
+function _adultHint(t){var h=document.getElementById("adultHint");if(h)h.textContent=t||"";}
+function _adultBusy(on,label){
+  var b=document.getElementById("adultStartBtn");if(!b)return;
+  b.disabled=!!on;b.textContent=on?(label||"확인 중…"):"본인인증 하기";
+}
+function openAdultGate(){
+  var m=document.getElementById("adultModal");if(!m)return;
+  _adultHint("");_adultBusy(false);
+  m.classList.add("open");document.body.style.overflow="hidden";
+}
+function closeAdultGate(){
+  var m=document.getElementById("adultModal");if(m)m.classList.remove("open");
+  document.body.style.overflow="";
+}
+
+// 포트원 브라우저 SDK를 필요할 때만 불러온다(평소 로딩 속도에 영향 없게)
+function loadPortOneSdk(){
+  if(window.PortOne)return Promise.resolve();
+  return new Promise(function(resolve,reject){
+    var s=document.createElement("script");
+    s.src="https://cdn.portone.io/v2/browser-sdk.js";
+    s.onload=function(){resolve();};
+    s.onerror=function(){reject(new Error("sdk"));};
+    document.head.appendChild(s);
+  });
+}
+
+// 인증 결과 id를 서버로 보내 최종 판정을 받는다
+async function _submitAdultVerification(verificationId){
+  var sess=await window.supabase.auth.getSession();
+  var token=sess.data.session?sess.data.session.access_token:null;
+  if(!token){_adultHint("로그인이 필요해요.");_adultBusy(false);return false;}
+  var res=await fetch("/api/auth/adult-verify",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},
+    body:JSON.stringify({identityVerificationId:verificationId})
+  });
+  var j=null;try{j=await res.json();}catch(e){}
+  if(!res.ok||!j||!j.ok){
+    _adultHint((j&&j.message)||"인증에 실패했어요. 잠시 후 다시 시도해주세요.");
+    _adultBusy(false);return false;
+  }
+  // 프로필을 다시 읽어 adult_verified를 반영(이 값으로 게시판 접근이 열린다)
+  var pr=await window.supabase.from("profiles").select("*").eq("id",AUTH.user.id).single();
+  if(!pr.error)AUTH.profile=pr.data;
+  closeAdultGate();
+  toast("성인 인증이 완료됐어요","🔞");
+  return true;
+}
+
+async function startAdultVerification(){
+  if(!AUTH.user){_adultHint("먼저 로그인해주세요.");return;}
+  if(!ADULT_VERIFY_READY){_adultHint("본인확인 서비스가 아직 연결되지 않았어요.");return;}
+  _adultHint("");_adultBusy(true,"인증창을 여는 중…");
+  try{
+    await loadPortOneSdk();
+    // 이 건을 구분하는 고유값. 서버가 이 id로 포트원에 결과를 조회한다.
+    var vid="adult-"+AUTH.user.id.slice(0,8)+"-"+Date.now();
+    var r=await window.PortOne.requestIdentityVerification({
+      storeId:PORTONE_STORE_ID,
+      channelKey:PORTONE_CHANNEL_KEY,
+      identityVerificationId:vid,
+      // 모바일은 대부분 리다이렉트 방식으로 동작한다. 돌아왔을 때 이어서 처리하려고 표시를 남긴다.
+      redirectUrl:location.origin+"/?adultVerify=1"
+    });
+    // code가 있으면 인증창에서 실패하거나 사용자가 취소한 것
+    if(r&&r.code){
+      _adultHint(r.message||"인증이 취소됐어요.");_adultBusy(false);return;
+    }
+    _adultBusy(true,"확인 중…");
+    await _submitAdultVerification((r&&r.identityVerificationId)||vid);
+  }catch(e){
+    _adultHint("인증창을 열지 못했어요. 잠시 후 다시 시도해주세요.");
+    _adultBusy(false);
+  }
+}
+
+// 모바일 리다이렉트로 돌아온 경우 처리(주소에 결과가 실려 온다).
+// 주소는 renderList()의 pushState 등으로 곧 정리되므로 스크립트가 뜨자마자 붙잡아 둔다.
+var _adultReturnQS=(function(){
+  try{return /(^|[?&])adultVerify=1/.test(location.search)?location.search:"";}catch(e){return "";}
+})();
+async function resumeAdultVerification(){
+  if(!_adultReturnQS)return;
+  var q=new URLSearchParams(_adultReturnQS);
+  var vid=q.get("identityVerificationId");
+  _adultReturnQS="";
+  if(!vid)return;
+  try{history.replaceState({},"",location.pathname);}catch(e){}
+  if(!AUTH.user)return;
+  openAdultGate();_adultBusy(true,"확인 중…");
+  var code=q.get("code");
+  if(code){_adultHint(q.get("message")||"인증이 취소됐어요.");_adultBusy(false);return;}
+  await _submitAdultVerification(vid);
+}
 async function saveRecoveryEmail(){
   var inp=document.getElementById("recoveryInput"),hint=document.getElementById("recoveryHint"),btn=document.getElementById("recoverySaveBtn");
   var email=((inp||{}).value||"").trim();
@@ -1864,6 +1979,13 @@ async function toggleLike(id){
   if(wasLiked)toast("좋아요를 눌렀어요","♥");
 }
 function selectBoard(id,skipRender){
+  // 성인 게시판은 본인확인을 마친 계정만 들어갈 수 있다(서버 RLS로도 막혀 있고, 여기선 안내를 띄운다)
+  if(id==="adult"&&!isAdultVerified()){
+    closeDrawer();closeSheet();
+    if(!AUTH.user){openLoginModal();toast("로그인 후 이용할 수 있어요","🔞");}
+    else openAdultGate();
+    return; // 게시판을 바꾸지 않고 그대로 머문다
+  }
   state.board=id;state.query="";state.tag=null;page=1;
   document.getElementById("searchInput").value="";var m=document.getElementById("searchInputM");if(m)m.value="";
   renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
@@ -3727,6 +3849,8 @@ function buildBoardMenu(){
 }
 function toggleBoardMenu(e){e.stopPropagation();document.getElementById("edBoardMenu").classList.toggle("open")}
 function pickBoard(id){
+  // 미인증 계정이 성인 게시판을 고르면 여기서 막는다(DB 정책으로도 저장이 거부된다)
+  if(id==="adult"&&!isAdultVerified()){openAdultGate();return;}
   if(id==="review"&&!AUTH.user){toast("로그인 후 후기를 작성할 수 있어요");return;}
   edState.board=id;edState.tag=null;buildBoardMenu();refreshBoardLabel();renderEdTags();
   document.getElementById("edBoardMenu").classList.remove("open");

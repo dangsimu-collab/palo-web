@@ -997,6 +997,13 @@
   .rules ol{margin:0 0 18px 20px;font-size:13.5px;line-height:1.9;color:var(--ink-2)}
   .rules ol li{margin-bottom:6px}
   .rules .r-ok{width:100%;background:linear-gradient(120deg,var(--brand),var(--grape));color:#fff;border:none;padding:13px;border-radius:13px;font-weight:800;font-size:14px;cursor:pointer;font-family:inherit}
+  /* 보조 버튼(취소/나중에) — .r-ok 아래에 놓이는 낮은 위계의 선택지 */
+  .rules .r-no{width:100%;background:transparent;color:var(--ink-2);border:1px solid var(--line);padding:12px;border-radius:13px;font-weight:700;font-size:13.5px;cursor:pointer;font-family:inherit;margin-top:8px}
+  .rules .r-no:hover{background:var(--surface-2)}
+  /* 성인 인증 안내 — 무엇을 저장하고 무엇을 안 하는지 명시 */
+  .adult-privacy{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+  .adult-privacy-t{font-size:12.5px;font-weight:800;color:var(--ink);margin-bottom:6px}
+  .adult-privacy ul{margin:0;padding-left:16px;font-size:12.5px;line-height:1.75;color:var(--ink-2)}
   .ad-notice-list{margin:0 0 4px;padding-left:18px;font-size:13px;line-height:1.65;color:var(--ink-2)}
   .ad-notice-list>li{margin-bottom:12px}
   .ad-notice-list>li>b{color:var(--ink)}

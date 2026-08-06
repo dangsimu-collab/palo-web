@@ -310,6 +310,24 @@ export const BODY_HTML = `
     <button class="r-ok" id="recoverySaveBtn" onclick="saveRecoveryEmail()">확인 메일 보내기</button>
   </div>
 </div>
+<div class="rules-scrim" id="adultModal" onclick="if(event.target===this)closeAdultGate()">
+  <div class="rules">
+    <h3>🔞 성인 인증이 필요해요</h3>
+    <p class="nick-hint" style="margin-bottom:10px">이 게시판은 <b>만 19세 이상</b>만 이용할 수 있어요. 청소년보호법에 따라 본인확인 기관을 통한 연령 확인이 필요합니다.</p>
+    <div class="adult-privacy">
+      <div class="adult-privacy-t">🔒 이렇게 처리해요</div>
+      <ul>
+        <li>이름·생년월일·휴대폰번호는 <b>저장하지 않아요</b></li>
+        <li>나이 확인에만 사용하고 즉시 폐기해요</li>
+        <li>중복 인증 방지용 암호화 값만 남겨요</li>
+        <li>인증은 <b>계정당 한 번</b>만 하면 돼요</li>
+      </ul>
+    </div>
+    <p class="login-hint" id="adultHint"></p>
+    <button class="r-ok" id="adultStartBtn" onclick="startAdultVerification()">본인인증 하기</button>
+    <button class="r-no" onclick="closeAdultGate()">나중에 할게요</button>
+  </div>
+</div>
 <div class="rules-scrim" id="nickModal" onclick="if(event.target===this)closeNick()">
   <div class="rules">
     <h3>✏️ 닉네임 변경</h3>
