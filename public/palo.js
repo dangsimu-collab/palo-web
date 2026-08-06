@@ -1850,7 +1850,9 @@ function closeReport(){
 
 /* ===== 신고 유형 =====
    자유 서술만 받으면 긴급 사안과 단순 불만이 섞여 들어와 우선순위를 못 매긴다.
-   urgent:true 두 개(불법촬영물·아동성착취물)는 DB 트리거가 즉시 임시조치(블라인드)를 건다. */
+   urgent:true 두 개(불법촬영물·아동성착취물)는 관리자 신고함에서 맨 위로 정렬된다.
+   ⚠️ 자동으로 글을 가리지는 않는다 — 신고 한 번으로 남의 글을 내릴 수 있으면
+      그 자체가 공격 수단이 되기 때문. 조치는 관리자가 직접 판단해서 건다. */
 var REPORT_CATS=[
   {id:"illegal_filming",label:"불법촬영물",     urgent:true,  desc:"동의 없이 촬영·유포된 사진이나 영상"},
   {id:"csam",           label:"아동 성착취물", urgent:true,  desc:"아동·청소년이 등장하는 성적 콘텐츠"},
@@ -1878,7 +1880,7 @@ function pickReportCat(id){
   var hint=document.getElementById("reportCatHint");
   if(hint&&c){
     hint.textContent=c.urgent
-      ? "긴급 신고예요. 접수 즉시 글이 가려지고 운영진이 바로 확인해요."
+      ? "긴급 신고예요. 운영진이 가장 먼저 확인하고 24시간 안에 조치해요."
       : (c.desc||"신고 내용은 운영진만 확인할 수 있어요.");
     hint.classList.toggle("rp-urgent",!!c.urgent);
   }
@@ -1919,10 +1921,8 @@ async function submitReport(){
   var res=await window.supabase.from("reports").insert({post_id:p.dbId,reporter_id:AUTH.user?AUTH.user.id:null,reason:reason,category:reportCategory});
   closeReport();
   if(res.error){toast("신고 접수 실패: "+res.error.message);return;}
-  if(cat&&cat.urgent){
-    toast("긴급 신고로 접수했어요. 글을 바로 가렸어요","⚠️");
-    postsLoadedAt=0; // 가려진 글이 목록에서 빠지도록 다음 이동 때 새로 불러옴
-  }else toast("신고가 접수되었어요");
+  if(cat&&cat.urgent)toast("긴급 신고로 접수했어요. 가장 먼저 확인할게요","⚠️");
+  else toast("신고가 접수되었어요");
 }
 function confirmDialog(message){
   return new Promise(function(resolve){

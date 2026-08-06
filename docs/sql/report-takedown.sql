@@ -82,51 +82,20 @@ create trigger protect_blind_fields_trg
   for each row execute function public.protect_blind_fields();
 
 
--- ── 5. 긴급 신고 자동 임시조치 ─────────────────────────────
--- 불법촬영물·아동성착취물은 "검토 후 처리"로는 늦다. 신고가 들어오는 즉시 노출을 멈추고,
--- 관리자가 확인한 뒤 삭제하거나 되돌린다.
+-- ── 5. 자동 임시조치는 두지 않는다 ─────────────────────────
+-- 한때 긴급 유형(불법촬영물·아동성착취물) 신고가 들어오면 자동으로 글을 가리는 트리거를
+-- 뒀지만 **제거했다.**
 --
--- 악용(경쟁자 글을 긴급 신고로 가려버리기) 방지: 한 사람이 24시간에 3건까지만
--- 자동 블라인드를 유발할 수 있다. 그 이상은 신고로만 접수되고 자동 조치는 안 걸린다.
-create or replace function public.auto_blind_on_urgent_report()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  recent_count int;
-begin
-  if new.category not in ('illegal_filming', 'csam') or new.post_id is null then
-    return new;
-  end if;
-
-  select count(*) into recent_count
-  from public.reports
-  where reporter_id = new.reporter_id
-    and category in ('illegal_filming', 'csam')
-    and created_at > now() - interval '24 hours'
-    and id <> new.id;
-
-  if recent_count >= 3 then
-    return new; -- 신고는 접수하되 자동 조치는 걸지 않음(관리자가 직접 판단)
-  end if;
-
-  update public.posts
-     set blinded = true,
-         blinded_at = now(),
-         blind_reason = '긴급 신고 자동 임시조치 (' || new.category || ')'
-   where id = new.post_id
-     and blinded = false;
-
-  return new;
-end;
-$$;
-
+-- 이유: 신고 한 번으로 남의 글을 즉시 내릴 수 있으면 그 자체가 공격 수단이 된다.
+--       신고자당 횟수를 제한해도, 계정을 나눠 쓰면 특정 작가의 글을 계속 가려버릴 수 있다.
+--       잘못 가려진 글의 피해가 잠깐 노출되는 위험보다 크다고 판단.
+--
+-- 대신 긴급 유형은 **관리자 화면에서 맨 위로 정렬**되어 가장 먼저 눈에 띄고,
+-- 관리자가 [임시 가림] 버튼으로 직접 조치한다. 사람이 한 번은 보고 판단하는 구조.
+--
+-- 아래 두 줄은 예전 버전을 실행했던 경우를 되돌리기 위한 것이다(없으면 그냥 넘어간다).
 drop trigger if exists auto_blind_on_urgent_report_trg on public.reports;
-create trigger auto_blind_on_urgent_report_trg
-  after insert on public.reports
-  for each row execute function public.auto_blind_on_urgent_report();
+drop function if exists public.auto_blind_on_urgent_report();
 
 
 -- ── 6. 처리 이력 ───────────────────────────────────────────
