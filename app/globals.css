@@ -63,17 +63,6 @@
   .trend-meta .ts{font-size:10.5px;color:var(--muted);margin-top:2px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   @media(max-width:860px){.trend-lead{padding-left:0}}
 
-  .ember{margin-bottom:16px}
-  .ember-head{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:900;margin-bottom:10px;padding:0 2px}
-  .ember-head .fire{color:#ff6b35}
-  .ember-scroll{display:flex;gap:11px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
-  .ember-scroll::-webkit-scrollbar{display:none}
-  .ember-card{flex-shrink:0;width:230px;background:var(--surface);border:1.5px solid var(--line);border-radius:16px;padding:14px 16px;cursor:pointer;transition:.14s;box-shadow:var(--sh-xs)}
-  .ember-card:hover{border-color:var(--brand);transform:translateY(-2px);box-shadow:var(--sh)}
-  .ember-card .ec-cat{font-size:10.5px;font-weight:800;color:var(--brand);margin-bottom:6px}
-  .ember-card .ec-t{font-size:13px;font-weight:800;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:36px}
-  .ember-card .ec-m{font-size:11px;color:var(--muted);margin-top:8px;display:flex;gap:10px}
-  .ember-card .ec-m .up{color:#d1804f;font-weight:800}
 
   .post .vote{flex-shrink:0;width:46px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
     background:var(--surface-2);border:1px solid var(--line-2);border-radius:12px;padding:8px 0;align-self:stretch;min-height:52px}
@@ -448,7 +437,6 @@
   @media(max-width:860px){
     /* hide desktop-scale extras on mobile */
     .trendbar{display:none}
-    .ember{display:none}
     /* slimmer header */
     .bar{height:56px;gap:10px}
     .brand .logo{width:29px;height:29px;border-radius:9px;font-size:13px}
@@ -468,12 +456,6 @@
     /* notice slim + single line */
     .notice{padding:11px 13px;margin-bottom:12px;border-radius:12px}
     .notice .nt{font-size:12.5px}
-    /* ember: smaller cards, tighter */
-    .ember{margin-bottom:14px}
-    .ember-head{font-size:12.5px;margin-bottom:8px}
-    .ember-card{width:190px;padding:11px 13px;border-radius:13px}
-    .ember-card .ec-t{font-size:12px;min-height:32px}
-    .ember-card .ec-m{font-size:10px;margin-top:6px}
     /* list rows: tighter, smaller */
     .list{gap:8px}
     .post{padding:11px 12px;gap:10px;border-radius:14px}
@@ -494,7 +476,6 @@
     .post .thumb{width:42px;height:42px;font-size:15px}
     .post .vote{width:34px}
     .post .title{font-size:13px}
-    .ember-card{width:170px}
     .chip{padding:6px 12px;font-size:12px}
   }
 

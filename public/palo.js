@@ -734,15 +734,6 @@ function renderTrend(){
   });
   var el=document.getElementById("trendStrip");if(el)el.innerHTML=h;
 }
-function emberHTML(){
-  var top=POSTS.filter(function(p){return p.board!=="adult"&&p.board!=="trade"&&p.board!=="review"}).sort(function(a,b){return(b.likes+b.comments.length*3)-(a.likes+a.comments.length*3)}).slice(0,6);
-  var h='<div class="ember"><div class="ember-head"><span class="fire"><svg class="ic" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3s5 4 5 9a5 5 0 0 1-10 0c0-2 1-3 1-3s0 2 2 2 1-4 2-8z"/></svg></span>이글이글 · 지금 반응 뜨거운 글</div><div class="ember-scroll">';
-  top.forEach(function(p){
-    h+='<div class="ember-card" onclick="openPost('+p.id+')"><div class="ec-cat">'+catFor(p).label+'</div>'+
-       '<div class="ec-t">'+esc(p.title)+'</div><div class="ec-m"><span class="up">🔥 '+p.likes+'</span><span>💬 '+p.comments.length+'</span></div></div>';
-  });
-  return h+'</div></div>';
-}
 function CATICON(board){
   return '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 15l4-4 3 3 4-4 5 5"/></svg>';
 }
@@ -920,7 +911,6 @@ function renderList(){
     main.innerHTML=h;syncChipScroll();return;
   }
   var totalPages=Math.max(1,Math.ceil(arr.length/PER));if(page>totalPages)page=totalPages;var visible=arr.slice((page-1)*PER,page*PER);
-  if(state.board==="all"&&!state.query&&state.sort==="new")h+=emberHTML();
   if(state.board==="review"&&!state.query){
     h+=reviewAlbumHTML(visible);
     if(totalPages>1)h+=pagerHTML(totalPages);
