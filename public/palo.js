@@ -5710,49 +5710,62 @@ function _ensureImgPrev(){
 }
 // 그 게시글에 이미지가 있으면 첫 이미지 주소 반환(미리보기용). 없으면 null.
 function _postImgSrc(post){var img=post&&post.querySelector(".nthumb img");return img?img.src:null;}
-// 미리보기는 화면 왼쪽 아래에 고정 표시(위치 계산 없음 → 스크롤·손가락 이동과 무관하게 그대로 유지). 위치는 CSS가 담당.
-function showImgPreview(src){
+// 선택한 게시글의 '왼쪽 아래'에 붙여 배치. 문서 좌표(absolute)라 스크롤하면 그 게시글과 함께 움직임.
+function _anchorImgPrev(post){
+  var el=_imgPrevEl;if(!el||!post)return;
+  var r=post.getBoundingClientRect();
+  var sx=window.pageXOffset||document.documentElement.scrollLeft||0;
+  var sy=window.pageYOffset||document.documentElement.scrollTop||0;
+  el.style.left=Math.round(r.left+sx)+"px";
+  el.style.top=Math.round(r.bottom+sy)+"px";
+}
+function showImgPreview(src,post){
   if(!src)return;
   var el=_ensureImgPrev(),im=el.querySelector("img");
   if(im.getAttribute("src")!==src)im.src=src;
   el.classList.add("show");
+  _anchorImgPrev(post);
 }
 function hideImgPreview(){if(_imgPrevEl)_imgPrevEl.classList.remove("show");_imgPrevActive=false;}
 function initImgPreview(){
   var main=document.getElementById("main");if(!main||main._imgPrevInit)return;main._imgPrevInit=true;
-  // PC: 호버하면 왼쪽 아래에 표시, 글에서 벗어나면 숨김
+  // PC: 호버하면 그 글의 왼쪽 아래에 표시, 글에서 벗어나면 숨김
   if(_canHover){
     main.addEventListener("mouseover",function(e){
       var post=e.target.closest(".post");if(!post)return;
       var src=_postImgSrc(post);if(!src)return;
-      showImgPreview(src);
+      showImgPreview(src,post);
     });
     main.addEventListener("mouseout",function(e){
       var post=e.target.closest(".post");
       if(post&&(!e.relatedTarget||!post.contains(e.relatedTarget)))hideImgPreview();
     });
   }
-  // 모바일: 손가락을 대면 곧바로 왼쪽 아래에 표시. 그대로 스크롤해도 미리보기는 유지되고, 손을 떼면 사라짐.
-  // 짧게 탭하면 미리보기가 잠깐 보였다가 평소처럼 글이 열리고, 오래 누르고 있다가 떼면(=미리보기를 본 것) 글은 열지 않음.
+  // 모바일: 손가락을 대면 곧바로 그 글의 왼쪽 아래에 표시. 손을 떼도 계속 남아 있고, 스크롤하면 글과 함께 움직임.
+  // 짧게 탭하면 평소처럼 글이 열리고(그때 미리보기 정리), 오래 눌렀다 떼면 글은 안 열리고 미리보기만 남음.
+  // 미리보기를 닫으려면 빈 곳(글이 아닌 곳)을 탭하면 됨.
   main.addEventListener("touchstart",function(e){
     var post=e.target.closest(".post");if(!post)return;
     var src=_postImgSrc(post);if(!src)return;
     var t=e.touches[0];_imgPrevStart={x:t.clientX,y:t.clientY,at:Date.now()};
     _imgPrevActive=true;
-    showImgPreview(src);
+    showImgPreview(src,post);
   },{passive:true});
   main.addEventListener("touchend",function(e){
     var held=_imgPrevStart?(Date.now()-_imgPrevStart.at):0;
-    if(_imgPrevActive){
-      hideImgPreview();
-      // 오래 눌렀다 뗀 경우에만 뒤따르는 click(글 열기)을 막음 — 짧은 탭은 그대로 글이 열림
-      if(held>=350){_imgPrevSuppressClick=true;setTimeout(function(){_imgPrevSuppressClick=false;},450);}
-    }
-    _imgPrevStart=null;
+    // 오래 눌렀다 뗀 경우에만 뒤따르는 click(글 열기)을 막음 → 미리보기를 보던 중이므로 글은 열지 않음
+    if(_imgPrevActive&&held>=350){_imgPrevSuppressClick=true;setTimeout(function(){_imgPrevSuppressClick=false;},450);}
+    _imgPrevStart=null; // 미리보기는 그대로 유지(손을 떼도 안 사라짐)
   });
-  main.addEventListener("touchcancel",function(){if(_imgPrevActive)hideImgPreview();_imgPrevStart=null;});
-  // 길게 눌러 미리보기를 띄운 경우, 뒤이어 오는 click(글 열기)은 무시
-  main.addEventListener("click",function(e){if(_imgPrevSuppressClick){e.stopPropagation();e.preventDefault();}},true);
+  main.addEventListener("touchcancel",function(){_imgPrevStart=null;});
+  // 길게 눌러 미리보기를 띄운 경우 뒤이어 오는 click(글 열기)은 무시. 그 외의 클릭은 화면이 바뀌므로 미리보기 정리.
+  main.addEventListener("click",function(e){
+    if(_imgPrevSuppressClick){e.stopPropagation();e.preventDefault();return;}
+    hideImgPreview();
+  },true);
+  // 글이 아닌 빈 곳을 탭/클릭하면 미리보기 닫기
+  document.addEventListener("touchstart",function(e){if(!e.target.closest(".post"))hideImgPreview();},{passive:true,capture:true});
+  document.addEventListener("click",function(e){if(!e.target.closest(".post"))hideImgPreview();},true);
 }
 initImgPreview();
 
