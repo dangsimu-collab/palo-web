@@ -339,12 +339,25 @@ export const BODY_HTML = `
 </div>
 <div class="rules-scrim" id="loginModal" onclick="if(event.target===this)closeLoginModal()">
   <div class="rules login-modal">
-    <h3>commi 시작하기</h3>
-    <p class="login-desc">구글 또는 네이버 계정으로 간편하게 시작해요.</p>
-    <div id="gsiButton" class="gsi-wrap"></div>
-    <button type="button" class="login-naver-btn" onclick="loginWithNaver()"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.273 12.845 7.376 0H0v24h7.726V11.156L16.624 24H24V0h-7.727z"/></svg>네이버로 로그인</button>
+    <h3 id="loginTitle">commi 시작하기</h3>
+    <p class="login-desc" id="loginDesc">구글 계정 또는 이메일로 시작해요.</p>
+    <div id="loginSocial">
+      <div id="gsiButton" class="gsi-wrap"></div>
+      <button type="button" class="login-naver-btn" onclick="loginWithNaver()"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.273 12.845 7.376 0H0v24h7.726V11.156L16.624 24H24V0h-7.727z"/></svg>네이버로 로그인</button>
+      <div class="login-or"><span>또는 이메일로</span></div>
+    </div>
+    <input id="lgEmail" class="nick-in" type="email" autocomplete="email" placeholder="이메일" onkeydown="if(event.key==='Enter')loginSubmit()">
+    <input id="lgPw" class="nick-in" type="password" autocomplete="current-password" placeholder="비밀번호" onkeydown="if(event.key==='Enter')loginSubmit()">
+    <input id="lgPw2" class="nick-in" type="password" autocomplete="new-password" placeholder="비밀번호 확인" style="display:none" onkeydown="if(event.key==='Enter')loginSubmit()">
+    <input id="lgNick" class="nick-in" maxlength="12" placeholder="닉네임 (2~12자)" style="display:none" onkeydown="if(event.key==='Enter')loginSubmit()">
+    <button class="r-ok" id="lgSubmit" onclick="loginSubmit()">로그인</button>
     <p class="login-hint" id="loginHint"></p>
-    <button class="login-alt" onclick="_loginRedirectFallback()">로그인이 안 되나요? 다른 방법으로 로그인</button>
+    <div class="login-links">
+      <button class="login-alt" id="lgToSignup" onclick="setLoginMode('signup')">회원가입</button>
+      <button class="login-alt" id="lgToReset" onclick="setLoginMode('reset')">비밀번호 찾기</button>
+      <button class="login-alt" id="lgToLogin" onclick="setLoginMode('login')" style="display:none">← 로그인으로 돌아가기</button>
+    </div>
+    <button class="login-alt" id="loginAltBtn" onclick="_loginRedirectFallback()">구글 로그인이 안 되나요? 다른 방법으로</button>
   </div>
 </div>
 <div class="rules-scrim" id="pollEditModal" onclick="if(event.target===this)closePollEdit()">

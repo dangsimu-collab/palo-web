@@ -413,6 +413,8 @@ async function initAuth(){
   if(document.getElementById("myProfileView"))openProfile(); // 로딩 상태로 그려졌으면 실제 상태로 다시 그림
   window.supabase.auth.onAuthStateChange(function(event,session){
     applySession(session);
+    // 비밀번호 재설정 메일의 링크로 들어오면 새 비밀번호 입력 창을 띄움
+    if(event==="PASSWORD_RECOVERY")setTimeout(openNewPasswordModal,200);
   });
   // PWA(홈 화면 추가)에서 백그라운드→복귀 시 세션이 로그아웃처럼 보이던 문제 완화:
   // 화면이 다시 보일 때 세션을 재확인해서 살아있으면 로그인 상태를 자동 복원(자동 토큰 갱신도 재개됨).
@@ -484,13 +486,13 @@ async function _makeLoginNonce(){
 }
 async function openLoginModal(){
   var m=document.getElementById("loginModal");if(!m)return;
-  var hint=document.getElementById("loginHint");if(hint)hint.textContent="";
   var gwrap=document.getElementById("gsiButton");
-  // 네이버 버튼·안내문구는 검수 승인 전까지 숨김(NAVER_LOGIN_ENABLED로 제어)
+  // 네이버 버튼은 검수 승인 전까지 숨김(NAVER_LOGIN_ENABLED로 제어)
   var nvBtn=document.querySelector(".login-naver-btn");
   if(nvBtn)nvBtn.style.display=NAVER_LOGIN_ENABLED?"flex":"none";
-  var desc=document.querySelector(".login-desc");
-  if(desc)desc.textContent=NAVER_LOGIN_ENABLED?"구글 또는 네이버 계정으로 간편하게 시작해요.":"구글 계정으로 간편하게 시작해요.";
+  // 항상 '로그인' 모드로 열고 입력값은 비움(제목·안내문구·버튼 문구는 setLoginMode가 맞춰줌)
+  ["lgEmail","lgPw","lgPw2","lgNick"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});
+  setLoginMode("login");
   // 구글 버튼: PWA(홈 화면)나 GIS 미로드 상태에선 팝업이 막히므로(400) '리다이렉트 방식' 버튼을, 아니면 GIS 버튼을 그림.
   if(isStandalonePWA()||!_gisReady()){
     if(gwrap)gwrap.innerHTML='<button type="button" class="login-google-btn" onclick="_loginRedirectFallback()">'+GOOGLE_G_SVG+'구글로 로그인</button>';
@@ -516,6 +518,127 @@ async function openLoginModal(){
   }
 }
 function closeLoginModal(){var m=document.getElementById("loginModal");if(m)m.classList.remove("open");document.body.style.overflow="";}
+
+/* ===== commi 자체 회원가입·로그인 (이메일 + 비밀번호) =====
+   Supabase Auth의 이메일 계정 기능을 사용. 소셜 로그인(구글·네이버)과 같은 회원으로 취급되며,
+   가입 시 handle_new_user 트리거가 프로필·닉네임을 만들고, 약관 동의 창도 동일하게 뜬다.
+   모드: login(로그인) / signup(회원가입) / reset(비밀번호 찾기) / newpw(새 비밀번호 설정) */
+var _loginMode="login";
+function _lgEl(id){return document.getElementById(id);}
+function _lgSubmitLabel(mode){return mode==="signup"?"가입하기":mode==="reset"?"재설정 메일 보내기":mode==="newpw"?"비밀번호 변경":"로그인";}
+function setLoginMode(mode){
+  _loginMode=mode;
+  var show=function(id,on){var el=_lgEl(id);if(el)el.style.display=on?"":"none";};
+  var title=_lgEl("loginTitle"),desc=_lgEl("loginDesc"),submit=_lgEl("lgSubmit"),hint=_lgEl("loginHint");
+  if(hint)hint.textContent="";
+  var isLogin=mode==="login",isSignup=mode==="signup",isReset=mode==="reset",isNew=mode==="newpw";
+  show("loginSocial",isLogin);                 // 소셜 버튼은 로그인 화면에서만
+  show("loginAltBtn",isLogin);
+  show("lgEmail",!isNew);                      // 새 비밀번호 설정에선 이메일 입력 불필요
+  show("lgPw",!isReset);
+  show("lgPw2",isSignup||isNew);
+  show("lgNick",isSignup);
+  show("lgToSignup",isLogin); show("lgToReset",isLogin); show("lgToLogin",isSignup||isReset);
+  if(title)title.textContent=isSignup?"commi 회원가입":isReset?"비밀번호 찾기":isNew?"새 비밀번호 설정":"commi 시작하기";
+  if(desc)desc.textContent=isSignup?"이메일과 비밀번호로 가입해요. 닉네임은 나중에 바꿀 수 있어요."
+    :isReset?"가입한 이메일로 비밀번호 재설정 링크를 보내드려요."
+    :isNew?"새로 사용할 비밀번호를 입력해주세요."
+    :(NAVER_LOGIN_ENABLED?"구글·네이버 계정 또는 이메일로 시작해요.":"구글 계정 또는 이메일로 시작해요.");
+  if(submit)submit.textContent=_lgSubmitLabel(mode);
+  var pw=_lgEl("lgPw");if(pw){pw.placeholder=isSignup||isNew?"비밀번호 (8자 이상)":"비밀번호";pw.setAttribute("autocomplete",isSignup||isNew?"new-password":"current-password");}
+}
+function loginSubmit(){
+  if(_loginMode==="signup")return emailSignup();
+  if(_loginMode==="reset")return sendResetEmail();
+  if(_loginMode==="newpw")return applyNewPassword();
+  return emailLogin();
+}
+// Supabase가 주는 영어 오류 메시지를 사용자에게 보여줄 한국어 문구로 바꿈
+function authErrMsg(msg){
+  msg=String(msg||"");
+  if(/Invalid login credentials/i.test(msg))return "이메일 또는 비밀번호가 맞지 않아요.";
+  if(/Email not confirmed/i.test(msg))return "이메일 인증이 아직 안 됐어요. 메일함에서 인증 링크를 눌러주세요.";
+  if(/User already registered|already been registered/i.test(msg))return "이미 가입된 이메일이에요. 로그인하거나 비밀번호 찾기를 이용해주세요.";
+  if(/Password should be at least/i.test(msg))return "비밀번호가 너무 짧아요. 8자 이상으로 만들어주세요.";
+  if(/rate limit|too many requests/i.test(msg))return "요청이 많아 잠시 제한됐어요. 잠시 후 다시 시도해주세요.";
+  if(/Unable to validate email|invalid format/i.test(msg))return "이메일 주소 형식을 확인해주세요.";
+  if(/Email address .* is invalid|invalid email/i.test(msg))return "사용할 수 없는 이메일 주소예요. 실제로 쓰는 이메일로 가입해주세요.";
+  if(/For security purposes|after \d+ seconds/i.test(msg))return "잠시 후 다시 시도해주세요.";
+  return "처리에 실패했어요: "+msg;
+}
+function _lgBusy(on,label){
+  var b=_lgEl("lgSubmit");if(!b)return;
+  b.disabled=on;
+  // 버튼 문구만 되돌린다(setLoginMode를 부르면 방금 띄운 오류 안내가 지워지므로 쓰지 않음)
+  b.textContent=on?(label||"처리 중…"):_lgSubmitLabel(_loginMode);
+}
+function _lgHint(text){var h=_lgEl("loginHint");if(h)h.textContent=text||"";}
+async function emailLogin(){
+  var email=(_lgEl("lgEmail")||{}).value||"",pw=(_lgEl("lgPw")||{}).value||"";
+  if(!email.trim()||!pw){_lgHint("이메일과 비밀번호를 입력해주세요.");return;}
+  _lgBusy(true,"로그인 중…");
+  try{
+    var r=await window.supabase.auth.signInWithPassword({email:email.trim(),password:pw});
+    if(r.error){_lgHint(authErrMsg(r.error.message));_lgBusy(false);return;}
+    closeLoginModal();toast("로그인했어요","✓"); // 세션 반영은 onAuthStateChange가 처리
+  }catch(e){_lgHint(authErrMsg(e&&e.message));}
+  _lgBusy(false);
+}
+async function emailSignup(){
+  var email=((_lgEl("lgEmail")||{}).value||"").trim();
+  var pw=(_lgEl("lgPw")||{}).value||"",pw2=(_lgEl("lgPw2")||{}).value||"";
+  var nick=((_lgEl("lgNick")||{}).value||"").trim();
+  if(!email){_lgHint("이메일을 입력해주세요.");return;}
+  if(pw.length<8){_lgHint("비밀번호는 8자 이상으로 만들어주세요.");return;}
+  if(pw!==pw2){_lgHint("비밀번호가 서로 달라요.");return;}
+  if(nick&&(nick.length<2||nick.length>12)){_lgHint("닉네임은 2~12자로 입력해주세요.");return;}
+  _lgBusy(true,"가입 중…");
+  try{
+    // name은 handle_new_user 트리거가 닉네임을 만들 때 사용(중복이면 자동으로 숫자를 붙임)
+    var r=await window.supabase.auth.signUp({email:email,password:pw,
+      options:{data:{name:nick||"새싹작가"},emailRedirectTo:location.origin}});
+    if(r.error){_lgHint(authErrMsg(r.error.message));_lgBusy(false);return;}
+    if(r.data&&r.data.session){ // 이메일 인증이 꺼져 있으면 바로 로그인됨
+      closeLoginModal();toast("환영해요! 가입이 완료됐어요","🎉");
+    }else{ // 인증 메일 발송됨
+      setLoginMode("login");
+      _lgHint("가입 확인 메일을 보냈어요. 메일함에서 링크를 눌러 인증을 완료해주세요.");
+      toast("가입 확인 메일을 보냈어요 ✉️");
+    }
+  }catch(e){_lgHint(authErrMsg(e&&e.message));}
+  _lgBusy(false);
+}
+async function sendResetEmail(){
+  var email=((_lgEl("lgEmail")||{}).value||"").trim();
+  if(!email){_lgHint("가입한 이메일을 입력해주세요.");return;}
+  _lgBusy(true,"메일 보내는 중…");
+  try{
+    var r=await window.supabase.auth.resetPasswordForEmail(email,{redirectTo:location.origin});
+    if(r.error){_lgHint(authErrMsg(r.error.message));_lgBusy(false);return;}
+    _lgHint("재설정 메일을 보냈어요. 메일함을 확인해주세요.");
+    toast("비밀번호 재설정 메일을 보냈어요 ✉️");
+  }catch(e){_lgHint(authErrMsg(e&&e.message));}
+  _lgBusy(false);
+}
+async function applyNewPassword(){
+  var pw=(_lgEl("lgPw")||{}).value||"",pw2=(_lgEl("lgPw2")||{}).value||"";
+  if(pw.length<8){_lgHint("비밀번호는 8자 이상으로 만들어주세요.");return;}
+  if(pw!==pw2){_lgHint("비밀번호가 서로 달라요.");return;}
+  _lgBusy(true,"변경 중…");
+  try{
+    var r=await window.supabase.auth.updateUser({password:pw});
+    if(r.error){_lgHint(authErrMsg(r.error.message));_lgBusy(false);return;}
+    closeLoginModal();toast("비밀번호를 바꿨어요","✓");
+  }catch(e){_lgHint(authErrMsg(e&&e.message));}
+  _lgBusy(false);
+}
+// 비밀번호 재설정 링크로 들어온 경우 — 새 비밀번호 입력 창을 띄움
+function openNewPasswordModal(){
+  var m=_lgEl("loginModal");if(!m)return;
+  ["lgEmail","lgPw","lgPw2","lgNick"].forEach(function(id){var el=_lgEl(id);if(el)el.value="";});
+  setLoginMode("newpw");
+  m.classList.add("open");document.body.style.overflow="hidden";
+}
 async function onGoogleCredential(resp,rawNonce){
   var hint=document.getElementById("loginHint");if(hint)hint.textContent="로그인 중…";
   try{
