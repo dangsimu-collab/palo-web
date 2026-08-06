@@ -1,8 +1,7 @@
 var BOARDS=[
   {group:"이야기",items:[
     {id:"all",name:"전체 글",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"7\" width=\"18\" height=\"13\" rx=\"2\"/><path d=\"M3 7l2-3h6l2 3\"/></svg>"},
-    {id:"intro",name:"자기소개",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"8\" r=\"4\"/><path d=\"M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1\"/></svg>"},
-    {id:"talk",name:"자유게시판",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z\"/></svg>"}]},
+    {id:"talk",name:"수다",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z\"/></svg>"}]},
   {group:"그리는 중",items:[
     {id:"doodle",name:"낙서",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 15c2.5-6 5 5 8-1s4-6 10 1\"/></svg>"},
     {id:"wip",name:"작업물",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 20h4L18 10l-4-4L4 16v4z\"/><path d=\"M13 7l4 4\"/></svg>"},
@@ -17,14 +16,14 @@ var BOARDS=[
     {id:"tip",name:"자료/TIP",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 4 2 9l10 5 10-5-10-5z\"/><path d=\"M6 11v5c0 1 3 2 6 2s6-1 6-2v-5\"/></svg>"}]},
   {group:"거래",trade:true,items:[
     {id:"request",name:"리퀘스트",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M18 11V6a2 2 0 0 0-4 0v5\"/><path d=\"M14 10V4a2 2 0 0 0-4 0v6\"/><path d=\"M10 10.5V6a2 2 0 0 0-4 0v8\"/><path d=\"M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2a8 8 0 0 1-8-8\"/></svg>"},
-    {id:"recruit",name:"커미션 구인",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"13.5\" cy=\"6.5\" r=\"1\"/><circle cx=\"17.5\" cy=\"10.5\" r=\"1\"/><circle cx=\"8.5\" cy=\"7.5\" r=\"1\"/><circle cx=\"6.5\" cy=\"12.5\" r=\"1\"/><path d=\"M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c1.4 0 2.5-1.1 2.5-2.5 0-.6-.2-1.2-.6-1.6-.4-.4-.6-.9-.6-1.4 0-1.1.9-2 2-2H16c3.3 0 6-2.7 6-6 0-5-4.5-8.5-10-8.5z\"/></svg>"},
-    {id:"used",name:"중고 장비",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 12l8-8h6a2 2 0 0 1 2 2v6l-8 8z\"/><circle cx=\"15\" cy=\"9\" r=\"1.4\" fill=\"currentColor\" stroke=\"none\"/></svg>"}]},
+    {id:"recruit",name:"구인",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"13.5\" cy=\"6.5\" r=\"1\"/><circle cx=\"17.5\" cy=\"10.5\" r=\"1\"/><circle cx=\"8.5\" cy=\"7.5\" r=\"1\"/><circle cx=\"6.5\" cy=\"12.5\" r=\"1\"/><path d=\"M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c1.4 0 2.5-1.1 2.5-2.5 0-.6-.2-1.2-.6-1.6-.4-.4-.6-.9-.6-1.4 0-1.1.9-2 2-2H16c3.3 0 6-2.7 6-6 0-5-4.5-8.5-10-8.5z\"/></svg>"},
+    {id:"used",name:"중고",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 12l8-8h6a2 2 0 0 1 2 2v6l-8 8z\"/><circle cx=\"15\" cy=\"9\" r=\"1.4\" fill=\"currentColor\" stroke=\"none\"/></svg>"}]},
   {group:"기타",items:[
     {id:"suggest",name:"버그·건의사항",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z\"/><path d=\"M12 9v3M12 15h.01\"/></svg>"}]}
 ];
-var CATMAP={intro:{label:"자기소개",cls:"talk-c"},talk:{label:"자유",cls:"talk-c"},ask:{label:"고민",cls:"help-c"},crit:{label:"피드백",cls:"crit-c"},
+var CATMAP={talk:{label:"수다",cls:"talk-c"},ask:{label:"고민",cls:"help-c"},crit:{label:"피드백",cls:"crit-c"},
   wip:{label:"작업과정",cls:"crit-c"},doodle:{label:"낙서",cls:"talk-c"},tip:{label:"팁",cls:"tip-c"},challenge:{label:"챌린지",cls:"chal-c"},collab:{label:"협업",cls:"help-c"},
-  sketch:{label:"그림공부",cls:"tip-c"},trade:{label:"거래",cls:"free-c"},used:{label:"거래",cls:"free-c"},
+  sketch:{label:"그림공부",cls:"tip-c"},trade:{label:"거래",cls:"free-c"},used:{label:"중고",cls:"free-c"},
   review:{label:"후기",cls:"free-c"},vote:{label:"투표",cls:"chal-c"},request:{label:"리퀘스트",cls:"free-c"},recruit:{label:"구인",cls:"free-c"},adult:{label:"에치치",cls:"help-c"},suggest:{label:"건의",cls:"chal-c"}};
 
 var postsLoaded=false; // loadRealPosts()가 실제 글을 POSTS에 합친 뒤 true — 이 전에는 데모 글로 renderList()를 강제로 돌리지 않음(로그인 리다이렉트 직후 더미 글이 잠깐 보이는 버그 방지)
@@ -618,12 +617,12 @@ function renderNav(el){
   el.innerHTML=h;
 }
 // 상단 게시판 탭에 붙는 이모지(게시판 성격에 맞춤). 왼쪽 서랍 메뉴는 기존 선 아이콘 그대로.
-var CHIP_EMOJI={all:"📋",intro:"🙋",talk:"💬",doodle:"✏️",wip:"🎨",sketch:"📚",ask:"❓",vote:"📊",crit:"💡",
+var CHIP_EMOJI={all:"📋",talk:"💬",doodle:"✏️",wip:"🎨",sketch:"📚",ask:"❓",vote:"📊",crit:"💡",
   collab:"🤝",challenge:"🏆",tip:"📁",request:"🙏",recruit:"🔍",used:"📦",suggest:"🛠"};
 // 성격이 비슷한 게시판끼리 같은 색 계열로 묶음 — 색만 봐도 대략 어떤 종류인지 알 수 있게(파스텔 톤)
 // g-all 전체(중립) / g-talk 이야기·소통(핑크) / g-art 그림·작업(퍼플) / g-trade 거래(블루) / g-event 함께·이벤트(그린) / g-etc 기타(그레이)
 var CHIP_GROUP={all:"g-all",
-  intro:"g-talk",talk:"g-talk",ask:"g-talk",vote:"g-talk",
+  talk:"g-talk",ask:"g-talk",vote:"g-talk",
   doodle:"g-art",wip:"g-art",sketch:"g-art",crit:"g-art",
   request:"g-trade",recruit:"g-trade",used:"g-trade",
   collab:"g-event",challenge:"g-event",tip:"g-event",
@@ -3537,8 +3536,7 @@ function pickBoard(id){
   }
   updateReviewNickField();}
 var BOARD_GUIDE={
-  intro:"나를 소개하는 공간이에요. 닉네임·그림 스타일·SNS 등을 편하게 남겨보세요.",
-  talk:"주제 제한 없이 자유롭게 이야기 나누는 공간이에요.",
+  talk:"주제 제한 없이 자유롭게 이야기 나누는 공간이에요. 가입 인사도 여기에 남겨주세요!",
   doodle:"가볍게 그린 낙서·자유 그림을 올리는 곳이에요.",
   wip:"작업 중이거나 완성한 그림을 공유해요.",
   sketch:"연습·강좌 등 그림 공부 기록을 나눠요.",

@@ -454,7 +454,7 @@ function StatCard({ label, value }) {
 }
 
 const BOARD_LABELS = {
-  talk: '수다 광장',
+  talk: '수다',
   ask: '질문/시세문의',
   vote: '투표/수요조사',
   wip: '작업물',
@@ -465,9 +465,9 @@ const BOARD_LABELS = {
   challenge: '챌린지',
   tip: '자료/TIP',
   request: '리퀘스트',
-  recruit: '커미션 구인',
+  recruit: '구인',
   trade: '커미션 구인구직',
-  used: '중고 장비',
+  used: '중고',
   review: '커미션 후기',
   adult: '에치치',
 };
