@@ -573,7 +573,7 @@ function authErrMsg(msg){
   if(/Password should be at least/i.test(msg))return "비밀번호가 너무 짧아요. 8자 이상으로 만들어주세요.";
   if(/rate limit|too many requests/i.test(msg))return "요청이 많아 잠시 제한됐어요. 잠시 후 다시 시도해주세요.";
   if(/Unable to validate email|invalid format/i.test(msg))return "이메일 주소 형식을 확인해주세요.";
-  if(/Email address .* is invalid|invalid email/i.test(msg))return "사용할 수 없는 이메일 주소예요. 실제로 쓰는 이메일로 가입해주세요.";
+  if(/email address.*is invalid|invalid email/i.test(msg))return "사용할 수 없는 이메일 주소예요. 실제로 쓰는 이메일을 입력해주세요.";
   if(/For security purposes|after \d+ seconds/i.test(msg))return "잠시 후 다시 시도해주세요.";
   return "처리에 실패했어요: "+msg;
 }
@@ -634,10 +634,10 @@ async function saveRecoveryEmail(){
   if(btn){btn.disabled=true;btn.textContent="보내는 중…";}
   try{
     var r=await window.supabase.auth.updateUser({email:email});
-    if(r.error){setHint(authErrMsg(r.error.message));}
+    if(r.error){setHint(authErrMsg(r.error.message));} // 실패하면 고칠 수 있게 창을 열어 둠
     else{
-      setHint("확인 메일을 보냈어요. 메일함에서 링크를 눌러야 등록이 끝나요.");
-      toast("확인 메일을 보냈어요 ✉️");
+      closeRecoveryEmail(); // 성공하면 창을 닫고 안내는 토스트로
+      toast("확인 메일을 보냈어요. 메일함에서 링크를 눌러주세요","✉️");
     }
   }catch(e){setHint(authErrMsg(e&&e.message));}
   if(btn){btn.disabled=false;btn.textContent="확인 메일 보내기";}
