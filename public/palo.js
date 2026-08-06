@@ -405,17 +405,31 @@ window.addEventListener("popstate",function(){
 
 /* ---------- 로그인 (Supabase Auth) ---------- */
 var authReady=false; // getSession()이 최소 1회 끝났는지 — 그 전엔 '로그인 필요' 대신 로딩 표시(가짜 로그아웃 깜빡임 방지)
+// 비밀번호 재설정 링크로 들어왔는지 표시(주소는 곧 정리되므로 스크립트가 뜨자마자 확인).
+// 우리가 붙인 ?pwreset=1 과 Supabase가 붙이는 type=recovery 둘 다 확인.
+var _recoveryLink=(function(){
+  try{return /(^|[?&#])pwreset=1/.test(location.search+location.hash)||/type=recovery/.test(location.search+location.hash);}
+  catch(e){return false;}
+})();
 async function initAuth(){
   if(!window.supabase)return;
+  // ⚠️ 이벤트 리스너를 가장 먼저 등록해야 함 — 재설정 링크의 PASSWORD_RECOVERY 이벤트는
+  //    getSession()보다 먼저 발생할 수 있어, 나중에 등록하면 놓친다(새 비밀번호 창이 안 뜨던 원인).
+  window.supabase.auth.onAuthStateChange(function(event,session){
+    applySession(session);
+    if(event==="PASSWORD_RECOVERY")setTimeout(openNewPasswordModal,200);
+  });
   var res=await window.supabase.auth.getSession();
   await applySession(res.data.session);
   authReady=true;
   if(document.getElementById("myProfileView"))openProfile(); // 로딩 상태로 그려졌으면 실제 상태로 다시 그림
-  window.supabase.auth.onAuthStateChange(function(event,session){
-    applySession(session);
-    // 비밀번호 재설정 메일의 링크로 들어오면 새 비밀번호 입력 창을 띄움
-    if(event==="PASSWORD_RECOVERY")setTimeout(openNewPasswordModal,200);
-  });
+  // 이벤트를 놓쳤더라도 주소로 판별해 새 비밀번호 창을 띄움(이중 안전장치)
+  if(_recoveryLink){
+    setTimeout(function(){
+      openNewPasswordModal();
+      try{history.replaceState({},"",location.pathname);}catch(e){} // 새로고침 시 또 뜨지 않게 주소 정리
+    },400);
+  }
   // PWA(홈 화면 추가)에서 백그라운드→복귀 시 세션이 로그아웃처럼 보이던 문제 완화:
   // 화면이 다시 보일 때 세션을 재확인해서 살아있으면 로그인 상태를 자동 복원(자동 토큰 갱신도 재개됨).
   document.addEventListener("visibilitychange",function(){
@@ -675,7 +689,8 @@ async function sendResetEmail(){
   }
   _lgBusy(true,"메일 보내는 중…");
   try{
-    var r=await window.supabase.auth.resetPasswordForEmail(email,{redirectTo:location.origin});
+    // ?pwreset=1 을 붙여 두면, 돌아왔을 때 이벤트를 놓쳐도 주소만 보고 새 비밀번호 창을 띄울 수 있다
+    var r=await window.supabase.auth.resetPasswordForEmail(email,{redirectTo:location.origin+"/?pwreset=1"});
     if(r.error){_lgHint(authErrMsg(r.error.message));_lgBusy(false);return;}
     _lgHint("재설정 메일을 보냈어요. 메일함을 확인해주세요.");
     toast("비밀번호 재설정 메일을 보냈어요 ✉️");
