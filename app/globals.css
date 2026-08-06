@@ -736,8 +736,7 @@
     .notice .nt{font-size:12.5px}
   }
 
-  /* ===== 상단 배치 비교용 A·B·C안 (?layout=a|b|c). 고른 뒤 나머지는 정리할 것 ===== */
-  /* 공통: 게시판 탭 아래 컨트롤 줄 */
+  /* ===== 목록 상단: 게시판 탭 아래 컨트롤 줄(말머리 + 정렬·보기) ===== */
   .bh-row{display:flex;align-items:center;gap:10px;padding:8px 4px;margin-bottom:8px;border-bottom:1px solid var(--line)}
   .bh-row .bh-note{font-size:12px;color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .bh-a{justify-content:flex-end}
@@ -746,31 +745,18 @@
   .bh-a .tagbar{flex:1;min-width:0;margin:0;padding-top:0;border-top:none;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:6px}
   .bh-a .tagbar::-webkit-scrollbar{display:none}
   .bh-a .tagbar-btn{flex:none;padding:5px 11px;font-size:12px}
-  .bh-c .sortbar{margin-right:auto}
-  .bh-c .viewicons{margin-left:auto}
-  /* A안: 정렬 드롭다운 */
+  /* 정렬 드롭다운 */
   .sort-dd{-webkit-appearance:none;appearance:none;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);font-family:inherit;font-size:12.5px;font-weight:700;padding:6px 26px 6px 11px;border-radius:9px;cursor:pointer;
     background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a294a0' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 7px center;background-size:13px}
   .sort-dd:focus{outline:none;border-color:var(--brand)}
-  /* A안: 보기 토글 아이콘 하나 */
+  /* 보기 토글 아이콘(목록형 ↔ 앨범형) */
   .viewtoggle{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);border-radius:9px;cursor:pointer;padding:0;flex:none}
   .viewtoggle .ic{width:17px;height:17px}
   .viewtoggle:hover{border-color:var(--brand);color:var(--brand)}
-  /* B·C안: 보기 아이콘 두 개(현재 상태 강조) */
-  .viewicons{display:flex;align-items:center;gap:2px;flex:none}
-  .viewicons .vi{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border:none;background:none;color:var(--muted-2);border-radius:8px;cursor:pointer;padding:0}
-  .viewicons .vi .ic{width:17px;height:17px}
-  .viewicons .vi:hover{color:var(--brand-2)}
-  .viewicons .vi.on{color:var(--brand);background:var(--brand-soft)}
-  /* B안: 정렬(텍스트)과 보기(아이콘) 사이 구분선 + 탭 줄과 시각적 분리 */
-  .bh-b .bh-div{width:1px;height:14px;background:var(--line-2);margin:0 4px;flex:none}
-  .bh-b{margin-bottom:6px}
-  .bh-b + .boardtabs{background:var(--surface-2);border-radius:9px;padding:0 4px;margin-top:0}
   @media(max-width:860px){
     .bh-row{padding:7px 2px;margin-bottom:6px;gap:8px}
     .sort-dd{font-size:12px;padding:5px 24px 5px 9px}
     .viewtoggle{width:30px;height:30px}
-    .viewicons .vi{width:28px;height:28px}
   }
 
   /* ===== 게시판 탭: 아이콘 + 성격별 색 구분 (2026-08-04) =====
@@ -1184,7 +1170,7 @@
   *{-webkit-tap-highlight-color:transparent}
   /* 페이지(목록/상세/프로필) 전환 페이드+슬라이드 */
   @keyframes viewIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-  #main>.list,#main>.detail,#main>.profile,#main>.board-head{animation:viewIn .28s cubic-bezier(.22,.61,.36,1) both}
+  #main>.list,#main>.detail,#main>.profile,#main>.boardtabs{animation:viewIn .28s cubic-bezier(.22,.61,.36,1) both}
   /* 글 카드 등장 시 부드럽게 */
   @keyframes cardIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
   .post{animation:cardIn .3s ease both}

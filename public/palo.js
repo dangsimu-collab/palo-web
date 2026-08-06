@@ -903,13 +903,12 @@ function renderList(){
   saveChipScroll(); // 다시 그리기 전에 게시판 탭의 가로 스크롤 위치를 기억(아래에서 그대로 복원)
   if(!state.query){ // 게시판별 URL(공유·SEO). 검색 중엔 주소를 바꾸지 않음.
     var _wantPath=(state.board!=="all")?("/board/"+state.board):"/";
-    if(LAYOUT)_wantPath+="?layout="+LAYOUT; // 비교 모드에서 주소를 바꿔도 선택한 안이 유지되게
-    if(location.pathname!==_wantPath.split("?")[0]){history.pushState({},"",_wantPath);}
+    if(location.pathname!==_wantPath){history.pushState({},"",_wantPath);}
     document.title=(state.board!=="all")?(boardName(state.board)+" · commi"):"commi · 그림 그리는 사람들의 커뮤니티";
   }
   var main=document.getElementById("main");var arr=filteredPosts();
   var sub=state.query?('"'+esc(state.query)+'" 검색 결과 '+arr.length+'건'):(state.sort==="new"?"방금 올라온 이야기부터":"반응 많은 순으로");
-  var h=boardHeaderHTML(sub); // 제목·정렬·보기·게시판 탭·말머리 (배치는 ?layout=a|b|c 로 비교)
+  var h=boardHeaderHTML(sub); // 게시판 탭 + 말머리·정렬·보기 줄
   if(state.board==="all"&&!state.query){
     if(LATEST_NOTICE)h+='<div class="notice" onclick="showNotice()"><span class="pin">공지</span><span class="nt">📢 '+esc(LATEST_NOTICE.title)+'</span></div>';
     h+='<div class="notice" onclick="openRules()"><span class="pin">공지</span><span class="nt">📌 이용 규칙 & 피드백 매너 (처음 오셨다면 꼭!)</span></div>';
@@ -3290,55 +3289,25 @@ function setSort(s){state.sort=s;page=1;renderList()}
 function setViewMode(m){state.viewMode=m;page=1;renderList()}
 function toggleViewMode(){setViewMode(state.viewMode==="album"?"list":"album");}
 
-/* ===== 상단 영역 배치 비교용(A·B·C안) — 주소에 ?layout=a|b|c 를 붙이면 그 안으로 보임. 안 붙이면 현재 방식.
-   비교가 끝나면 고른 안만 남기고 이 부분은 정리할 것. ===== */
-var LAYOUT=(function(){try{var v=new URLSearchParams(location.search).get("layout");return (v==="a"||v==="b"||v==="c")?v:"";}catch(e){return"";}})();
+/* ===== 목록 화면 상단 영역 =====
+   게시판 탭(맨 위) → 같은 줄에 말머리(왼쪽) + 정렬 드롭다운·보기 토글(오른쪽).
+   제목은 표시하지 않음(게시판 탭에서 현재 게시판이 강조되므로 중복). */
 var ICON_LIST='<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>';
 var ICON_GRID='<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg>';
-function _sortBtnsHTML(){
-  return '<div class="sortbar">'+
-    '<button class="'+(state.sort==="new"?"on":"")+'" onclick="setSort(\'new\')">최신</button>'+
-    '<button class="'+(state.sort==="hot"?"on":"")+'" onclick="setSort(\'hot\')">인기</button></div>';
-}
-function _sortDropdownHTML(){ // A안: 정렬을 드롭다운 하나로
+function _sortDropdownHTML(){ // 정렬(최신/인기)을 드롭다운 하나로
   return '<select class="sort-dd" aria-label="정렬 기준" onchange="setSort(this.value)">'+
     '<option value="new"'+(state.sort==="new"?" selected":"")+'>최신</option>'+
     '<option value="hot"'+(state.sort==="hot"?" selected":"")+'>인기</option></select>';
 }
-function _viewIconsHTML(){ // B·C안: 보기 방식을 아이콘 두 개로(현재 상태 강조)
-  return '<div class="viewicons">'+
-    '<button class="vi'+(state.viewMode==="list"?" on":"")+'" onclick="setViewMode(\'list\')" aria-label="목록형" title="목록형">'+ICON_LIST+'</button>'+
-    '<button class="vi'+(state.viewMode==="album"?" on":"")+'" onclick="setViewMode(\'album\')" aria-label="앨범형" title="앨범형">'+ICON_GRID+'</button></div>';
-}
-function _viewToggleHTML(){ // A안: 아이콘 하나로 토글(지금 상태를 아이콘으로 표시)
+function _viewToggleHTML(){ // 보기 방식을 아이콘 하나로 토글(지금 상태를 아이콘으로 표시)
   var isAlbum=state.viewMode==="album";
   return '<button class="viewtoggle" onclick="toggleViewMode()" aria-label="보기 전환" title="'+(isAlbum?"앨범형 · 누르면 목록형":"목록형 · 누르면 앨범형")+'">'+(isAlbum?ICON_GRID:ICON_LIST)+'</button>';
 }
-function _bhTitleHTML(sub){
-  return '<div class="bh-title"><h1 class="serif">'+esc(state.query?"검색":boardName(state.board))+'</h1><span class="sub">'+sub+'</span></div>';
-}
-function _searchNoteHTML(sub){ return state.query?'<div class="bh-note">'+sub+'</div>':''; } // 제목을 없앤 안에서도 검색 결과 안내는 유지
+function _searchNoteHTML(sub){ return state.query?'<div class="bh-note">'+sub+'</div>':''; } // 제목이 없으므로 검색 결과 안내는 여기로
 function boardHeaderHTML(sub){
-  if(LAYOUT==="a"){ // 게시판 탭 맨 위 + 같은 줄에 말머리(왼쪽)와 [최신▾]·보기 토글(오른쪽)
-    return boardTabsHTML()+
-      '<div class="bh-row bh-a">'+tagFilterBarHTML()+_searchNoteHTML(sub)+
-        '<div class="bh-right">'+_sortDropdownHTML()+_viewToggleHTML()+'</div></div>';
-  }
-  if(LAYOUT==="c"){ // 게시판 탭 맨 위 + 아래 줄에 정렬은 왼쪽 끝·보기는 오른쪽 끝
-    return boardTabsHTML()+
-      '<div class="bh-row bh-c">'+_sortBtnsHTML()+_searchNoteHTML(sub)+_viewIconsHTML()+'</div>'+tagFilterBarHTML();
-  }
-  if(LAYOUT==="b"){ // 지금 배치 유지 + 정렬(텍스트)/보기(아이콘) 구분 + 구분선
-    return '<div class="board-head bh-b">'+_bhTitleHTML(sub)+
-        '<div class="bh-controls">'+_sortBtnsHTML()+'<span class="bh-div"></span>'+_viewIconsHTML()+'</div>'+
-      '</div>'+boardTabsHTML()+tagFilterBarHTML();
-  }
-  return '<div class="board-head">'+_bhTitleHTML(sub)+ // 현재 방식
-      '<div class="bh-controls">'+_sortBtnsHTML()+
-        '<div class="sortbar viewbar">'+
-          '<button class="'+(state.viewMode==="list"?"on":"")+'" onclick="setViewMode(\'list\')">☰ 목록형</button>'+
-          '<button class="'+(state.viewMode==="album"?"on":"")+'" onclick="setViewMode(\'album\')">▦ 앨범형</button></div>'+
-      '</div></div>'+boardTabsHTML()+tagFilterBarHTML();
+  return boardTabsHTML()+
+    '<div class="bh-row bh-a">'+tagFilterBarHTML()+_searchNoteHTML(sub)+
+      '<div class="bh-right">'+_sortDropdownHTML()+_viewToggleHTML()+'</div></div>';
 }
 function postCardHTML(p){
   var c=catFor(p);
@@ -5663,7 +5632,8 @@ syncNotifBadge();
 // 스피너만 보여주고, 당기는 동안은 transition을 꺼서 손가락을 즉시 따라오게 함.
 (function(){
   var startY=0, dist=0, active=false, refreshing=false, THRESH=72;
-  function onFeed(){var m=document.getElementById("main");return !!(m&&m.querySelector(".board-head")&&!m.querySelector(".detail,.cm-root,.profile"));}
+  // 목록 화면인지 판단 — 게시판 탭(.boardtabs)이 있으면 피드(상단 제목 .board-head는 이제 안 씀)
+  function onFeed(){var m=document.getElementById("main");return !!(m&&m.querySelector(".boardtabs")&&!m.querySelector(".detail,.cm-root,.profile"));}
   function ind(){var el=document.getElementById("ptrSpin");if(!el){el=document.createElement("div");el.id="ptrSpin";el.className="ptr";el.innerHTML='<div class="ptr-spin"></div>';document.body.appendChild(el);}return el;}
   document.addEventListener("touchstart",function(e){
     if(refreshing||window.scrollY>4||!onFeed())return;
