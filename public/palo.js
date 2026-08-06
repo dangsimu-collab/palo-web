@@ -160,11 +160,8 @@ async function onCoverFile(e){
     }catch(err){console.error('커버 이미지 압축 실패, 원본으로 업로드:',err);}
   }
   toast('업로드 중...');
-  var path='cover-'+Date.now()+'-'+f.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_.-]/g,'_')+'.'+ext;
-  var up=await window.supabase.storage.from('post-images').upload(path,uploadBlob,f.type==='image/gif'?undefined:{contentType:uploadBlob.type});
-  if(up.error){toast('업로드 실패: '+up.error.message);return;}
-  var pub=window.supabase.storage.from('post-images').getPublicUrl(path);
-  var url=pub.data.publicUrl;
+  var url=await uploadToStorage(uploadBlob,'cover');
+  if(!url)return;
   var res=await window.supabase.from('profiles').update({cover_url:url}).eq('id',AUTH.user.id);
   if(res.error){toast('저장 실패: '+res.error.message);return;}
   if(AUTH.profile)AUTH.profile.cover_url=url;
@@ -1745,11 +1742,9 @@ async function onAdBannerFile(e){
     }
   }
   toast("배너 업로드 중...");
-  var path="ad-"+Date.now()+"-"+f.name.replace(/\.[^.]+$/,"").replace(/[^a-zA-Z0-9_.-]/g,"_")+"."+ext;
-  var up=await window.supabase.storage.from("post-images").upload(path,uploadBlob,f.type==="image/gif"?undefined:{contentType:uploadBlob.type});
-  if(up.error){toast("업로드 실패: "+up.error.message);return;}
-  var pub=window.supabase.storage.from("post-images").getPublicUrl(path);
-  adState.bannerUrl=pub.data.publicUrl;
+  var bannerUrl=await uploadToStorage(uploadBlob,"ad");
+  if(!bannerUrl)return;
+  adState.bannerUrl=bannerUrl;
   document.getElementById("adBannerPreview").innerHTML='<img src="'+esc(adState.bannerUrl)+'" style="width:100%;border-radius:10px;display:block">';
   toast("배너 이미지를 등록했어요");
 }
@@ -1770,11 +1765,8 @@ async function onAvatarFile(e){
     }
   }
   toast("업로드 중...");
-  var path="avatar-"+Date.now()+"-"+f.name.replace(/\.[^.]+$/,"").replace(/[^a-zA-Z0-9_.-]/g,"_")+"."+ext;
-  var up=await window.supabase.storage.from("post-images").upload(path,uploadBlob,f.type==="image/gif"?undefined:{contentType:uploadBlob.type});
-  if(up.error){toast("업로드 실패: "+up.error.message);return;}
-  var pub=window.supabase.storage.from("post-images").getPublicUrl(path);
-  var url=pub.data.publicUrl;
+  var url=await uploadToStorage(uploadBlob,"avatar");
+  if(!url)return;
   var res=await window.supabase.from("profiles").update({avatar_url:url}).eq("id",AUTH.user.id);
   if(res.error){toast("저장 실패: "+res.error.message);return;}
   AUTH.profile.avatar_url=url;
@@ -2058,7 +2050,6 @@ var cmReviews=[
   {who:'초코라떼',type:'불호',ctype:'흉상',txt:'그림은 좋았는데 예정보다 조금 늦어졌어요. 그래도 결과물은 만족합니다.',date:'2026.07.12'}
 ];
 var cmMyList=[]; // cmOpenMy()가 Supabase에서 실제로 불러와 채움
-var CM_IMAGE_BUCKET='commission-images';
 var CM_TYPES=['두상','흉상','반신','전신','SD','이모티콘','배경','기타'];
 var CM_BAD_REASONS=['퀄리티 불만족','마감 기한 미준수','소통이 어려웠어요','스타일이 요청과 달랐어요','기타'];
 // 작가가 거래 정책을 직접 안 적었을 때 뜨는 기본 면책 문구(신청서·상세 공용)
@@ -2528,11 +2519,9 @@ async function cmUploadApplyImg(file){
     }catch(err){console.error('이미지 압축 실패, 원본으로 업로드:',err);}
   }
   toast('이미지 업로드 중...');
-  var path=AUTH.user.id+'/applications/'+Date.now()+'-'+file.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_.-]/g,'_')+'.'+ext;
-  var up=await window.supabase.storage.from(CM_IMAGE_BUCKET).upload(path,uploadBlob,{contentType:uploadBlob.type});
-  if(up.error){toast('업로드 실패: '+up.error.message);return;}
-  var pub=window.supabase.storage.from(CM_IMAGE_BUCKET).getPublicUrl(path);
-  cmApp.images.push(pub.data.publicUrl);
+  var appUrl=await uploadToStorage(uploadBlob,'application');
+  if(!appUrl)return;
+  cmApp.images.push(appUrl);
   document.getElementById('cmAppImgs').innerHTML=cmApplyImgsHTML();
   toast('이미지를 넣었어요');
 }
@@ -2865,12 +2854,9 @@ async function cmWsUploadImg(file){
     try{var c=await compressImage(file);uploadBlob=c.blob;ext=c.ext;}catch(err){console.error('압축 실패, 원본 업로드:',err);}
   }
   toast('이미지 업로드 중...');
-  var safe=file.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_.-]/g,'_');
-  var path=AUTH.user.id+'/worksamples/'+Date.now()+'-'+safe+'.'+ext;
-  var up=await window.supabase.storage.from(CM_IMAGE_BUCKET).upload(path,uploadBlob,{contentType:uploadBlob.type});
-  if(up.error){toast('업로드 실패: '+up.error.message);return;}
-  var pub=window.supabase.storage.from(CM_IMAGE_BUCKET).getPublicUrl(path);
-  cmWsForm.images.push(pub.data.publicUrl);
+  var wsUrl=await uploadToStorage(uploadBlob,'worksample');
+  if(!wsUrl)return;
+  cmWsForm.images.push(wsUrl);
   cmWsRenderImgs();cmWsCheck();
   toast('이미지를 넣었어요');
 }
@@ -2953,11 +2939,9 @@ async function cmUploadWrImg(file){
     }catch(err){console.error('이미지 압축 실패, 원본으로 업로드:',err);}
   }
   toast('이미지 업로드 중...');
-  var path='review-'+Date.now()+'-'+file.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_.-]/g,'_')+'.'+ext;
-  var up=await window.supabase.storage.from('post-images').upload(path,uploadBlob,{contentType:uploadBlob.type});
-  if(up.error){toast('업로드 실패: '+up.error.message);return;}
-  var pub=window.supabase.storage.from('post-images').getPublicUrl(path);
-  cmWr.images.push(pub.data.publicUrl);
+  var rvUrl=await uploadToStorage(uploadBlob,'review');
+  if(!rvUrl)return;
+  cmWr.images.push(rvUrl);
   document.getElementById('cmWrImgs').innerHTML=cmWrImgsHTML();
   cmCheckWriteSubmit();
   toast('이미지를 넣었어요');
@@ -3220,11 +3204,9 @@ async function cmUploadSampleImg(file){
     }catch(err){console.error('이미지 압축 실패, 원본으로 업로드:',err);}
   }
   toast('이미지 업로드 중...');
-  var path=AUTH.user.id+'/'+Date.now()+'-'+file.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_.-]/g,'_')+'.'+ext;
-  var up=await window.supabase.storage.from(CM_IMAGE_BUCKET).upload(path,uploadBlob,{contentType:uploadBlob.type});
-  if(up.error){toast('업로드 실패: '+up.error.message);return;}
-  var pub=window.supabase.storage.from(CM_IMAGE_BUCKET).getPublicUrl(path);
-  cmReg.images.push(pub.data.publicUrl);
+  var regUrl=await uploadToStorage(uploadBlob,'commission');
+  if(!regUrl)return;
+  cmReg.images.push(regUrl);
   cmRenderRegImgs();
   cmCheckReg();
   toast('이미지를 넣었어요');
@@ -3306,12 +3288,10 @@ async function cmUploadDescImg(file){
     }catch(err){console.error('이미지 압축 실패, 원본으로 업로드:',err);}
   }
   toast('이미지 업로드 중...');
-  var path=AUTH.user.id+'/desc/'+Date.now()+'-'+file.name.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_.-]/g,'_')+'.'+ext;
-  var up=await window.supabase.storage.from(CM_IMAGE_BUCKET).upload(path,uploadBlob,{contentType:uploadBlob.type});
-  if(up.error){toast('업로드 실패: '+up.error.message);return;}
-  var pub=window.supabase.storage.from(CM_IMAGE_BUCKET).getPublicUrl(path);
+  var descUrl=await uploadToStorage(uploadBlob,'cm-desc');
+  if(!descUrl)return;
   cmDescRestoreSelection();
-  document.execCommand('insertHTML',false,'<img src="'+esc(pub.data.publicUrl)+'"><br>');
+  document.execCommand('insertHTML',false,'<img src="'+esc(descUrl)+'"><br>');
   cmCheckReg();
   toast('이미지를 넣었어요');
 }
@@ -3442,13 +3422,6 @@ var cmMyApplications=[];
 // 커미션 삭제(작가 본인만). 확인창 → DB 삭제(RLS가 서버에서도 본인만 허용) → 목록/상세에서 제거.
 // 연결 데이터: commission_images·worksamples·applications·user_ads는 FK on delete cascade로 자동 삭제,
 // 후기(posts.commission_id)·알림·메시지는 on delete set null로 남김(작가 평판 보존 — 2단계에서 스토리지 파일도 정리 예정).
-function cmStoragePathFromUrl(url){ // 공개 URL → 버킷 내부 경로 추출(스토리지 삭제용)
-  if(!url)return null;
-  var marker="/"+CM_IMAGE_BUCKET+"/";
-  var i=url.indexOf(marker);
-  if(i<0)return null;
-  return decodeURIComponent(url.slice(i+marker.length).split("?")[0]);
-}
 async function cmDeleteCommission(id){
   if(id==null||!window.supabase)return;
   if(!(await confirmDialog("이 커미션을 삭제할까요? 삭제하면 되돌릴 수 없어요.")))return;
@@ -3468,8 +3441,7 @@ async function cmDeleteCommission(id){
   var res=await window.supabase.from("commissions").delete().eq("id",id);
   if(res.error){toast("삭제 실패: "+res.error.message);return;}
   // 3) 스토리지 실제 파일 삭제(본인 uid 폴더의 파일만 — 버킷 RLS가 그렇게 허용). 실패해도 삭제 자체엔 지장 없음.
-  var paths=urls.map(cmStoragePathFromUrl).filter(Boolean);
-  if(paths.length){try{await window.supabase.storage.from(CM_IMAGE_BUCKET).remove(paths);}catch(e){}}
+  await deleteFromStorage(urls);
   cmData=cmData.filter(function(c){return c.id!==id;});
   if(Array.isArray(cmMyList))cmMyList=cmMyList.filter(function(c){return c.id!==id;});
   if(cmWsCache)delete cmWsCache[id];
@@ -3985,6 +3957,50 @@ function loadImageFromFile(file){
     img.src=url;
   });
 }
+/* ===== 파일 저장소 (Cloudflare R2) =====
+   예전엔 supabase.storage에 직접 올렸다. 이제는 서버에서 짧은 수명의 서명 URL을 받아
+   브라우저가 R2로 **직접** PUT 한다. 파일이 우리 서버를 거치지 않으므로
+   Vercel의 요청 본문 제한(4.5MB)에 걸리지 않고, 40MB짜리 GIF도 올라간다.
+
+   저장 경로는 서버가 정한다(클라이언트가 경로를 고르면 남의 파일을 덮어쓸 수 있다).
+   성공하면 공개 주소를, 실패하면 null을 돌려주고 안내는 여기서 띄운다. */
+async function uploadToStorage(blob,folder){
+  if(!window.supabase){toast("업로드를 사용할 수 없어요");return null;}
+  var sess=await window.supabase.auth.getSession();
+  var token=sess.data.session?sess.data.session.access_token:null;
+  if(!token){toast("로그인이 필요해요");return null;}
+  var type=blob.type||"application/octet-stream";
+  try{
+    var r=await fetch("/api/storage/upload-url",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},
+      body:JSON.stringify({folder:folder,contentType:type,size:blob.size})
+    });
+    var j=null;try{j=await r.json();}catch(e){}
+    if(!r.ok||!j||!j.ok){toast("업로드 실패: "+((j&&j.message)||"잠시 후 다시 시도해주세요"));return null;}
+    // 서명에 Content-Type이 포함돼 있으므로 여기서도 같은 값을 보내야 한다
+    var put=await fetch(j.uploadUrl,{method:"PUT",body:blob,headers:{"Content-Type":type}});
+    if(!put.ok){toast("업로드 실패: 파일을 저장하지 못했어요");return null;}
+    return j.publicUrl;
+  }catch(e){
+    toast("업로드 실패: 네트워크를 확인해주세요");return null;
+  }
+}
+// 커미션을 지울 때 딸린 이미지 정리. 실패해도 서비스 동작엔 지장 없으므로 조용히 넘어간다.
+async function deleteFromStorage(urls){
+  if(!urls||!urls.length||!window.supabase)return;
+  try{
+    var sess=await window.supabase.auth.getSession();
+    var token=sess.data.session?sess.data.session.access_token:null;
+    if(!token)return;
+    await fetch("/api/storage/delete",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},
+      body:JSON.stringify({urls:urls})
+    });
+  }catch(e){}
+}
+
 function canvasToBlob(canvas,type,quality){
   return new Promise(function(resolve){canvas.toBlob(resolve,type,quality);});
 }
@@ -4033,11 +4049,9 @@ async function uploadAndInsertImage(f){
   }
 
   toast("이미지 업로드 중...");
-  var path=Date.now()+"-"+f.name.replace(/\.[^.]+$/,"").replace(/[^a-zA-Z0-9_.-]/g,"_")+"."+ext;
-  var up=await window.supabase.storage.from("post-images").upload(path,uploadBlob,skippedCompression?undefined:{contentType:uploadBlob.type});
-  if(up.error){toast("업로드 실패: "+up.error.message);return;}
-  var pub=window.supabase.storage.from("post-images").getPublicUrl(path);
-  edState.images.push(pub.data.publicUrl);
+  var postUrl=await uploadToStorage(uploadBlob,"post");
+  if(!postUrl)return;
+  edState.images.push(postUrl);
   edState.img=true;
   renderEdImages();
   insertInlineMedia(pub.data.publicUrl);
@@ -5560,10 +5574,9 @@ async function onCampaignBannerFile(e){
     try{var c=await compressImage(f);uploadBlob=c.blob;ext=c.ext;}catch(err){console.error("배너 압축 실패, 원본 사용:",err);}
   }
   toast("배너 업로드 중...");
-  var path="campaign-"+Date.now()+"-"+f.name.replace(/\.[^.]+$/,"").replace(/[^a-zA-Z0-9_.-]/g,"_")+"."+ext;
-  var up=await window.supabase.storage.from("post-images").upload(path,uploadBlob,f.type==="image/gif"?undefined:{contentType:uploadBlob.type});
-  if(up.error){toast("업로드 실패: "+up.error.message);return;}
-  campaignDraft.imageUrl=window.supabase.storage.from("post-images").getPublicUrl(path).data.publicUrl;
+  var campUrl=await uploadToStorage(uploadBlob,"campaign");
+  if(!campUrl)return;
+  campaignDraft.imageUrl=campUrl;
   var prev=document.getElementById("campBannerPreview");
   if(prev)prev.innerHTML='<img src="'+esc(campaignDraft.imageUrl)+'" style="width:100%;border-radius:10px;display:block">';
   toast("배너 이미지를 등록했어요");
