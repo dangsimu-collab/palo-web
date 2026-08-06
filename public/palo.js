@@ -19,7 +19,8 @@ var BOARDS=[
     {id:"recruit",name:"구인",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"13.5\" cy=\"6.5\" r=\"1\"/><circle cx=\"17.5\" cy=\"10.5\" r=\"1\"/><circle cx=\"8.5\" cy=\"7.5\" r=\"1\"/><circle cx=\"6.5\" cy=\"12.5\" r=\"1\"/><path d=\"M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c1.4 0 2.5-1.1 2.5-2.5 0-.6-.2-1.2-.6-1.6-.4-.4-.6-.9-.6-1.4 0-1.1.9-2 2-2H16c3.3 0 6-2.7 6-6 0-5-4.5-8.5-10-8.5z\"/></svg>"},
     {id:"used",name:"중고",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 12l8-8h6a2 2 0 0 1 2 2v6l-8 8z\"/><circle cx=\"15\" cy=\"9\" r=\"1.4\" fill=\"currentColor\" stroke=\"none\"/></svg>"}]},
   {group:"기타",items:[
-    {id:"suggest",name:"버그·건의사항",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z\"/><path d=\"M12 9v3M12 15h.01\"/></svg>"}]}
+    {id:"suggest",name:"버그·건의사항",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z\"/><path d=\"M12 9v3M12 15h.01\"/></svg>"},
+    {id:"adult",name:"에치치",icon:"<span class=\"ic\" style=\"font-size:18px;line-height:1\">🔞</span>"}]}
 ];
 var CATMAP={talk:{label:"수다",cls:"talk-c"},ask:{label:"고민",cls:"help-c"},crit:{label:"피드백",cls:"crit-c"},
   wip:{label:"작업과정",cls:"crit-c"},doodle:{label:"낙서",cls:"talk-c"},tip:{label:"팁",cls:"tip-c"},challenge:{label:"챌린지",cls:"chal-c"},collab:{label:"협업",cls:"help-c"},
@@ -620,7 +621,7 @@ function renderNav(el){
 }
 // 상단 게시판 탭에 붙는 이모지(게시판 성격에 맞춤). 왼쪽 서랍 메뉴는 기존 선 아이콘 그대로.
 var CHIP_EMOJI={all:"📋",talk:"💬",doodle:"✏️",wip:"🎨",sketch:"📚",ask:"❓",vote:"📊",crit:"💡",
-  collab:"🤝",challenge:"🏆",tip:"📁",request:"🙏",recruit:"🔍",used:"📦",suggest:"🛠"};
+  collab:"🤝",challenge:"🏆",tip:"📁",request:"🙏",recruit:"🔍",used:"📦",suggest:"🛠",adult:"🔞"};
 // 성격이 비슷한 게시판끼리 같은 색 계열로 묶음 — 색만 봐도 대략 어떤 종류인지 알 수 있게(파스텔 톤)
 // g-all 전체(중립) / g-talk 이야기·소통(핑크) / g-art 그림·작업(퍼플) / g-trade 거래(블루) / g-event 함께·이벤트(그린) / g-etc 기타(그레이)
 var CHIP_GROUP={all:"g-all",
@@ -628,7 +629,7 @@ var CHIP_GROUP={all:"g-all",
   doodle:"g-art",wip:"g-art",sketch:"g-art",crit:"g-art",
   request:"g-trade",recruit:"g-trade",used:"g-trade",
   collab:"g-event",challenge:"g-event",tip:"g-event",
-  suggest:"g-etc"};
+  suggest:"g-etc",adult:"g-etc"};
 function chipsHTML(){
   var flat=[{id:"all",name:"전체 글"}];
   BOARDS.forEach(function(g){g.items.forEach(function(b){if(b.id!=="all")flat.push(b)})});
