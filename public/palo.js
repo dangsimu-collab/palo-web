@@ -918,7 +918,7 @@ function renderList(){
         '</div>'+
       '</div>'+
       thumb+
-      '<div class="pcmt"><span class="cn">'+p.comments.length+'</span><span class="cl">댓글</span></div>'+
+      '<div class="pcmt"><span class="cn'+(p.comments.length?' has':'')+'">'+p.comments.length+'</span><span class="cl">댓글</span></div>'+
     '</div>';
     postsSinceAd++;
     if(postsSinceAd>=adGap && idx!==visible.length-1){h+=adRow();postsSinceAd=0;adGap=10+Math.floor(Math.random()*6);}

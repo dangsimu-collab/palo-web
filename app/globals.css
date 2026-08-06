@@ -675,6 +675,35 @@
   .pmeta .cat{padding:2px 7px;font-size:10.5px;line-height:1.3}
   .pmeta{align-items:center}
 
+  /* ===== 게시글 목록 — 디시식 선-구분형 (2026-08-04): 카드 없이 얇은 구분선, 촘촘하게 =====
+     (앞의 규칙들을 확실히 이기도록 목록 CSS 맨 뒤에 둠. 읽기·터치 편한 선은 유지) */
+  .list{background:transparent;border:none;border-radius:0;overflow:visible;box-shadow:none;gap:0}
+  .post{background:transparent;border:none;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;padding:10px 6px;gap:11px;align-items:center;min-height:0}
+  .post:hover{background:var(--surface-2)}
+  .post:active{transform:none;background:var(--surface-2)}
+  .pmain{flex:1;min-width:0;align-self:center}
+  /* 제목: 한 줄, 길면 말줄임 → 행 높이가 균일해져 스캔하기 쉬움 */
+  .ptitle{font-size:14.5px;font-weight:600;line-height:1.4;margin-bottom:4px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-height:none}
+  /* 메타: 한 줄, ㅣ(얇은 세로선)로 구분 */
+  .pmeta{display:flex;align-items:center;gap:6px;margin-top:0;font-size:11.5px;color:var(--muted);flex-wrap:nowrap;overflow:hidden}
+  .pmeta>span{white-space:nowrap}
+  .pmeta .sep{width:1px;height:10px;background:var(--line-2);border-radius:0}
+  .pmeta .cat{padding:1px 6px;font-size:10.5px;line-height:1.4;flex-shrink:0}
+  .pmeta .who{font-weight:700;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;min-width:0}
+  /* 댓글수: 박스 없이 오른쪽 숫자만(댓글 있으면 브랜드색 강조) */
+  .pcmt{background:none;width:auto;min-width:26px;height:auto;flex-shrink:0;gap:0;align-self:center}
+  .pcmt .cn{font-size:14px;font-weight:800;color:var(--muted)}
+  .pcmt .cn.has{color:var(--brand)}
+  .pcmt .cl{display:none}
+  .nthumb{width:46px;height:46px;border-radius:8px;flex-shrink:0}
+  @media(max-width:860px){
+    .post{padding:9px 4px;gap:10px}
+    .ptitle{font-size:14px;margin-bottom:3px}
+    .pmeta{font-size:11px;gap:5px}
+    .pmeta .sep{height:9px}
+    .nthumb{width:42px;height:42px}
+    .pcmt .cn{font-size:13.5px}
+  }
 
   /* 게시글 이미지 미리보기 팝업(PC 호버 / 모바일 길게 누르기) */
   /* 선택한 게시글의 왼쪽 아래에 붙어서 표시(문서 좌표라 그 글과 함께 스크롤됨). 위치는 JS가 지정 */
