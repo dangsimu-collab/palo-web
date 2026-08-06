@@ -898,8 +898,7 @@ function renderList(){
   }
   var main=document.getElementById("main");var arr=filteredPosts();
   var sub=state.query?('"'+esc(state.query)+'" 검색 결과 '+arr.length+'건'):(state.sort==="new"?"방금 올라온 이야기부터":"반응 많은 순으로");
-  var h=boardHeaderHTML(sub); // 제목·정렬·보기·게시판 탭 (배치는 ?layout=a|b|c 로 비교)
-  h+=tagFilterBarHTML();
+  var h=boardHeaderHTML(sub); // 제목·정렬·보기·게시판 탭·말머리 (배치는 ?layout=a|b|c 로 비교)
   if(state.board==="all"&&!state.query){
     if(LATEST_NOTICE)h+='<div class="notice" onclick="showNotice()"><span class="pin">공지</span><span class="nt">📢 '+esc(LATEST_NOTICE.title)+'</span></div>';
     h+='<div class="notice" onclick="openRules()"><span class="pin">공지</span><span class="nt">📌 이용 규칙 & 피드백 매너 (처음 오셨다면 꼭!)</span></div>';
@@ -3309,26 +3308,26 @@ function _bhTitleHTML(sub){
 }
 function _searchNoteHTML(sub){ return state.query?'<div class="bh-note">'+sub+'</div>':''; } // 제목을 없앤 안에서도 검색 결과 안내는 유지
 function boardHeaderHTML(sub){
-  if(LAYOUT==="a"){ // 게시판 탭 맨 위 + 오른쪽에 [최신▾]과 보기 토글 아이콘(제목 없음)
+  if(LAYOUT==="a"){ // 게시판 탭 맨 위 + 같은 줄에 말머리(왼쪽)와 [최신▾]·보기 토글(오른쪽)
     return boardTabsHTML()+
-      '<div class="bh-row bh-a">'+_searchNoteHTML(sub)+
+      '<div class="bh-row bh-a">'+tagFilterBarHTML()+_searchNoteHTML(sub)+
         '<div class="bh-right">'+_sortDropdownHTML()+_viewToggleHTML()+'</div></div>';
   }
   if(LAYOUT==="c"){ // 게시판 탭 맨 위 + 아래 줄에 정렬은 왼쪽 끝·보기는 오른쪽 끝
     return boardTabsHTML()+
-      '<div class="bh-row bh-c">'+_sortBtnsHTML()+_searchNoteHTML(sub)+_viewIconsHTML()+'</div>';
+      '<div class="bh-row bh-c">'+_sortBtnsHTML()+_searchNoteHTML(sub)+_viewIconsHTML()+'</div>'+tagFilterBarHTML();
   }
   if(LAYOUT==="b"){ // 지금 배치 유지 + 정렬(텍스트)/보기(아이콘) 구분 + 구분선
     return '<div class="board-head bh-b">'+_bhTitleHTML(sub)+
         '<div class="bh-controls">'+_sortBtnsHTML()+'<span class="bh-div"></span>'+_viewIconsHTML()+'</div>'+
-      '</div>'+boardTabsHTML();
+      '</div>'+boardTabsHTML()+tagFilterBarHTML();
   }
   return '<div class="board-head">'+_bhTitleHTML(sub)+ // 현재 방식
       '<div class="bh-controls">'+_sortBtnsHTML()+
         '<div class="sortbar viewbar">'+
           '<button class="'+(state.viewMode==="list"?"on":"")+'" onclick="setViewMode(\'list\')">☰ 목록형</button>'+
           '<button class="'+(state.viewMode==="album"?"on":"")+'" onclick="setViewMode(\'album\')">▦ 앨범형</button></div>'+
-      '</div></div>'+boardTabsHTML();
+      '</div></div>'+boardTabsHTML()+tagFilterBarHTML();
 }
 function postCardHTML(p){
   var c=catFor(p);

@@ -741,7 +741,11 @@
   .bh-row{display:flex;align-items:center;gap:10px;padding:8px 4px;margin-bottom:8px;border-bottom:1px solid var(--line)}
   .bh-row .bh-note{font-size:12px;color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .bh-a{justify-content:flex-end}
-  .bh-a .bh-right{display:flex;align-items:center;gap:8px;margin-left:auto}
+  .bh-a .bh-right{display:flex;align-items:center;gap:8px;margin-left:auto;flex:none}
+  /* A안: 말머리를 같은 줄 왼쪽에 — 줄바꿈 없이 가로 스크롤, 위 구분선·아래 여백 제거해 높이를 맞춤 */
+  .bh-a .tagbar{flex:1;min-width:0;margin:0;padding-top:0;border-top:none;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:6px}
+  .bh-a .tagbar::-webkit-scrollbar{display:none}
+  .bh-a .tagbar-btn{flex:none;padding:5px 11px;font-size:12px}
   .bh-c .sortbar{margin-right:auto}
   .bh-c .viewicons{margin-left:auto}
   /* A안: 정렬 드롭다운 */
