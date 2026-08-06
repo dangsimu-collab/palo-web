@@ -362,8 +362,8 @@ export const BODY_HTML = `
     <input id="lgNick" class="nick-in" maxlength="12" placeholder="닉네임 (2~12자)" style="display:none" onkeydown="if(event.key==='Enter')loginSubmit()">
     <button class="r-ok" id="lgSubmit" onclick="loginSubmit()">로그인</button>
     <p class="login-hint" id="loginHint"></p>
+    <button class="login-signup-btn" id="lgToSignup" onclick="setLoginMode('signup')">이메일 없이 회원가입</button>
     <div class="login-links">
-      <button class="login-alt" id="lgToSignup" onclick="setLoginMode('signup')">회원가입</button>
       <button class="login-alt" id="lgToReset" onclick="setLoginMode('reset')">비밀번호 찾기</button>
       <button class="login-alt" id="lgToLogin" onclick="setLoginMode('login')" style="display:none">← 로그인으로 돌아가기</button>
     </div>
