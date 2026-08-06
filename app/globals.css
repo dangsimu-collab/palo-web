@@ -713,6 +713,7 @@
   .catbar{background:rgba(255,255,255,.9);top:67px}
   .catbar-inner{gap:0;padding:0}
   .chip{background:none;border:none;border-radius:0;padding:10px 13px;font-size:13px;font-weight:700;color:var(--muted);position:relative;transition:color .14s,box-shadow .14s}
+  .chip-emo{margin-right:4px;font-size:12px;line-height:1;vertical-align:1px}
   .chip+.chip::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:1px;height:11px;background:var(--line)}
   .chip:hover{background:none;color:var(--brand-2)}
   .chip.on{background:none;color:var(--brand-2);font-weight:800;box-shadow:inset 0 -2.5px 0 var(--brand)}

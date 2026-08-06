@@ -617,11 +617,15 @@ function renderNav(el){
   });
   el.innerHTML=h;
 }
+// 상단 게시판 탭에 붙는 이모지(게시판 성격에 맞춤). 왼쪽 서랍 메뉴는 기존 선 아이콘 그대로.
+var CHIP_EMOJI={all:"📋",intro:"👋",talk:"💬",doodle:"✏️",wip:"🎨",sketch:"📚",ask:"❓",vote:"📊",crit:"🔍",
+  collab:"🤝",challenge:"🏆",tip:"💡",request:"🙏",recruit:"💼",used:"📦",suggest:"🛠"};
 function renderChips(){
   var flat=[{id:"all",name:"전체 글"}];
   BOARDS.forEach(function(g){g.items.forEach(function(b){if(b.id!=="all")flat.push(b)})});
   document.getElementById("chips").innerHTML=flat.map(function(b){
-    return '<button class="chip'+(state.board===b.id?' on':'')+'" onclick="selectBoard(\''+b.id+'\')">'+b.name+'</button>';
+    var emo=CHIP_EMOJI[b.id]?'<span class="chip-emo">'+CHIP_EMOJI[b.id]+'</span>':'';
+    return '<button class="chip'+(state.board===b.id?' on':'')+'" onclick="selectBoard(\''+b.id+'\')">'+emo+b.name+'</button>';
   }).join("");
 }
 function renderHot(){
