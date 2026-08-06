@@ -300,6 +300,16 @@ export const BODY_HTML = `
   </div>
 </div>
 
+<div class="rules-scrim" id="recoveryModal" onclick="if(event.target===this)closeRecoveryEmail()">
+  <div class="rules">
+    <h3>✉️ 복구용 이메일</h3>
+    <p class="nick-hint" id="recoveryCurrent" style="margin-bottom:10px"></p>
+    <input id="recoveryInput" class="nick-in" type="email" autocomplete="email" placeholder="이메일 주소" onkeydown="if(event.key==='Enter')saveRecoveryEmail()">
+    <p class="nick-hint">비밀번호를 잊었을 때 이 주소로 재설정 링크를 받을 수 있어요. 확인 메일의 링크를 눌러야 등록이 끝나요.</p>
+    <p class="login-hint" id="recoveryHint"></p>
+    <button class="r-ok" id="recoverySaveBtn" onclick="saveRecoveryEmail()">확인 메일 보내기</button>
+  </div>
+</div>
 <div class="rules-scrim" id="nickModal" onclick="if(event.target===this)closeNick()">
   <div class="rules">
     <h3>✏️ 닉네임 변경</h3>

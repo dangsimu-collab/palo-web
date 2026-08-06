@@ -589,11 +589,53 @@ async function emailLogin(){
   if(!idOrEmail||!pw){_lgHint("아이디와 비밀번호를 입력해주세요.");return;}
   _lgBusy(true,"로그인 중…");
   try{
-    var r=await window.supabase.auth.signInWithPassword({email:_idToEmail(idOrEmail),password:pw});
-    if(r.error){_lgHint(authErrMsg(r.error.message));_lgBusy(false);return;}
+    if(idOrEmail.indexOf("@")>-1){ // 이메일로 로그인
+      var r=await window.supabase.auth.signInWithPassword({email:idOrEmail,password:pw});
+      if(r.error){_lgHint(authErrMsg(r.error.message));_lgBusy(false);return;}
+    }else{ // 아이디로 로그인 — 서버가 계정을 찾아 로그인시키고 세션만 돌려줌
+      var res=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({loginId:idOrEmail.toLowerCase(),password:pw})});
+      var j=null;try{j=await res.json();}catch(e){}
+      if(!res.ok||!j||!j.ok){_lgHint((j&&j.message)||"아이디 또는 비밀번호가 맞지 않아요.");_lgBusy(false);return;}
+      var s=await window.supabase.auth.setSession({access_token:j.access_token,refresh_token:j.refresh_token});
+      if(s.error){_lgHint("로그인 처리에 실패했어요. 다시 시도해주세요.");_lgBusy(false);return;}
+    }
     closeLoginModal();toast("로그인했어요","✓"); // 세션 반영은 onAuthStateChange가 처리
   }catch(e){_lgHint(authErrMsg(e&&e.message));}
   _lgBusy(false);
+}
+/* ===== 복구용 이메일 등록 =====
+   아이디로 가입한 계정은 연결된 메일함이 없어 비밀번호를 찾을 수 없다.
+   여기서 실제 이메일을 등록하면 확인 메일이 가고, 링크를 누르면 그 이메일이 계정에 연결돼
+   이후 "비밀번호 찾기"를 쓸 수 있다. 아이디 로그인은 login_ids 표 덕분에 그대로 유지된다. */
+function openRecoveryEmail(){
+  var m=document.getElementById("recoveryModal");if(!m)return;
+  var cur=(AUTH.user&&AUTH.user.email)||"";
+  var isInternal=/@users\.commi\.kr$/i.test(cur);
+  var info=document.getElementById("recoveryCurrent");
+  if(info)info.textContent=isInternal?"아직 등록된 이메일이 없어요.":("현재 등록된 이메일: "+cur);
+  var inp=document.getElementById("recoveryInput");if(inp)inp.value="";
+  var hint=document.getElementById("recoveryHint");if(hint)hint.textContent="";
+  m.classList.add("open");document.body.style.overflow="hidden";
+}
+function closeRecoveryEmail(){var m=document.getElementById("recoveryModal");if(m)m.classList.remove("open");document.body.style.overflow="";}
+async function saveRecoveryEmail(){
+  var inp=document.getElementById("recoveryInput"),hint=document.getElementById("recoveryHint"),btn=document.getElementById("recoverySaveBtn");
+  var email=((inp||{}).value||"").trim();
+  var setHint=function(t){if(hint)hint.textContent=t;};
+  if(!email||email.indexOf("@")<1||email.indexOf(".")<0){setHint("이메일 주소를 확인해주세요.");return;}
+  if(/@users\.commi\.kr$/i.test(email)){setHint("실제로 사용하는 이메일을 입력해주세요.");return;}
+  if(!AUTH.user){setHint("로그인 상태를 확인해주세요.");return;}
+  if(btn){btn.disabled=true;btn.textContent="보내는 중…";}
+  try{
+    var r=await window.supabase.auth.updateUser({email:email});
+    if(r.error){setHint(authErrMsg(r.error.message));}
+    else{
+      setHint("확인 메일을 보냈어요. 메일함에서 링크를 눌러야 등록이 끝나요.");
+      toast("확인 메일을 보냈어요 ✉️");
+    }
+  }catch(e){setHint(authErrMsg(e&&e.message));}
+  if(btn){btn.disabled=false;btn.textContent="확인 메일 보내기";}
 }
 // 아이디 회원가입 — 서버(/api/auth/signup)가 인증 완료 상태로 계정을 만들고, 이어서 바로 로그인시킨다.
 async function emailSignup(){
@@ -4922,6 +4964,7 @@ function renderMyProfile(){
      '</div>';
   h+='<div class="pf-group"><div class="pf-group-title">설정</div>'+
      pfRow(pfMiniIcon('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>'),'닉네임 변경',"openNickModal()",{})+
+     pfRow(pfMiniIcon('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>'),'복구용 이메일',"openRecoveryEmail()",{})+
      '</div>';
   h+='<div class="pf-group"><div class="pf-group-title">기타</div>'+
      pfRow(pfMiniIcon('<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/>'),'이용약관',"location.href='/terms'",{})+

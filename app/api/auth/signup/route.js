@@ -62,5 +62,20 @@ export async function POST(request) {
     return bad("가입에 실패했어요. 잠시 후 다시 시도해주세요.", 500);
   }
 
-  return Response.json({ ok: true, userId: data?.user?.id || null });
+  // 아이디 ↔ 계정 연결 기록. 나중에 복구용 이메일을 등록해 로그인 이메일이 바뀌어도
+  // 이 표 덕분에 아이디로 계속 로그인할 수 있다.
+  const userId = data?.user?.id || null;
+  if (userId) {
+    const ins = await supa.from("login_ids").insert({ user_id: userId, login_id: loginId });
+    if (ins.error) {
+      // 연결 기록에 실패하면 로그인이 꼬이므로 만들어진 계정을 되돌린다(중복 아이디 등)
+      try { await supa.auth.admin.deleteUser(userId); } catch (e) {}
+      if (/duplicate|unique/i.test(String(ins.error.message || ""))) {
+        return bad("이미 사용 중인 아이디예요.", 409);
+      }
+      return bad("가입에 실패했어요. 잠시 후 다시 시도해주세요.", 500);
+    }
+  }
+
+  return Response.json({ ok: true, userId });
 }
