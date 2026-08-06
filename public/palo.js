@@ -281,6 +281,10 @@ async function loadRealPosts(skipRender){
     helpfulCountByComment[hf.comment_id]=(helpfulCountByComment[hf.comment_id]||0)+1;
     if(AUTH.user&&hf.user_id===AUTH.user.id)helpfulMine[hf.comment_id]=true;
   });
+  // 댓글에 박힌 이모티콘 번호를 모아 한 번에 불러온다(렌더는 동기라 미리 채워둬야 한다)
+  var _emoIds=[];
+  (cmRes.data||[]).forEach(function(c){_emoIds=_emoIds.concat(emoIdsIn(c.content));});
+  if(_emoIds.length)await ensureEmoticons(_emoIds);
   var commentsByPost={};
   (cmRes.data||[]).forEach(function(c){
     (commentsByPost[c.post_id]=commentsByPost[c.post_id]||[]).push({n:nameFor(c.author_id),t:timeAgo(c.created_at),txt:c.content,dbId:c.id,authorId:c.author_id,ip:c.ip_masked||null,lv:levelFor(c.author_id),av:avatarFor(c.author_id),h:helpfulCountByComment[c.id]||0,_me:!!helpfulMine[c.id]});
@@ -479,6 +483,7 @@ async function applySession(session){
     // 이미 알림 권한을 켠 유저면 로그인 시 이 계정으로 구독을 확실히 저장(기기별 1회)
     if(typeof subscribeToPush==="function"&&notifPermState()==="granted")subscribeToPush();
     loadMyFollows(); // 내 팔로우 목록 로드
+    loadMyEmoticons(); // 담아둔 이모티콘 팩
     maybeShowConsent(); // 신규 가입자면 약관·개인정보 동의 창 표시
   }else{
     ME.nick="나";
@@ -1339,7 +1344,7 @@ function renderPostDetail(id){
     '<div class="comments"><div class="cm-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>훈수 · 크리틱 '+p.comments.length+'</div>'+
     (p.board==='crit'?'<div class="cm-accept-info">💡 마음에 든 피드백을 <b>채택</b>하면 그 작성자에게 <b>광고 25점 + 활동 25점</b>을 지급해요 (하루 최대 100점).</div>':'')+
     '<div class="cm-write"><div class="d-ava serif" id="cmAva">'+avatarHTML("나",AUTH.profile&&AUTH.profile.avatar_url)+'</div><div class="box"><textarea id="cmInput" placeholder="따뜻한 피드백을 남겨주세요. 사람보다 그림을 이야기해요."></textarea>'+
-    '<div class="row"><span class="hint">인신공격·조롱은 삭제될 수 있어요</span><button class="send" onclick="addComment('+p.id+')">등록</button></div></div></div>'+
+    '<div class="row"><button class="emo-btn" type="button" onclick="openEmoticonPicker(&quot;cmInput&quot;)" aria-label="이모티콘">🙂</button><span class="hint">인신공격·조롱은 삭제될 수 있어요</span><button class="send" onclick="addComment('+p.id+')">등록</button></div></div></div>'+
     '<div class="ad d-ad" role="complementary" aria-label="광고"><span class="ad-label">AD</span><div class="ad-ph"><svg viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"1.6\\" style=\\"width:22px;height:22px\\"><rect x=\\"3\\" y=\\"4\\" width=\\"18\\" height=\\"16\\" rx=\\"2\\"/><circle cx=\\"8.5\\" cy=\\"9.5\\" r=\\"1.6\\"/><path d=\\"m4 18 5-5 4 3 3-2 4 4\\"/></svg></div><div class="ad-body"><div class="ad-t">열심히 활동해서 포인트를 모아보세요!</div><div class="ad-d">포인트를 사용하여 이 자리에 광고를 집행할 수 있어요!</div></div></div>'+'<div class="cm-list" id="cmList">'+renderComments(p)+'</div></div></div>';
   main.innerHTML=h;
   renderDetailAd();
@@ -1930,7 +1935,7 @@ function renderComments(p){
       : '';
     var badge=isAccepted?'<div class="cm-accepted-badge">✅ 채택된 피드백</div>':'';
     var isReply=/^\s*@\S/.test(c.txt||''); // "@닉네임"으로 시작하면 답글
-    return '<div class="cm'+(isAccepted?' accepted':'')+(isReply?' reply':'')+'"><div class="d-ava serif">'+avatarHTML(c.n,c.av)+'</div><div class="cbody">'+badge+'<div class="ch"><span class="cn"'+(c.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+c.authorId+'\')"':'')+'>'+esc(c.n)+anonIpHTML(c.ip)+'</span>'+levelBadgeHtml(c.lv,"lv-badge")+'<span class="ct">'+esc(c.t)+'</span></div><div class="ctext">'+esc(c.txt).replace(/^@(\S+)/,'<b class="mention">@$1</b>')+'</div><div class="cfoot"><span onclick="helpful('+p.id+','+ci+',this)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 6h5a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7"/></svg>도움돼요'+(c.h?' <b>'+c.h+'</b>':'')+'</span><span onclick="replyTo(\''+esc(c.n)+'\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>답글</span>'+(canDelete?'<span onclick="deleteComment('+p.id+','+ci+')">삭제</span>':'')+acceptBtn+'</div></div></div>';
+    return '<div class="cm'+(isAccepted?' accepted':'')+(isReply?' reply':'')+'"><div class="d-ava serif">'+avatarHTML(c.n,c.av)+'</div><div class="cbody">'+badge+'<div class="ch"><span class="cn"'+(c.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+c.authorId+'\')"':'')+'>'+esc(c.n)+anonIpHTML(c.ip)+'</span>'+levelBadgeHtml(c.lv,"lv-badge")+'<span class="ct">'+esc(c.t)+'</span></div><div class="ctext">'+withEmoticons(esc(c.txt).replace(/^@(\S+)/,'<b class="mention">@$1</b>'))+'</div><div class="cfoot"><span onclick="helpful('+p.id+','+ci+',this)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 6h5a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7"/></svg>도움돼요'+(c.h?' <b>'+c.h+'</b>':'')+'</span><span onclick="replyTo(\''+esc(c.n)+'\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>답글</span>'+(canDelete?'<span onclick="deleteComment('+p.id+','+ci+')">삭제</span>':'')+acceptBtn+'</div></div></div>';
   }).join("");
 }
 async function acceptFeedback(postId,commentDbId,isCancel){
@@ -4007,6 +4012,249 @@ async function deleteFromStorage(urls){
   }catch(e){}
 }
 
+/* ===== 이모티콘 =====
+   회원이 만든 이모티콘을 팩 단위로 담아 댓글에서 쓴다.
+   본문에는 주소가 아니라 `[[e:12]]` 같은 **번호 토큰만** 저장하고, 그릴 때 우리 DB의
+   주소로만 바꾼다. 본문에 URL을 그대로 넣게 하면 외부 이미지를 심을 수 있기 때문. */
+var EMO_BY_ID={};      // 번호 → {url} — 화면에 그릴 때 쓰는 캐시
+var MY_EMO_PACKS=[];   // 내 이모티콘함(담아둔 팩)
+var EMO_PICKER_TARGET=null; // 이모티콘을 넣을 입력창 id
+
+function emoIdsIn(text){
+  var ids=[],m,re=/\[\[e:(\d+)\]\]/g;
+  while((m=re.exec(String(text||""))))ids.push(Number(m[1]));
+  return ids;
+}
+// 아직 모르는 번호만 골라 한 번에 채운다(댓글마다 조회하지 않도록)
+async function ensureEmoticons(ids){
+  if(!window.supabase||!ids||!ids.length)return;
+  var need=[];
+  ids.forEach(function(id){if(id&&!EMO_BY_ID[id]&&need.indexOf(id)<0)need.push(id);});
+  if(!need.length)return;
+  try{
+    var r=await window.supabase.from("emoticons").select("id,url").in("id",need);
+    (r.data||[]).forEach(function(e){EMO_BY_ID[e.id]={url:e.url};});
+  }catch(e){}
+}
+// esc()를 거친 문자열에서 토큰만 이미지로 바꾼다.
+// 모르는 번호(지워진 이모티콘)는 조용히 지운다.
+function withEmoticons(escapedText){
+  return String(escapedText).replace(/\[\[e:(\d+)\]\]/g,function(_,id){
+    var e=EMO_BY_ID[id];
+    if(!e)return "";
+    return '<img class="emo" src="'+esc(e.url)+'" alt="이모티콘" loading="lazy">';
+  });
+}
+
+async function loadMyEmoticons(){
+  MY_EMO_PACKS=[];
+  if(!AUTH.user||!window.supabase)return;
+  try{
+    var mine=await window.supabase.from("user_emoticon_packs").select("pack_id").order("added_at",{ascending:false});
+    var ids=(mine.data||[]).map(function(r){return r.pack_id;});
+    if(!ids.length)return;
+    var res=await Promise.all([
+      window.supabase.from("emoticon_packs").select("id,title,status").in("id",ids),
+      window.supabase.from("emoticons").select("id,pack_id,url,sort").in("pack_id",ids).order("sort")
+    ]);
+    var byId={};
+    (res[0].data||[]).forEach(function(p){ if(p.status==="public")byId[p.id]={id:p.id,title:p.title,items:[]}; });
+    (res[1].data||[]).forEach(function(e){
+      EMO_BY_ID[e.id]={url:e.url};
+      if(byId[e.pack_id])byId[e.pack_id].items.push({id:e.id,url:e.url});
+    });
+    MY_EMO_PACKS=ids.map(function(id){return byId[id];}).filter(Boolean); // 담은 순서 유지
+  }catch(e){}
+}
+
+/* ── 피커 ── */
+function openEmoticonPicker(targetInputId){
+  if(!AUTH.user){toast("로그인이 필요해요");return;}
+  EMO_PICKER_TARGET=targetInputId;
+  var m=document.getElementById("emoPicker");if(!m)return;
+  renderEmoticonPicker();
+  m.classList.add("open");
+}
+function closeEmoticonPicker(){
+  var m=document.getElementById("emoPicker");if(m)m.classList.remove("open");
+  EMO_PICKER_TARGET=null;
+}
+var _emoTab=0;
+function renderEmoticonPicker(){
+  var body=document.getElementById("emoPickerBody");if(!body)return;
+  if(!MY_EMO_PACKS.length){
+    body.innerHTML='<div class="emo-empty">담아둔 이모티콘이 없어요.<br>'+
+      '<button class="emo-go" onclick="closeEmoticonPicker();openEmoticonMarket()">이모티콘 둘러보기</button></div>';
+    return;
+  }
+  if(_emoTab>=MY_EMO_PACKS.length)_emoTab=0;
+  var tabs=MY_EMO_PACKS.map(function(p,i){
+    return '<button class="emo-tab'+(i===_emoTab?' on':'')+'" onclick="_emoTab='+i+';renderEmoticonPicker()">'+esc(p.title)+'</button>';
+  }).join("");
+  var pack=MY_EMO_PACKS[_emoTab];
+  var grid=pack.items.map(function(e){
+    return '<button class="emo-cell" onclick="pickEmoticon('+e.id+')"><img src="'+esc(e.url)+'" alt="" loading="lazy"></button>';
+  }).join("")||'<div class="emo-empty">이 팩은 비어 있어요.</div>';
+  body.innerHTML='<div class="emo-tabs">'+tabs+'</div><div class="emo-grid">'+grid+'</div>';
+}
+// 입력창 커서 위치에 토큰을 넣는다
+function pickEmoticon(id){
+  var inp=document.getElementById(EMO_PICKER_TARGET||"cmInput");
+  if(!inp){closeEmoticonPicker();return;}
+  var tok="[[e:"+id+"]]";
+  var s=inp.selectionStart==null?inp.value.length:inp.selectionStart;
+  var e=inp.selectionEnd==null?s:inp.selectionEnd;
+  inp.value=inp.value.slice(0,s)+tok+inp.value.slice(e);
+  var pos=s+tok.length;
+  try{inp.setSelectionRange(pos,pos);}catch(err){}
+  inp.focus();
+  closeEmoticonPicker();
+}
+
+/* ── 이모티콘 둘러보기 ── */
+var EMO_MARKET=[]; // 공개된 팩 목록
+async function openEmoticonMarket(){
+  if(!window.supabase)return;
+  enterScreen("emoMarket",openProfile); // 뒤로가기가 프로필로 복귀
+  document.getElementById("main").innerHTML='<div class="profile"><div class="pf-sec">🙂 이모티콘</div><div class="pf-empty">불러오는 중…</div></div>';
+  var res=await Promise.all([
+    window.supabase.from("emoticon_packs").select("id,title,author_id,created_at").eq("status","public").order("created_at",{ascending:false}).limit(60),
+    AUTH.user?window.supabase.from("user_emoticon_packs").select("pack_id"):Promise.resolve({data:[]})
+  ]);
+  var packs=res[0].data||[];
+  var mineSet={};(res[1].data||[]).forEach(function(r){mineSet[r.pack_id]=true;});
+  var ids=packs.map(function(p){return p.id;});
+  var itemsRes=ids.length?await window.supabase.from("emoticons").select("id,pack_id,url,sort").in("pack_id",ids).order("sort"):{data:[]};
+  var byPack={};
+  (itemsRes.data||[]).forEach(function(e){
+    EMO_BY_ID[e.id]={url:e.url};
+    (byPack[e.pack_id]=byPack[e.pack_id]||[]).push(e);
+  });
+  var authorIds=Array.from(new Set(packs.map(function(p){return p.author_id;}).filter(Boolean)));
+  var profRes=authorIds.length?await window.supabase.from("profiles").select("id,nickname").in("id",authorIds):{data:[]};
+  var nick={};(profRes.data||[]).forEach(function(p){nick[p.id]=p.nickname;});
+  EMO_MARKET=packs.map(function(p){
+    return {id:p.id,title:p.title,author:nick[p.author_id]||"알 수 없음",authorId:p.author_id,
+      items:(byPack[p.id]||[]).slice(0,6),count:(byPack[p.id]||[]).length,mine:!!mineSet[p.id]};
+  });
+  renderEmoticonMarket();
+}
+function renderEmoticonMarket(){
+  var h='<div class="profile">'+
+    '<button class="d-back" onclick="screenBack()">← 내 정보로</button>'+
+    '<div class="pf-sec">🙂 이모티콘</div>'+
+    (AUTH.user?'<button class="pf-edit" onclick="openEmoticonStudio()" style="margin-bottom:14px">+ 내 이모티콘 만들기</button>':'');
+  if(!EMO_MARKET.length){
+    h+='<div class="pf-empty">아직 등록된 이모티콘이 없어요.<br>처음으로 만들어보세요!</div>';
+  }else{
+    h+=EMO_MARKET.map(function(p){
+      var prev=p.items.map(function(e){return '<img src="'+esc(e.url)+'" alt="" loading="lazy">';}).join("");
+      return '<div class="emo-pack">'+
+        '<div class="emo-pack-head"><div><div class="emo-pack-title">'+esc(p.title)+'</div>'+
+        '<div class="emo-pack-sub">'+esc(p.author)+' · '+p.count+'개</div></div>'+
+        (AUTH.user?'<button class="emo-add'+(p.mine?' on':'')+'" onclick="togglePack('+p.id+')">'+(p.mine?'담음':'담기')+'</button>':'')+
+        '</div><div class="emo-pack-prev">'+prev+'</div></div>';
+    }).join("");
+  }
+  h+='</div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+async function togglePack(packId){
+  if(!AUTH.user){toast("로그인이 필요해요");return;}
+  var p=EMO_MARKET.find(function(x){return x.id===packId;});if(!p)return;
+  if(p.mine){
+    var d=await window.supabase.from("user_emoticon_packs").delete().eq("user_id",AUTH.user.id).eq("pack_id",packId);
+    if(d.error){toast("실패: "+d.error.message);return;}
+    p.mine=false;toast("이모티콘함에서 뺐어요");
+  }else{
+    var i=await window.supabase.from("user_emoticon_packs").insert({user_id:AUTH.user.id,pack_id:packId});
+    if(i.error){toast("실패: "+i.error.message);return;}
+    p.mine=true;toast("이모티콘함에 담았어요","🙂");
+  }
+  await loadMyEmoticons();
+  renderEmoticonMarket();
+}
+
+/* ── 이모티콘 만들기 ── */
+var emoStudio={title:"",images:[]};
+function openEmoticonStudio(){
+  if(!AUTH.user){toast("로그인이 필요해요");return;}
+  emoStudio={title:"",images:[]};
+  enterScreen("emoStudio",openEmoticonMarket);
+  renderEmoticonStudio();
+}
+function renderEmoticonStudio(){
+  var imgs=emoStudio.images.map(function(url,i){
+    return '<div class="emo-slot"><img src="'+esc(url)+'" alt=""><button class="emo-del" onclick="emoRemoveImage('+i+')">×</button></div>';
+  }).join("");
+  var canAdd=emoStudio.images.length<24;
+  document.getElementById("main").innerHTML='<div class="profile">'+
+    '<button class="d-back" onclick="screenBack()">← 이모티콘 목록으로</button>'+
+    '<div class="pf-sec">✏️ 이모티콘 만들기</div>'+
+    '<input id="emoTitle" class="nick-in" maxlength="20" placeholder="팩 이름 (예: 우리 고양이)" value="'+esc(emoStudio.title)+'" oninput="emoStudio.title=this.value">'+
+    '<p class="nick-hint">투명 배경 PNG를 권장해요. 움직이는 GIF도 됩니다. 2~24개까지 넣을 수 있어요.</p>'+
+    '<div class="emo-slots">'+imgs+
+      (canAdd?'<button class="emo-slot add" onclick="document.getElementById(\'emoFile\').click()">+</button>':'')+
+    '</div>'+
+    '<p class="login-hint" id="emoStudioHint"></p>'+
+    '<button class="r-ok" id="emoSaveBtn" onclick="saveEmoticonPack()" style="margin-top:6px">이모티콘 등록</button>'+
+    '</div>';
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function emoRemoveImage(i){emoStudio.images.splice(i,1);renderEmoticonStudio();}
+async function onEmoticonFile(ev){
+  var files=Array.from(ev.target.files||[]);ev.target.value="";
+  if(!files.length)return;
+  for(var i=0;i<files.length;i++){
+    if(emoStudio.images.length>=24){toast("24개까지만 넣을 수 있어요");break;}
+    var f=files[i];
+    if(ALLOWED_IMAGE_TYPES.indexOf(f.type)===-1){toast("이미지 파일만 올릴 수 있어요");continue;}
+    if(f.size>MAX_IMAGE_BYTES){toast("40MB 이하만 올릴 수 있어요");continue;}
+    toast("올리는 중… ("+(i+1)+"/"+files.length+")");
+    // GIF는 움직임이 깨지니 원본 그대로, 나머지는 줄여서 올린다
+    var blob=f;
+    if(f.type!=="image/gif"){
+      try{var c=await compressImage(f);blob=c.blob;}catch(e){}
+    }
+    var url=await uploadToStorage(blob,"emoticon");
+    if(!url)break;
+    emoStudio.images.push(url);
+    renderEmoticonStudio();
+  }
+  toast("이미지를 넣었어요");
+}
+async function saveEmoticonPack(){
+  var hint=document.getElementById("emoStudioHint");
+  var setHint=function(t){if(hint)hint.textContent=t||"";};
+  var title=(emoStudio.title||"").trim();
+  if(title.length<2){setHint("팩 이름을 2자 이상 적어주세요.");return;}
+  if(emoStudio.images.length<2){setHint("이모티콘을 2개 이상 넣어주세요.");return;}
+  var btn=document.getElementById("emoSaveBtn");
+  if(btn){btn.disabled=true;btn.textContent="등록 중…";}
+  var pack=await window.supabase.from("emoticon_packs")
+    .insert({author_id:AUTH.user.id,title:title,cover_url:emoStudio.images[0]}).select().single();
+  if(pack.error){
+    setHint("등록에 실패했어요: "+pack.error.message);
+    if(btn){btn.disabled=false;btn.textContent="이모티콘 등록";}
+    return;
+  }
+  var rows=emoStudio.images.map(function(url,i){return {pack_id:pack.data.id,url:url,sort:i};});
+  var ins=await window.supabase.from("emoticons").insert(rows);
+  if(ins.error){
+    // 이모티콘이 하나도 안 들어간 빈 팩이 남지 않게 되돌린다
+    try{await window.supabase.from("emoticon_packs").delete().eq("id",pack.data.id);}catch(e){}
+    setHint("등록에 실패했어요: "+ins.error.message);
+    if(btn){btn.disabled=false;btn.textContent="이모티콘 등록";}
+    return;
+  }
+  // 만든 사람은 바로 쓸 수 있게 자동으로 담아준다
+  try{await window.supabase.from("user_emoticon_packs").insert({user_id:AUTH.user.id,pack_id:pack.data.id});}catch(e){}
+  await loadMyEmoticons();
+  toast("이모티콘을 등록했어요","🙂");
+  openEmoticonMarket();
+}
+
 function canvasToBlob(canvas,type,quality){
   return new Promise(function(resolve){canvas.toBlob(resolve,type,quality);});
 }
@@ -5156,6 +5404,7 @@ function renderMyProfile(){
   h+='<div class="pf-group"><div class="pf-group-title">내 활동</div>'+
      pfRow(pfMiniIcon('<path d="M8 12l3 3 5-5"/><path d="M3 10l5-5 4 3 4-3 5 5-6 8H9z"/>'),'내 커미션',"cmOpenMy()",{})+
      pfRow(pfMiniIcon('<path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8 8.38 8.38 0 0 1 8.5-8.5 8.5 8.5 0 0 1 8.5 8.5z"/>'),'채팅 목록',"openChatList('profile')",{})+
+     pfRow(pfMiniIcon('<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/>'),'이모티콘',"openEmoticonMarket()",{})+
      pfRow(pfMiniIcon('<circle cx="12" cy="12" r="9"/><path d="M12 8v8M9 12h6"/>'),'포인트 내역',"openScoreLog()",{})+
      '</div>';
   h+='<div class="pf-group" id="notifSettingsSec"><div class="pf-group-title">알림 설정</div>'+notifEnableHTML()+

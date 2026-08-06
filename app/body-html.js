@@ -310,6 +310,16 @@ export const BODY_HTML = `
     <button class="r-ok" id="recoverySaveBtn" onclick="saveRecoveryEmail()">확인 메일 보내기</button>
   </div>
 </div>
+<input type="file" id="emoFile" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" multiple class="hidden" onchange="onEmoticonFile(event)">
+<div class="emo-picker" id="emoPicker" onclick="if(event.target===this)closeEmoticonPicker()">
+  <div class="emo-picker-box">
+    <div class="emo-picker-head">
+      <span>이모티콘</span>
+      <button class="emo-picker-x" onclick="closeEmoticonPicker()" aria-label="닫기">×</button>
+    </div>
+    <div id="emoPickerBody"></div>
+  </div>
+</div>
 <div class="rules-scrim" id="adultModal" onclick="if(event.target===this)closeAdultGate()">
   <div class="rules">
     <h3>🔞 성인 인증이 필요해요</h3>

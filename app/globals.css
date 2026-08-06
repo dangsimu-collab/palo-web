@@ -997,6 +997,54 @@
   .rules ol{margin:0 0 18px 20px;font-size:13.5px;line-height:1.9;color:var(--ink-2)}
   .rules ol li{margin-bottom:6px}
   .rules .r-ok{width:100%;background:linear-gradient(120deg,var(--brand),var(--grape));color:#fff;border:none;padding:13px;border-radius:13px;font-weight:800;font-size:14px;cursor:pointer;font-family:inherit}
+  /* ===== 이모티콘 ===== */
+  /* 본문 속 이모티콘 — 글자 사이에 자연스럽게 놓이도록 블록이 아닌 인라인으로 */
+  .emo{display:inline-block;vertical-align:middle;width:auto;height:72px;max-width:100%;margin:2px 1px}
+  .ctext .emo{height:72px}
+  /* 댓글 입력창의 이모티콘 버튼 */
+  .emo-btn{background:none;border:none;font-size:19px;line-height:1;cursor:pointer;padding:2px 6px 2px 0;opacity:.75;transition:opacity .14s}
+  .emo-btn:hover{opacity:1}
+  /* 피커 — 아래에서 올라오는 시트 */
+  .emo-picker{display:none;position:fixed;inset:0;z-index:120;background:rgba(40,25,35,.32);align-items:flex-end;justify-content:center}
+  .emo-picker.open{display:flex}
+  .emo-picker-box{background:var(--surface);width:100%;max-width:520px;border-radius:20px 20px 0 0;
+    max-height:62vh;display:flex;flex-direction:column;box-shadow:var(--sh-lg);
+    padding-bottom:env(safe-area-inset-bottom,0)}
+  .emo-picker-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 10px;
+    font-size:14px;font-weight:800;color:var(--ink);border-bottom:1px solid var(--line)}
+  .emo-picker-x{background:none;border:none;font-size:22px;line-height:1;color:var(--muted);cursor:pointer;padding:0 2px}
+  #emoPickerBody{overflow-y:auto;padding:10px 14px 16px}
+  .emo-tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:10px}
+  .emo-tabs::-webkit-scrollbar{display:none}
+  .emo-tab{background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:6px 12px;
+    font-size:12.5px;font-weight:700;color:var(--ink-2);cursor:pointer;white-space:nowrap;font-family:inherit}
+  .emo-tab.on{background:var(--brand);border-color:var(--brand);color:#fff}
+  .emo-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .emo-cell{background:none;border:none;padding:6px;border-radius:12px;cursor:pointer;transition:background .12s}
+  .emo-cell:hover{background:var(--surface-2)}
+  .emo-cell img{width:100%;aspect-ratio:1;object-fit:contain;display:block}
+  .emo-empty{text-align:center;color:var(--muted);font-size:13px;padding:26px 0;line-height:1.7}
+  .emo-go{margin-top:10px;background:var(--brand);color:#fff;border:none;border-radius:11px;
+    padding:9px 16px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit}
+  /* 팩 목록 */
+  .emo-pack{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:10px}
+  .emo-pack-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+  .emo-pack-title{font-size:14px;font-weight:800;color:var(--ink)}
+  .emo-pack-sub{font-size:12px;color:var(--muted);margin-top:2px}
+  .emo-add{background:var(--brand);color:#fff;border:none;border-radius:999px;padding:7px 15px;
+    font-size:12.5px;font-weight:800;cursor:pointer;flex-shrink:0;font-family:inherit}
+  .emo-add.on{background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+  .emo-pack-prev{display:flex;gap:6px;overflow:hidden}
+  .emo-pack-prev img{width:52px;height:52px;object-fit:contain;flex-shrink:0}
+  /* 만들기 화면 */
+  .emo-slots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}
+  .emo-slot{position:relative;aspect-ratio:1;border:1px solid var(--line);border-radius:12px;
+    background:var(--surface-2);display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .emo-slot img{width:100%;height:100%;object-fit:contain}
+  .emo-slot.add{border-style:dashed;font-size:24px;color:var(--muted);cursor:pointer;font-family:inherit}
+  .emo-del{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;border:none;
+    background:rgba(0,0,0,.55);color:#fff;font-size:14px;line-height:1;cursor:pointer;padding:0}
+
   /* 신고 안내 문구 강조(입력이 부족할 때) */
   .nick-hint.rp-urgent,.login-hint.rp-urgent{color:#c0392b;font-weight:700}
   /* 블라인드된 글 — 작성자·운영자에게만 보이므로 상태를 분명히 알린다 */
