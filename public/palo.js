@@ -618,14 +618,23 @@ function renderNav(el){
   el.innerHTML=h;
 }
 // 상단 게시판 탭에 붙는 이모지(게시판 성격에 맞춤). 왼쪽 서랍 메뉴는 기존 선 아이콘 그대로.
-var CHIP_EMOJI={all:"📋",intro:"👋",talk:"💬",doodle:"✏️",wip:"🎨",sketch:"📚",ask:"❓",vote:"📊",crit:"🔍",
-  collab:"🤝",challenge:"🏆",tip:"💡",request:"🙏",recruit:"💼",used:"📦",suggest:"🛠"};
+var CHIP_EMOJI={all:"📋",intro:"🙋",talk:"💬",doodle:"✏️",wip:"🎨",sketch:"📚",ask:"❓",vote:"📊",crit:"💡",
+  collab:"🤝",challenge:"🏆",tip:"📁",request:"🙏",recruit:"🔍",used:"📦",suggest:"🛠"};
+// 성격이 비슷한 게시판끼리 같은 색 계열로 묶음 — 색만 봐도 대략 어떤 종류인지 알 수 있게(파스텔 톤)
+// g-all 전체(중립) / g-talk 이야기·소통(핑크) / g-art 그림·작업(퍼플) / g-trade 거래(블루) / g-event 함께·이벤트(그린) / g-etc 기타(그레이)
+var CHIP_GROUP={all:"g-all",
+  intro:"g-talk",talk:"g-talk",ask:"g-talk",vote:"g-talk",
+  doodle:"g-art",wip:"g-art",sketch:"g-art",crit:"g-art",
+  request:"g-trade",recruit:"g-trade",used:"g-trade",
+  collab:"g-event",challenge:"g-event",tip:"g-event",
+  suggest:"g-etc"};
 function chipsHTML(){
   var flat=[{id:"all",name:"전체 글"}];
   BOARDS.forEach(function(g){g.items.forEach(function(b){if(b.id!=="all")flat.push(b)})});
   return flat.map(function(b){
     var emo=CHIP_EMOJI[b.id]?'<span class="chip-emo">'+CHIP_EMOJI[b.id]+'</span>':'';
-    return '<button class="chip'+(state.board===b.id?' on':'')+'" onclick="selectBoard(\''+b.id+'\')">'+emo+b.name+'</button>';
+    var grp=CHIP_GROUP[b.id]||"g-etc"; // 성격별 색 계열
+    return '<button class="chip '+grp+(state.board===b.id?' on':'')+'" onclick="selectBoard(\''+b.id+'\')">'+emo+b.name+'</button>';
   }).join("");
 }
 // 게시판 탭은 화면 최상단이 아니라 목록 위(최신·인기 탭 바로 아래)에 그림 → renderList가 이 HTML을 끼워 넣음

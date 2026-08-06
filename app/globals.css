@@ -769,6 +769,38 @@
     .viewicons .vi{width:28px;height:28px}
   }
 
+  /* ===== 게시판 탭: 아이콘 + 성격별 색 구분 (2026-08-04) =====
+     한 줄 가로 배치·가로 스크롤은 그대로. 비슷한 성격끼리 같은 색 계열이라 색만 봐도 종류가 보임(파스텔, 은은하게) */
+  .catbar-inner{gap:5px;padding:7px 0}
+  .chip{border:1px solid transparent;border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:700;background:var(--surface-2);color:var(--ink-2);box-shadow:none}
+  .chip+.chip::before{display:none} /* 색 칩이 구분해주므로 세로선 제거 */
+  .chip:hover{filter:brightness(.97)}
+  .chip.on{font-weight:800;box-shadow:none}
+  .chip-emo{margin-right:5px;font-size:12.5px}
+  /* 전체 글 — 특정 분류가 아니므로 중립색 */
+  .chip.g-all{background:#f1ecef;color:#6b5763}
+  .chip.g-all.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  /* 이야기·소통 — 핑크 */
+  .chip.g-talk{background:#fbeef4;color:#c2568a}
+  .chip.g-talk.on{background:#f6d8e8;color:#ad4172;border-color:#e59cbc}
+  /* 그림·작업 — 퍼플 */
+  .chip.g-art{background:#f1edfb;color:#7566bd}
+  .chip.g-art.on{background:#e4dbf7;color:#5f4fa8;border-color:#a99ae0}
+  /* 거래 — 블루 */
+  .chip.g-trade{background:#e9f4fa;color:#4a8ba7}
+  .chip.g-trade.on{background:#d7ebf5;color:#37738d;border-color:#93c6dc}
+  /* 함께·이벤트 — 그린 */
+  .chip.g-event{background:#eef5e7;color:#6d9143}
+  .chip.g-event.on{background:#e0eed2;color:#587a33;border-color:#a9c98a}
+  /* 기타 — 그레이 */
+  .chip.g-etc{background:#f0eef0;color:#7b7079}
+  .chip.g-etc.on{background:#e3dfe3;color:#5f555d;border-color:#c3bcc2}
+  @media(max-width:860px){
+    .catbar-inner{gap:4px;padding:6px 0}
+    .chip{padding:6px 10px;font-size:12px}
+    .chip-emo{margin-right:4px;font-size:12px}
+  }
+
   /* 게시글 이미지 미리보기 팝업(PC 호버 / 모바일 길게 누르기) */
   /* 선택한 게시글의 왼쪽 아래에 붙어서 표시(문서 좌표라 그 글과 함께 스크롤됨). 위치는 JS가 지정 */
   #imgPreview{position:absolute;z-index:200;display:none;pointer-events:none;background:var(--surface);border:1.5px solid var(--line-2);border-radius:14px;box-shadow:var(--sh-lg);padding:5px;opacity:0;transform:scale(.96);transition:opacity .12s,transform .12s}
