@@ -1003,6 +1003,21 @@
     body.hscroll-drag,body.hscroll-drag *{cursor:grabbing!important;user-select:none!important}
   }
 
+  /* 액션 시트(더보기 메뉴) — 게시판 이동 시트와 같은 모양을 쓰되 항목만 다르게 */
+  .action-sheet{padding-bottom:calc(14px + env(safe-area-inset-bottom,0px))}
+  .action-sheet .sh-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .as-item{display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;
+    padding:14px 6px;font-family:inherit;font-size:14.5px;font-weight:700;color:var(--ink);
+    cursor:pointer;text-align:left;border-radius:12px;transition:background .12s}
+  .as-item:hover:not(:disabled){background:var(--surface-2)}
+  .as-item:disabled{opacity:.45;cursor:not-allowed}
+  .as-item.danger{color:#c0392b}
+  .as-ic{flex-shrink:0;width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+  .as-item.danger .as-ic{color:#c0392b}
+  .as-ic svg{width:20px;height:20px}
+  .as-label{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .as-desc{font-size:12px;font-weight:600;color:var(--muted)}
+
   /* ===== 이모티콘 ===== */
   /* 본문 속 이모티콘 — 글자 사이에 자연스럽게 놓이도록 블록이 아닌 인라인으로 */
   .emo{display:inline-block;vertical-align:middle;width:auto;height:72px;max-width:100%;margin:2px 1px}

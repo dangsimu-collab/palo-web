@@ -84,6 +84,12 @@ export const BODY_HTML = `
 
 <!-- board sheet (게시판 탭) -->
 <div class="sheet-scrim" id="sheetScrim"></div>
+<div class="sheet-scrim" id="actionScrim" onclick="closeActionSheet()"></div>
+<div class="sheet action-sheet" id="actionSheet" aria-label="더보기">
+  <div class="grip"></div>
+  <div class="sh-title" id="actionSheetTitle"></div>
+  <div id="actionSheetBody"></div>
+</div>
 <div class="sheet" id="sheet" aria-label="게시판 선택">
   <div class="grip"></div>
   <div class="sh-title">게시판 이동</div>

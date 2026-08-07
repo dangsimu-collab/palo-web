@@ -1829,6 +1829,7 @@ var reportingConversationId=null;
 var reportingReportedUserId=null;
 var reportingAdId=null;
 var reportingEmoticonPackId=null; // 이모티콘 팩 신고 대상
+var reportingCommissionId=null;    // 커미션 신고 대상
 function reportAd(adId,e){
   if(e)e.stopPropagation();
   if(!window.supabase){toast("사용할 수 없어요");return;}
@@ -1854,7 +1855,7 @@ function reportChat(){
   document.getElementById("reportModal").classList.add("open");
 }
 function closeReport(){
-  reportingPostId=null;reportingConversationId=null;reportingReportedUserId=null;reportingAdId=null;reportingEmoticonPackId=null;
+  reportingPostId=null;reportingConversationId=null;reportingReportedUserId=null;reportingAdId=null;reportingEmoticonPackId=null;reportingCommissionId=null;
   document.getElementById("reportModal").classList.remove("open");
 }
 
@@ -1884,6 +1885,14 @@ async function submitReport(){
   if(reportingConversationId){
     var convId=reportingConversationId,reportedUserId=reportingReportedUserId;
     var res=await window.supabase.from("reports").insert({conversation_id:convId,reported_user_id:reportedUserId,reporter_id:AUTH.user.id,reason:reason});
+    closeReport();
+    if(res.error){toast("신고 접수 실패: "+res.error.message);return;}
+    toast("신고가 접수되었어요");
+    return;
+  }
+  if(reportingCommissionId){
+    var cId=reportingCommissionId;
+    var res=await window.supabase.from("reports").insert({commission_id:cId,reporter_id:AUTH.user?AUTH.user.id:null,reason:reason});
     closeReport();
     if(res.error){toast("신고 접수 실패: "+res.error.message);return;}
     toast("신고가 접수되었어요");
@@ -2643,9 +2652,9 @@ function cmDetailHTML(d,idx){
   return '<div class="cm-root">'+
     '<div class="cm-d-top"><div class="cm-left"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></div>'+
       '<div class="cm-right">'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6 6l1.5 1.5M18 6l-1.5 1.5M6 18l1.5-1.5M18 18l-1.5-1.5"/></svg>'+
+        
         '<svg onclick="cmShare('+(d.id!=null?d.id:'null')+')" style="cursor:pointer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V4M8 8l4-4 4 4"/><path d="M4 15v5h16v-5"/></svg>'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>'+
+        '<svg onclick="cmOpenMoreMenu('+(d.id!=null?d.id:'null')+')" style="cursor:pointer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>'+
       '</div></div>'+
     '<div class="cm-slider" style="background:'+sliderBg+'"><div class="cm-dots"><i class="on"></i><i></i><i></i><i></i><i></i></div></div>'+
     '<div class="cm-d-body">'+
@@ -3440,6 +3449,92 @@ var cmMyApplications=[];
 // 커미션 삭제(작가 본인만). 확인창 → DB 삭제(RLS가 서버에서도 본인만 허용) → 목록/상세에서 제거.
 // 연결 데이터: commission_images·worksamples·applications·user_ads는 FK on delete cascade로 자동 삭제,
 // 후기(posts.commission_id)·알림·메시지는 on delete set null로 남김(작가 평판 보존 — 2단계에서 스토리지 파일도 정리 예정).
+/* ===== 액션 시트(더보기 메뉴) =====
+   아래에서 올라오는 목록. 게시판 이동 시트(#sheet)와 별개로 두어 서로 덮어쓰지 않게 한다. */
+function openActionSheet(title,items){
+  var el=document.getElementById("actionSheet"),sc=document.getElementById("actionScrim");
+  if(!el||!sc)return;
+  document.getElementById("actionSheetTitle").textContent=title||"";
+  document.getElementById("actionSheetBody").innerHTML=items.map(function(it){
+    return '<button type="button" class="as-item'+(it.danger?' danger':'')+'"'+
+      (it.disabled?' disabled':' onclick="'+it.onclick+'"')+'>'+
+      '<span class="as-ic">'+it.icon+'</span><span class="as-label">'+esc(it.label)+
+      (it.desc?'<span class="as-desc">'+esc(it.desc)+'</span>':'')+'</span></button>';
+  }).join("");
+  el.classList.add("open");sc.classList.add("open");document.body.style.overflow="hidden";
+}
+function closeActionSheet(){
+  var el=document.getElementById("actionSheet"),sc=document.getElementById("actionScrim");
+  if(el)el.classList.remove("open");
+  if(sc)sc.classList.remove("open");
+  document.body.style.overflow="";
+}
+
+/* ── 커미션 상세의 '더보기(점 3개)' ── */
+// 커미션 신고는 reports.commission_id 컬럼이 있어야 한다. 아직 없는 환경에서
+// 눌렀다가 실패하지 않도록, 한 번만 확인해서 메뉴에 넣을지 정한다.
+var _cmReportSupported=null;
+async function cmCanReportCommission(){
+  if(_cmReportSupported!==null)return _cmReportSupported;
+  try{
+    var r=await window.supabase.from("reports").select("commission_id").limit(1);
+    _cmReportSupported=!r.error;
+  }catch(e){_cmReportSupported=false;}
+  return _cmReportSupported;
+}
+async function cmOpenMoreMenu(id){
+  if(id==null)return;
+  var d=cmData.find(function(c){return c.id===id;})||cmDetail||{};
+  var isOwner=!!(AUTH.user&&d.authorId&&AUTH.user.id===d.authorId);
+  var adLocked=!!AD_LOCKED_COMMISSION_IDS[id];
+  var items=[];
+
+  if(isOwner){
+    items.push({
+      label:adLocked?"수정할 수 없어요":"커미션 수정",
+      desc:adLocked?"광고를 집행 중인 커미션은 수정할 수 없어요":"",
+      icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+      onclick:"closeActionSheet();cmOpenRegister("+id+")",
+      disabled:adLocked
+    });
+  }
+  items.push({
+    label:"링크 복사",
+    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>',
+    onclick:"closeActionSheet();cmShare("+id+")"
+  });
+  if(d.authorId){
+    items.push({
+      label:"작가 프로필 보기",
+      icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+      onclick:"closeActionSheet();openUserProfile('"+cmQ(d.authorId)+"')"
+    });
+  }
+  if(!isOwner&&AUTH.user&&await cmCanReportCommission()){
+    items.push({
+      label:"신고",
+      icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
+      onclick:"closeActionSheet();reportCommission("+id+")"
+    });
+  }
+  if(isOwner){
+    items.push({
+      label:"커미션 삭제",
+      icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>',
+      onclick:"closeActionSheet();cmDeleteCommission("+id+")",
+      danger:true
+    });
+  }
+  openActionSheet(d.title||"커미션",items);
+}
+function reportCommission(id){
+  if(!AUTH.user){toast("로그인이 필요해요");return;}
+  reportingCommissionId=id;
+  document.getElementById("reportReasonInput").value="";
+  _resetReportForm();
+  document.getElementById("reportModal").classList.add("open");
+}
+
 async function cmDeleteCommission(id){
   if(id==null||!window.supabase)return;
   if(!(await confirmDialog("이 커미션을 삭제할까요? 삭제하면 되돌릴 수 없어요.")))return;
@@ -5928,6 +6023,9 @@ async function openAdminReports(){
   var postIds=Array.from(new Set(reports.filter(function(r){return r.post_id}).map(function(r){return r.post_id})));
   var postRes=postIds.length?await window.supabase.from("posts").select("id,title,board,blinded").in("id",postIds):{data:[]};
   var postById={};(postRes.data||[]).forEach(function(pr){postById[pr.id]=pr;});
+  var cmIds=Array.from(new Set(reports.filter(function(r){return r.commission_id}).map(function(r){return r.commission_id})));
+  var cmRes2=cmIds.length?await window.supabase.from("commissions").select("id,title,author_id").in("id",cmIds):{data:[]};
+  var cmById={};(cmRes2.data||[]).forEach(function(c){cmById[c.id]=c;});
   var emoIds=Array.from(new Set(reports.filter(function(r){return r.emoticon_pack_id}).map(function(r){return r.emoticon_pack_id})));
   var emoRes=emoIds.length?await window.supabase.from("emoticon_packs").select("id,title,author_id").in("id",emoIds):{data:[]};
   var emoById={};(emoRes.data||[]).forEach(function(e){emoById[e.id]=e;});
@@ -5951,6 +6049,15 @@ async function openAdminReports(){
           '<div class="pmeta"><span class="mt">'+timeAgo(r.created_at)+'</span>'+(r.reason?'<span class="sep"></span><span class="mv">사유: '+esc(r.reason)+'</span>':'')+'</div></div>'+
           '<div style="display:flex;gap:8px;flex-shrink:0">'+
             '<button class="d-act" onclick="adminViewConversation('+r.conversation_id+','+r.id+',\'reports\')">대화 보기</button>'+
+            '<button class="d-act" onclick="dismissReport('+r.id+')">무시</button>'+
+          '</div></div>';
+      }else if(r.commission_id){
+        var cm=cmById[r.commission_id];
+        h+='<div class="post rip"><div class="pmain"'+(cm?' style="cursor:pointer" onclick="cmOpenCommissionById('+r.commission_id+')"':'')+'>'+
+          '<div class="ptitle">🎨 커미션 신고 — '+(cm?esc(cm.title):"(이미 삭제된 커미션)")+'</div>'+
+          '<div class="pmeta"><span class="mt">'+timeAgo(r.created_at)+'</span>'+(r.reason?'<span class="sep"></span><span class="mv">사유: '+esc(r.reason)+'</span>':'')+'</div></div>'+
+          '<div style="display:flex;gap:8px;flex-shrink:0">'+
+            (cm?'<button class="d-act" onclick="adminDeleteReportedCommission('+r.id+','+r.commission_id+')">커미션 삭제</button>':'')+
             '<button class="d-act" onclick="dismissReport('+r.id+')">무시</button>'+
           '</div></div>';
       }else if(r.emoticon_pack_id){
@@ -6018,6 +6125,16 @@ async function adminBlindPost(reportId,postDbId,on){
   await _logModeration(on?"blind":"unblind",postDbId,reportId,null);
   postsLoadedAt=0; // 목록에 반영되도록 다음 이동 때 새로 불러옴
   toast(on?"글을 가렸어요":"가림을 해제했어요");
+  openAdminReports();
+}
+async function adminDeleteReportedCommission(reportId,commissionId){
+  if(!(await confirmDialog("이 커미션을 삭제할까요? 되돌릴 수 없어요.")))return;
+  var r=await window.supabase.from("commissions").delete().eq("id",commissionId);
+  if(r.error){toast("삭제 실패: "+r.error.message);return;}
+  await window.supabase.from("reports").update({resolved:true}).eq("id",reportId);
+  await _logModeration("delete",null,reportId,"커미션 #"+commissionId);
+  cmData=cmData.filter(function(c){return c.id!==commissionId;});
+  toast("커미션을 삭제했어요","🗑");
   openAdminReports();
 }
 async function adminDeleteReportedEmoticon(reportId,packId){
