@@ -4132,7 +4132,8 @@ function pickEmoticon(id,target){
 
 /* 입력칸 아래에 담아둔 이모티콘을 바로 펼쳐 둔다.
    버튼을 눌러 창을 여는 것보다 한 번 덜 누르고, 이모티콘이 있다는 걸 눈으로 알 수 있다. */
-function emoStripHTML(){
+function emoStripHTML(target){
+  var t=target||"cmInput";
   var owned={};
   MY_EMO_PACKS.forEach(function(p){p.items.forEach(function(e){owned[e.id]=e;});});
   // 최근 쓴 것 → 나머지 순. 매번 팩을 넘기지 않아도 자주 쓰는 게 바로 잡힌다.
@@ -4145,14 +4146,15 @@ function emoStripHTML(){
     return '<button type="button" class="emo-strip-go" onclick="openEmoticonMarket()">🙂 이모티콘 담으러 가기</button>';
   }
   return flat.map(function(e){
-    // 대상 입력칸을 넘기지 않으면 pickEmoticon이 댓글 입력칸(cmInput)으로 넣는다
-    return '<button type="button" class="emo-s" onclick="pickEmoticon('+e.id+')"><img src="'+esc(e.url)+'" alt="" loading="lazy"></button>';
-  }).join("")+'<button type="button" class="emo-s more" onclick="openEmoticonPicker(&quot;cmInput&quot;)" aria-label="이모티콘 전체 보기">⋯</button>';
+    return '<button type="button" class="emo-s" onclick="pickEmoticon('+e.id+',&quot;'+t+'&quot;)"><img src="'+esc(e.url)+'" alt="" loading="lazy"></button>';
+  }).join("")+'<button type="button" class="emo-s more" onclick="openEmoticonPicker(&quot;'+t+'&quot;)" aria-label="이모티콘 전체 보기">⋯</button>';
 }
 // 이모티콘함이 바뀌면 열려 있는 댓글 입력줄도 갱신
 function refreshEmoStrip(){
-  var el=document.querySelector(".emo-strip");
-  if(el)el.innerHTML=emoStripHTML();
+  var cm=document.querySelector(".emo-strip:not(.chat)");
+  if(cm)cm.innerHTML=emoStripHTML("cmInput");
+  var ch=document.getElementById("chatEmoStrip");
+  if(ch)ch.innerHTML=emoStripHTML("chatInput");
 }
 
 /* ── 내 이모티콘 관리 ── */
@@ -5310,12 +5312,22 @@ function markBubbleAsRead(messageId){
 function appendChatMessage(m){
   var box=document.getElementById("chatMessages");
   if(!box)return;
+  // 처음 보는 이모티콘이면 주소를 받아온 뒤 그 말풍선만 다시 그린다
+  var need=emoIdsIn(m.content).filter(function(id){return !EMO_BY_ID[id];});
+  if(need.length){
+    ensureEmoticons(need).then(function(){
+      var el=box.querySelector('[data-msg-id="'+m.id+'"] .chat-bubble');
+      if(el)el.innerHTML=withEmoticons(esc(m.content));
+    });
+  }
   var empty=box.querySelector(".pf-empty");if(empty)empty.remove();
   var div=document.createElement("div");
   div.className="chat-msg";
   div.setAttribute("data-msg-id",m.id);
   div.innerHTML='<div class="chat-bubble"></div>';
-  div.querySelector(".chat-bubble").textContent=m.content;
+  // 이모티콘 토큰을 이미지로 바꿔야 하므로 innerHTML을 쓴다.
+  // esc()로 먼저 막고, withEmoticons가 우리 DB의 이모티콘만 넣는다(임의 HTML은 못 들어옴).
+  div.querySelector(".chat-bubble").innerHTML=withEmoticons(esc(m.content));
   box.appendChild(div);
   box.scrollTop=box.scrollHeight;
 }
@@ -5349,6 +5361,7 @@ async function openChat(otherUserId){
   var msgRes=await window.supabase.from("messages").select("*").eq("conversation_id",conv.id).order("created_at",{ascending:true});
   if(msgRes.error){toast("대화를 불러오지 못했어요: "+msgRes.error.message);return;}
   enterScreen("chatRoom",openChatList);
+  await ensureChatEmoticons(msgRes.data||[]); // 말풍선을 그리기 전에 이모티콘 주소를 채운다
   renderChatView(partnerName,msgRes.data||[]);
   subscribeToChat(conv.id);
   window.supabase.rpc("mark_messages_read",{p_conversation_id:conv.id}).then(function(){});
@@ -5356,6 +5369,12 @@ async function openChat(otherUserId){
 var CHAT_WEEKDAYS=["일","월","화","수","목","금","토"];
 function chatTimeLabel(iso){var d=new Date(iso);var hh=d.getHours(),ampm=hh<12?"오전":"오후",h12=hh%12||12;return ampm+" "+String(h12).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");}
 function chatDividerLabel(iso){var d=new Date(iso);return d.getFullYear()+"."+String(d.getMonth()+1).padStart(2,"0")+"."+String(d.getDate()).padStart(2,"0")+" ("+CHAT_WEEKDAYS[d.getDay()]+")";}
+// 대화에 쓰인 이모티콘을 한 번에 불러온다. 없으면 말풍선이 빈 채로 보인다.
+async function ensureChatEmoticons(messages){
+  var ids=[];
+  (messages||[]).forEach(function(m){ids=ids.concat(emoIdsIn(m.content));});
+  if(ids.length)await ensureEmoticons(ids);
+}
 function chatMessagesHtml(messages){
   if(!messages.length)return '<div class="cr-empty">아직 대화가 없어요. 첫 메시지를 보내보세요!</div>';
   var h="",lastDay="",prevSender=null;
@@ -5367,7 +5386,7 @@ function chatMessagesHtml(messages){
     var time='<span class="cr-time">'+esc(chatTimeLabel(m.created_at))+'</span>';
     var bcls='cr-bubble'+(m.commission_id?' cr-commission':'');
     var bclick=m.commission_id?(' onclick="cmOpenCommissionById('+m.commission_id+')"'):'';
-    var content=esc(m.content)+(m.commission_id?' <span class="cr-arrow">→</span>':'');
+    var content=withEmoticons(esc(m.content))+(m.commission_id?' <span class="cr-arrow">→</span>':'');
     if(mine){
       h+='<div class="cr-row mine">'+
         '<div class="cr-meta">'+(m.is_read?'<span class="cr-read">읽음</span>':'')+time+'</div>'+
@@ -5495,7 +5514,8 @@ function renderChatView(partnerName,messages){
       '<button class="cr-icon" onclick="toast(\'첨부 기능은 준비 중이에요\')" aria-label="추가"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>'+
       '<textarea id="chatInput" rows="1" placeholder="메시지를 입력하세요." oninput="autoGrowChatInput(this)" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendChatMessage();}"></textarea>'+
       '<button class="cr-send" onclick="sendChatMessage()" aria-label="전송"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></button>'+
-    '</div>';
+    '</div>'+
+    '<div class="emo-strip chat" id="chatEmoStrip">'+emoStripHTML("chatInput")+'</div>';
   el.classList.add("open");
   lockBodyForChat();
   fitChatRoom();
@@ -5525,7 +5545,10 @@ async function sendChatMessage(){
   autoGrowChatInput(inp); // 전송 후 입력창을 한 줄 높이로 복귀
   var msgRes=await window.supabase.from("messages").select("*").eq("conversation_id",currentConversationId).order("created_at",{ascending:true});
   var box=document.getElementById("chatMessages");
-  if(box){box.innerHTML=chatMessagesHtml(msgRes.data||[]);box.scrollTop=box.scrollHeight;}
+  if(box){
+    await ensureChatEmoticons(msgRes.data||[]);
+    box.innerHTML=chatMessagesHtml(msgRes.data||[]);box.scrollTop=box.scrollHeight;
+  }
 }
 
 /* ---------- 등급 시스템 (점수·등급은 서버 트리거가 계산 — profiles.score/level 그대로 신뢰) ---------- */
@@ -6380,7 +6403,7 @@ function renderAdminChatView(conv,nickById,messages,backTo){
     '<div class="pf-sec">🛡 대화 내용 (읽기 전용)</div>'+
     '<div class="pf-card"><div class="pf-info"><div class="pf-name">'+esc(nickById[conv.user1_id]||"알 수 없음")+' ↔ '+esc(nickById[conv.user2_id]||"알 수 없음")+'</div></div></div>'+
     '<div class="chat-list">'+(messages.length?messages.map(function(m){
-      return '<div class="chat-msg"><div class="chat-bubble">'+esc(nickById[m.sender_id]||"알 수 없음")+': '+esc(m.content)+'</div></div>';
+      return '<div class="chat-msg"><div class="chat-bubble">'+esc(nickById[m.sender_id]||"알 수 없음")+': '+withEmoticons(esc(m.content))+'</div></div>';
     }).join(""):'<div class="pf-empty">메시지가 없어요.</div>')+'</div>'+
   '</div>';
   document.getElementById("main").innerHTML=h;
