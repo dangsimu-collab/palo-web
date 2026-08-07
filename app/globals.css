@@ -485,49 +485,26 @@
   .drawer .dh{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;padding:4px 2px}
   .drawer .dclose{background:none;border:none;font-size:18px;color:var(--muted);cursor:pointer;width:36px;height:36px;border-radius:11px}
 
-  /* ── 하단 탭바: 바닥에 붙이지 않고 살짝 띄운 알약(pill) 형태 ──
-     바닥에 붙이면 아이폰 홈 인디케이터(가로 막대)와 붙어 보이고 답답하다.
-     양옆·아래에 여백을 주고 그림자로 띄워 화면 위에 얹힌 것처럼 보이게 한다.
-     ⚠️ 이렇게 띄우면 '탭이 가리는 높이'가 탭 자체 높이보다 커진다(아래 여백+안전영역).
-        그래서 palo.js의 cmSyncTabbarHeight가 높이가 아니라
-        '화면 바닥부터 탭 윗변까지의 거리'를 재서 --cm-tabbar-h에 넣는다. */
-  .tabbar{display:none;position:fixed;z-index:65;
-    left:50%;transform:translateX(-50%);
-    bottom:calc(env(safe-area-inset-bottom,0px) + 12px);
-    width:calc(100% - 26px);max-width:440px;
-    background:#fff;border:1px solid rgba(31,22,28,.05);border-radius:999px;
-    padding:6px;
-    box-shadow:0 8px 26px rgba(31,22,28,.15),0 2px 8px rgba(31,22,28,.06)}
-  /* 홈 화면에 추가한 PWA(standalone)는 하단 여백이 더 필요하다 */
-  @media (display-mode: standalone){ .tabbar{bottom:calc(env(safe-area-inset-bottom,8px) + 20px)} }
+  .tabbar{display:none;position:fixed;bottom:0;left:0;right:0;z-index:65;background:rgba(255,255,255,.92);-webkit-backdrop-filter:blur(20px) saturate(1.4);backdrop-filter:blur(20px) saturate(1.4);border-top:1px solid var(--line);padding:6px 0 env(safe-area-inset-bottom,6px)}
+  /* 홈 화면에 추가한 PWA(standalone)에서는 하단 탭이 너무 아래로 느껴져 살짝 위로 올림(브라우저 보기엔 영향 없음) */
+  @media (display-mode: standalone){ .tabbar{padding-bottom:calc(env(safe-area-inset-bottom,8px) + 18px)} }
   /* 텍스트 입력창 포커스(모바일 키보드 올라옴) 시 하단 탭바를 숨겨 키보드에 밀려 튀어오르지 않게 함 */
   body.kb-open .tabbar{display:none}
-  .tabbar-inner{display:flex;justify-content:space-between;align-items:center;gap:2px}
+  .tabbar-inner{display:flex;justify-content:space-around;align-items:center;max-width:520px;margin:0 auto}
   /* touch-action:manipulation — 두 번 톡톡 두드려 확대하는 동작을 이 버튼에서만 끈다.
      iOS 사파리는 user-scalable=no를 무시해서, 탭을 빠르게 연속으로 누르면 두 번째를
      '확대 제스처'로 보고 클릭을 아예 안 만들어낸다(= 눌러도 씹힘). 이걸 끄면
      확대 여부를 기다릴 필요가 없어져 클릭이 즉시, 빠짐없이 발생한다. */
-  .tab{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;
-    background:none;border:none;color:var(--muted);font-size:10.5px;font-weight:700;letter-spacing:-.02em;
-    cursor:pointer;padding:5px 0 4px;position:relative;transition:color .16s;
-    touch-action:manipulation;-webkit-tap-highlight-color:transparent}
-  /* 선택된 탭만 아이콘 뒤를 브랜드색으로 채운다. 나머지는 아이콘·글자만 */
-  .tab .ic-wrap{width:42px;height:28px;border-radius:999px;display:flex;align-items:center;justify-content:center;
-    transition:background .18s,transform .18s}
-  .tab.on{color:var(--brand);font-weight:800}
-  .tab.on .ic-wrap{background:linear-gradient(120deg,var(--brand),var(--grape));
-    box-shadow:0 3px 10px rgba(224,122,166,.4)}
-  .tab.on .ic{color:#fff}
-  .tab:active .ic-wrap{transform:scale(.92)}
-  .tab .badge{position:absolute;top:0;right:calc(50% - 21px);min-width:16px;height:16px;background:var(--brand);color:#fff;font-size:9px;font-weight:800;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid #fff}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:none;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:-.01em;cursor:pointer;padding:7px 0;position:relative;transition:color .16s;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+  .tab .ic{transition:stroke-width .16s}
+  .tab.on{color:var(--brand)}
+  .tab.on .ic{stroke-width:2.4}
+  .tab .badge{position:absolute;top:-2px;right:calc(50% - 20px);min-width:16px;height:16px;background:var(--brand);color:#fff;font-size:9px;font-weight:800;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid var(--surface)}
   .tab .lbl{display:block}
 
   @media(max-width:860px){
     .menu-btn{display:block}.search.desktop{display:none}.write-btn{display:none}
-    .tabbar{display:block}
-    /* 떠 있는 탭바에 마지막 글이 가리지 않게, 탭이 차지하는 높이만큼 아래를 비워 둔다 */
-    footer{padding-bottom:calc(var(--cm-tabbar-h,0px) + 20px)}
-    .catbar{top:66px}.board-head h1{font-size:21px}.d-canvas{height:240px}.d-head h1{font-size:22px}
+    .tabbar{display:block}.catbar{top:66px}.board-head h1{font-size:21px}.d-canvas{height:240px}.d-head h1{font-size:22px}
   }
   @media(max-width:400px){.post .thumb{width:62px;height:62px}.brand .tag{display:none}}
   @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto}}
@@ -587,7 +564,7 @@
   .bn-a.on .ic{color:inherit}
   /* 게시판 아이콘을 상단 탭과 동일한 이모지로 표시(기존 선 아이콘과 같은 자리·크기) */
   .bn-a .bn-emo{width:16px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;line-height:1;flex:none}
-  .tab .ic{width:21px;height:21px;display:block}
+  .tab .ic{width:24px;height:24px}
   .icon-btn .ic{width:22px;height:22px}
   .write-btn .ic,.ed-submit .ic{width:15px;height:15px}
   .search>.ic{width:15px;height:15px;position:absolute;left:16px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
