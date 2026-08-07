@@ -9,7 +9,8 @@ var BOARDS=[
   {group:"궁금해요",items:[
     {id:"ask",name:"질문/시세문의",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1 .9-1 1.7M12 17h.01\"/></svg>"},
     {id:"vote",name:"투표/수요조사",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><line x1=\"6\" y1=\"20\" x2=\"6\" y2=\"14\"/><line x1=\"12\" y1=\"20\" x2=\"12\" y2=\"4\"/><line x1=\"18\" y1=\"20\" x2=\"18\" y2=\"10\"/></svg>"},
-    {id:"crit",name:"피드백 요청",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>"}]},
+    {id:"crit",name:"피드백 요청",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>"},
+    {id:"ilchim",name:"일침",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M13 2L4.5 12.5h6L11 22l8.5-10.5h-6z\"/></svg>"}]},
   {group:"함께",items:[
     {id:"collab",name:"협업/팀원모집",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75\"/></svg>"},
     {id:"challenge",name:"챌린지",icon:"<svg class=\"ic\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 3v18\"/><path d=\"M5 4h13l-2 4 2 4H5\"/></svg>"},
@@ -32,7 +33,7 @@ if(!ADULT_BOARD_ENABLED){
 var CATMAP={talk:{label:"수다",cls:"talk-c"},ask:{label:"고민",cls:"help-c"},crit:{label:"피드백",cls:"crit-c"},
   wip:{label:"작업과정",cls:"crit-c"},doodle:{label:"낙서",cls:"talk-c"},tip:{label:"팁",cls:"tip-c"},challenge:{label:"챌린지",cls:"chal-c"},collab:{label:"협업",cls:"help-c"},
   sketch:{label:"그림공부",cls:"tip-c"},trade:{label:"거래",cls:"free-c"},used:{label:"중고",cls:"free-c"},
-  review:{label:"후기",cls:"free-c"},vote:{label:"투표",cls:"chal-c"},request:{label:"리퀘스트",cls:"free-c"},recruit:{label:"구인",cls:"free-c"},adult:{label:"에치치",cls:"help-c"},suggest:{label:"건의",cls:"chal-c"}};
+  review:{label:"후기",cls:"free-c"},vote:{label:"투표",cls:"chal-c"},request:{label:"리퀘스트",cls:"free-c"},recruit:{label:"구인",cls:"free-c"},adult:{label:"에치치",cls:"help-c"},suggest:{label:"건의",cls:"chal-c"},ilchim:{label:"일침",cls:"crit-c"}};
 
 var postsLoaded=false; // loadRealPosts()가 실제 글을 POSTS에 합친 뒤 true — 이 전에는 데모 글로 renderList()를 강제로 돌리지 않음(로그인 리다이렉트 직후 더미 글이 잠깐 보이는 버그 방지)
 var userLeftHome=false; // 초기 로딩이 끝나기 전에 사용자가 피드(홈) 밖 화면(커미션/채팅/글쓰기/프로필/글·유저 상세)으로 이동했으면 true — loadRealPosts() 완료 시 홈으로 강제 복귀시키지 않기 위함
@@ -956,12 +957,12 @@ function renderNav(el){
 }
 // 상단 게시판 탭에 붙는 이모지(게시판 성격에 맞춤). 왼쪽 서랍 메뉴는 기존 선 아이콘 그대로.
 var CHIP_EMOJI={all:"📋",talk:"💬",doodle:"✏️",wip:"🎨",sketch:"📚",ask:"❓",vote:"📊",crit:"💡",
-  collab:"🤝",challenge:"🏆",tip:"📁",request:"🙏",recruit:"🔍",used:"📦",suggest:"🛠",adult:"🔞"};
+  collab:"🤝",challenge:"🏆",tip:"📁",request:"🙏",recruit:"🔍",used:"📦",suggest:"🛠",adult:"🔞",ilchim:"💢"};
 // 성격이 비슷한 게시판끼리 같은 색 계열로 묶음 — 색만 봐도 대략 어떤 종류인지 알 수 있게(파스텔 톤)
 // g-all 전체(중립) / g-talk 이야기·소통(핑크) / g-art 그림·작업(퍼플) / g-trade 거래(블루) / g-event 함께·이벤트(그린) / g-etc 기타(그레이)
 var CHIP_GROUP={all:"g-all",
   talk:"g-talk",ask:"g-talk",vote:"g-talk",
-  doodle:"g-art",wip:"g-art",sketch:"g-art",crit:"g-art",
+  doodle:"g-art",wip:"g-art",sketch:"g-art",crit:"g-art",ilchim:"g-art",
   request:"g-trade",recruit:"g-trade",used:"g-trade",
   collab:"g-event",challenge:"g-event",tip:"g-event",
   suggest:"g-etc",adult:"g-etc"};
@@ -3902,6 +3903,7 @@ var BOARD_GUIDE={
   used:"중고 장비를 사고팔아요. 거래 책임은 당사자에게 있어요.",
   adult:"성인 대상 게시판이에요. 청소년은 이용할 수 없어요.",
   suggest:"버그 제보·건의사항을 남겨주세요. 운영에 참고할게요.",
+  ilchim:"돌려 말하지 않는 솔직한 지적을 주고받는 곳이에요. 그림에 대해서만 말하고, 사람을 깎아내리지 말아주세요.",
   review:"커미션 이용 후기를 남기는 곳이에요."
 };
 function refreshBoardLabel(){
@@ -6621,6 +6623,44 @@ syncNotifBadge();
 // 단, 화면 키보드가 뜨는 터치 기기(주 포인터가 coarse)에서만. PC는 물리 키보드라 화면을 안 가리므로
 // 좁게 봐도(모바일처럼) 탭바를 숨기지 않음.
 (function(){
+  /* PC에서 가로로 넘기는 줄(게시판 칩·말머리·이모티콘)을 마우스로 끌어서 스크롤.
+     터치는 브라우저가 알아서 해주지만 마우스는 휠 말고는 방법이 없어서,
+     "잡아 끌기"가 안 먹는 것처럼 느껴진다. */
+  var HSCROLLERS="#chips,.boardtabs,.tagbar,.emo-strip,.emo-tabs,.catbar-inner,.emo-pack-prev";
+  var hdrag=null;
+  document.addEventListener("pointerdown",function(e){
+    if(e.pointerType!=="mouse"||e.button!==0)return;      // 터치·오른쪽 버튼은 그대로 둔다
+    if(!e.target||!e.target.closest)return;
+    if(e.target.closest("input,textarea,select"))return;  // 글자 선택을 방해하지 않게
+    var el=e.target.closest(HSCROLLERS);
+    if(!el||el.scrollWidth<=el.clientWidth+2)return;      // 넘칠 내용이 없으면 할 일 없음
+    hdrag={el:el,startX:e.clientX,startScroll:el.scrollLeft,moved:0};
+  });
+  document.addEventListener("pointermove",function(e){
+    if(!hdrag)return;
+    var dx=e.clientX-hdrag.startX;
+    if(Math.abs(dx)<=3)return;                            // 손떨림 정도는 클릭으로 본다
+    if(!hdrag.moved)document.body.classList.add("hscroll-drag"); // 끄는 동안 글자 선택 끔
+    hdrag.moved=Math.max(hdrag.moved,Math.abs(dx));
+    hdrag.el.scrollLeft=hdrag.startScroll-dx;
+    e.preventDefault();
+  });
+  function endHDrag(){
+    if(!hdrag)return;
+    var moved=hdrag.moved;
+    hdrag=null;
+    document.body.classList.remove("hscroll-drag");
+    if(moved>5){
+      // 끌고 나서 손을 뗀 자리의 칩이 눌리지 않게, 바로 뒤따르는 클릭 한 번만 막는다
+      var block=function(ev){ev.stopPropagation();ev.preventDefault();};
+      document.addEventListener("click",block,{capture:true,once:true});
+      setTimeout(function(){document.removeEventListener("click",block,true);},80);
+    }
+  }
+  document.addEventListener("pointerup",endHDrag);
+  document.addEventListener("pointercancel",endHDrag);
+  window.addEventListener("blur",endHDrag);
+
   function isTextInput(el){return el&&(el.tagName==="INPUT"||el.tagName==="TEXTAREA"||el.isContentEditable);}
   function touchKeyboard(){return !!(window.matchMedia&&window.matchMedia("(pointer: coarse)").matches);}
   document.addEventListener("focusin",function(e){if(isTextInput(e.target)&&touchKeyboard())document.body.classList.add("kb-open");});

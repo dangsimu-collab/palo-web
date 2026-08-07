@@ -997,6 +997,12 @@
   .rules ol{margin:0 0 18px 20px;font-size:13.5px;line-height:1.9;color:var(--ink-2)}
   .rules ol li{margin-bottom:6px}
   .rules .r-ok{width:100%;background:linear-gradient(120deg,var(--brand),var(--grape));color:#fff;border:none;padding:13px;border-radius:13px;font-weight:800;font-size:14px;cursor:pointer;font-family:inherit}
+  /* PC에서 가로 줄을 마우스로 끌 수 있다는 걸 커서로 알린다(터치 기기는 해당 없음) */
+  @media (hover:hover) and (pointer:fine){
+    #chips,.boardtabs,.tagbar,.emo-strip,.emo-tabs,.catbar-inner{cursor:grab}
+    body.hscroll-drag,body.hscroll-drag *{cursor:grabbing!important;user-select:none!important}
+  }
+
   /* ===== 이모티콘 ===== */
   /* 본문 속 이모티콘 — 글자 사이에 자연스럽게 놓이도록 블록이 아닌 인라인으로 */
   .emo{display:inline-block;vertical-align:middle;width:auto;height:72px;max-width:100%;margin:2px 1px}

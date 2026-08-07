@@ -470,6 +470,7 @@ const BOARD_LABELS = {
   used: '중고',
   review: '커미션 후기',
   adult: '에치치',
+  ilchim: '일침',
 };
 
 const ACTIVITY_METRIC_LABELS = { posts: '게시글 수', comments: '댓글 수', signups: '신규 가입' };

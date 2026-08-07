@@ -9,7 +9,7 @@ const supabase = createClient(
 
 const BOARDS = [
   'talk', 'doodle', 'wip', 'sketch', 'ask', 'vote', 'crit',
-  'collab', 'challenge', 'tip', 'request', 'recruit', 'used', 'suggest',
+  'collab', 'challenge', 'tip', 'request', 'recruit', 'used', 'suggest', 'ilchim',
 ];
 
 // 사이트맵을 1시간마다 새로 생성(새 글·커미션 반영)

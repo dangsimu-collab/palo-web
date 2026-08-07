@@ -5,7 +5,7 @@ const BOARD_NAMES = {
   ask: '질문/시세문의', vote: '투표/수요조사', crit: '피드백 요청',
   collab: '협업/팀원모집', challenge: '챌린지', tip: '자료/TIP',
   request: '리퀘스트', recruit: '구인', used: '중고',
-  adult: '에치치', suggest: '버그·건의사항',
+  adult: '에치치', suggest: '버그·건의사항', ilchim: '일침',
 };
 
 export async function generateMetadata({ params }) {
