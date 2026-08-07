@@ -60,15 +60,16 @@ export default function RootLayout({ children }) {
   // 심기 때문에, React가 서버 HTML과 다르다고 경고하는 것을 막는다.
   return (
     <html lang="ko" suppressHydrationWarning>
-      <body>
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }} />
-        {/* 글 목록 선요청 — palo.js는 next/script의 afterInteractive라서 React 하이드레이션이
-            끝나야(실측 약 2.5초) 실행되고, 그때부터 데이터를 부르기 시작했다.
-            이 인라인 스크립트는 HTML 파싱 직후(약 0.1초)에 곧바로 요청을 띄워두므로,
-            palo.js가 깨어날 때쯤이면 응답이 이미 도착해 있다. supabase-js가 필요 없도록
-            REST를 직접 호출한다. 실패해도 palo.js가 평소대로 다시 부르므로 안전하다. */}
-        <Script id="palo-prefetch" strategy="beforeInteractive">
-          {`(function(){try{
+      {/* 글 목록 선요청. <head> 맨 앞의 평범한 인라인 스크립트로 둔다 —
+          next/script의 beforeInteractive로 <body>에 두면 실제로는 문서 파싱이 끝난 뒤
+          (실측 585ms)에야 실행돼서, 정작 데이터가 도착하는 시점이 1.2초까지 밀렸다.
+          여기서는 HTML 첫 조각이 오자마자(약 50ms) 요청이 나가므로 그만큼 통째로 앞당겨진다.
+          supabase-js를 기다리지 않으려고 REST를 직접 호출한다.
+          실패하면 그냥 null을 남기고, palo.js가 평소 경로로 다시 부르므로 안전하다. */}
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{
   var U=${JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_URL || "")};
   var K=${JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "")};
   // palo.js가 하이드레이션보다 먼저 실행되므로, 그 시점엔 window.supabase가 아직 없다.
@@ -77,27 +78,52 @@ export default function RootLayout({ children }) {
   var p=location.pathname;
   if(!(p==="/"||p.indexOf("/board/")===0||p.indexOf("/post/")===0))return; // 목록을 쓰는 화면에서만
   if(!U||!K)return;
-  // 로그인 상태면 건너뛴다 — 여기선 anon 권한으로만 읽을 수 있어서,
-  // 로그인 사용자에게만 보이는 행(예: 본인의 가려진 글)이 빠질 수 있다.
+  // 로그인한 사람은 anon 권한으로 읽으면 본인에게만 보이는 행이 빠진다.
+  // 그래서 저장된 세션의 토큰을 그대로 빌려 쓴다 — supabase-js가 보내는 것과 같은 요청이 된다.
+  // 토큰이 없거나 곧 만료면 선요청을 접고 평소 경로에 맡긴다(틀린 데이터를 보여주지 않으려고).
+  var tok=null,found=false;
   for(var i=0;i<localStorage.length;i++){
     var k=localStorage.key(i);
-    if(k&&k.indexOf("sb-")===0&&k.indexOf("auth-token")>-1)return;
+    if(!(k&&k.indexOf("sb-")===0&&k.indexOf("auth-token")>-1))continue;
+    found=true;
+    try{
+      var v=localStorage.getItem(k)||"";
+      if(v.indexOf("base64-")===0){                 // 최신 supabase-js는 base64로 저장한다
+        var b=atob(v.slice(7)),u8=new Uint8Array(b.length);
+        for(var j=0;j<b.length;j++)u8[j]=b.charCodeAt(j);
+        v=new TextDecoder().decode(u8);             // 닉네임 등 한글이 깨지지 않게
+      }
+      var s=JSON.parse(v);
+      if(s&&s.access_token&&s.expires_at&&s.expires_at*1000>Date.now()+30000)tok=s.access_token;
+    }catch(e){}
+    break;
   }
-  var h={apikey:K,Authorization:"Bearer "+K};
-  function q(path){
-    return fetch(U+"/rest/v1/"+path,{headers:h})
+  if(found&&!tok)return;
+  var h={apikey:K,Authorization:"Bearer "+(tok||K)};
+  function q(path,init){
+    return fetch(U+"/rest/v1/"+path,init?Object.assign({headers:h},init):{headers:h})
       .then(function(r){return r.ok?r.json():null;})
       .then(function(d){return d?{data:d,error:null}:null;})
       .catch(function(){return null;});
   }
+  // 1차로 함께 나가는 7개를 전부 여기서 띄운다. 하나라도 빠지면 palo.js가 깨어난 뒤에야
+  // 그것만 새로 부르게 되고, Promise.all은 제일 늦은 것을 기다리므로 그만큼 통째로 밀린다.
+  var now=new Date().toISOString();
   window.__paloPre={
     posts:q("posts?select=*&order=created_at.desc"),
     profiles:q("profiles?select=id,nickname,level,avatar_url"),
     notices:q("notices?select=*&order=created_at.desc&limit=1"),
-    levels:q("level_thresholds?select=*&order=level.asc")
+    levels:q("level_thresholds?select=*&order=level.asc"),
+    ads:q("user_ads?select=id,image_url,linked_post_id,linked_commission_id,points_spent&status=eq.active&expires_at=gt."+encodeURIComponent(now)),
+    adLocks:q("user_ads?select=linked_post_id,linked_commission_id,status,expires_at&status=in.(pending,active)"),
+    camps:q("rpc/get_servable_ads",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},h),body:"{}"})
   };
-}catch(e){}})();`}
-        </Script>
+}catch(e){}})();`,
+          }}
+        />
+      </head>
+      <body>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }} />
         {children}
         <Analytics />
         {GA_ID && (

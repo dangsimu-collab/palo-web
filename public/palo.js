@@ -237,9 +237,9 @@ async function loadRealPosts(skipRender){
   var wave1=await Promise.all([
     preOr("notices",function(){return sb.from("notices").select("*").order("created_at",{ascending:false}).limit(1);}),
     preOr("levels",function(){return sb.from("level_thresholds").select("*").order("level");}),
-    sb.from("user_ads").select("id,image_url,linked_post_id,linked_commission_id,points_spent").eq("status","active").gt("expires_at",nowIso),
-    sb.rpc("get_servable_ads"),
-    sb.from("user_ads").select("linked_post_id,linked_commission_id,status,expires_at").in("status",["pending","active"]),
+    preOr("ads",function(){return sb.from("user_ads").select("id,image_url,linked_post_id,linked_commission_id,points_spent").eq("status","active").gt("expires_at",nowIso);}),
+    preOr("camps",function(){return sb.rpc("get_servable_ads");}),
+    preOr("adLocks",function(){return sb.from("user_ads").select("linked_post_id,linked_commission_id,status,expires_at").in("status",["pending","active"]);}),
     preOr("posts",function(){return sb.from("posts").select("*").order("created_at",{ascending:false});}),
     preOr("profiles",function(){return sb.from("profiles").select("id,nickname,level,avatar_url");})
   ]);
@@ -382,17 +382,26 @@ function cmShare(id){
      따라가므로 게시글과 완전히 동일한 방식으로 일관되게 작동함. */
 var screenStack=[];        // [{key, back}] — 열려 있는 앱 내부 화면들의 '뒤로' 함수
 var navigatingBack=false;  // popstate로 뒤로 가는 중이면 true(중복 push 방지)
+// 우리가 쌓아 두고 아직 안 쓴 히스토리 항목 수. 브라우저 히스토리는 지울 수가 없어서,
+// resetScreens()로 스택만 비우면 항목이 그대로 남는다 — 탭을 오갈수록 계속 쌓여
+// 나중에 뒤로가기를 여러 번 눌러야 화면이 바뀌지 않는 채로 겨우 사이트를 빠져나가게 된다.
+// 그래서 남아 있는 항목이 있으면 새로 밀지 않고 그것을 다시 쓴다(최대 1개만 남음).
+var pushedDepth=0;
 function enterScreen(key,back){
   if(typeof syncKbOpen==="function")syncKbOpen(); // 화면 전환 때 하단 탭 상태 정리
   if(navigatingBack)return;                      // 뒤로 가는 중엔 새 항목을 쌓지 않음
   var top=screenStack[screenStack.length-1];
   if(top&&top.key===key){top.back=back;return;}  // 같은 화면 재렌더/내부 탭 전환은 갱신만
   screenStack.push({key:key,back:back});
-  history.pushState({paloDepth:screenStack.length},"");
+  if(screenStack.length>pushedDepth){            // 남아도는 항목이 없을 때만 새로 민다
+    pushedDepth=screenStack.length;
+    history.pushState({paloDepth:screenStack.length},"");
+  }
 }
 function screenBack(){if(screenStack.length)history.back();} // 화면 안 '‹' 버튼용
 function resetScreens(){screenStack=[];}                     // 최상위(탭)로 나갈 때 스택 비우기
 window.addEventListener("popstate",function(){
+  if(pushedDepth>0)pushedDepth--;
   if(screenStack.length){                        // 커미션·채팅 등 앱 내부 화면이 열려 있으면
     var item=screenStack.pop();
     if(typeof syncKbOpen==="function")syncKbOpen();
@@ -2703,7 +2712,7 @@ function cmDetailHTML(d,idx){
         (canReview?'<button class="cm-write-btn" style="margin-top:10px" onclick="cmOpenWrite('+d.id+')">✍️ 후기 쓰기</button>':'')+
       '</div>'+
       (d.id!=null?('<div class="cm-ws-sec"><div class="cm-rv-head"><b>최근 작업물</b>'+
-        ((AUTH.user&&d.authorId&&AUTH.user.id===d.authorId)?'<span class="cm-rv-more" onclick="cmOpenWorksampleForm('+d.id+')">+ 작업 사례 등록</span>':'')+
+        ((AUTH.user&&d.authorId&&AUTH.user.id===d.authorId)?'<span class="cm-rv-more" onclick="cmOpenWorksampleForm('+d.id+')">+ 작업물 등록</span>':'')+
         '</div><div class="cm-ws-list" id="cmWsList"><div class="cm-my-empty">불러오는 중...</div></div></div>'):'')+
       '<div class="cm-samples">'+samples+'</div>'+
       (usageHTML?('<div class="cm-acc open"><div class="cm-acc-h" onclick="this.parentElement.classList.toggle(\'open\')"><b>작업물 사용 권한</b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 15l6-6 6 6"/></svg></div>'+
@@ -2776,7 +2785,7 @@ async function cmLoadWorksamples(commissionId){
   var res=await window.supabase.from("commission_worksamples")
     .select("id,title,description,work_date,created_at,commission_worksample_images(url,sort)")
     .eq("commission_id",commissionId).order("created_at",{ascending:false});
-  if(res.error){el.innerHTML='<div class="cm-my-empty">작업 사례를 불러오지 못했어요.</div>';return;}
+  if(res.error){el.innerHTML='<div class="cm-my-empty">작업물을 불러오지 못했어요.</div>';return;}
   cmWsCache[commissionId]=res.data||[];
   if(document.getElementById("cmWsList"))document.getElementById("cmWsList").innerHTML=cmWorksampleListHTML(res.data||[],commissionId);
 }
@@ -2785,7 +2794,7 @@ function cmWsThumb(ws){
   return imgs.length?("url('"+cmQ(imgs[0].url)+"') center/cover"):cmGrads[ws.id%cmGrads.length];
 }
 function cmWorksampleListHTML(list,commissionId){
-  if(!list.length)return '<div class="cm-my-empty">아직 등록된 작업 사례가 없어요.</div>';
+  if(!list.length)return '<div class="cm-my-empty">아직 등록된 작업물이 없어요.</div>';
   return '<div class="cm-ws-strip">'+list.map(function(ws){
     return '<div class="cm-ws-card" onclick="cmOpenWorksample('+ws.id+','+commissionId+')">'+
       '<div class="cm-ws-thumb" style="background:'+cmWsThumb(ws)+'"></div>'+
@@ -2801,10 +2810,10 @@ function cmOpenWorksample(worksampleId,commissionId){
   var list=cmWsCache[commissionId]||[];
   var ws=list.find(function(x){return x.id===worksampleId;});
   var main=document.getElementById("main");
-  if(!ws){main.innerHTML='<div class="cm-root"><div class="cm-sub-top">'+backSvg+'<b>작업 사례</b></div><div class="cm-my-empty">작업 사례를 찾을 수 없어요.</div></div>';return;}
+  if(!ws){main.innerHTML='<div class="cm-root"><div class="cm-sub-top">'+backSvg+'<b>최근 작업물</b></div><div class="cm-my-empty">작업물을 찾을 수 없어요.</div></div>';return;}
   var imgs=(ws.commission_worksample_images||[]).slice().sort(function(a,b){return a.sort-b.sort;});
   main.innerHTML='<div class="cm-root">'+
-    '<div class="cm-sub-top">'+backSvg+'<b>작업 사례</b></div>'+
+    '<div class="cm-sub-top">'+backSvg+'<b>최근 작업물</b></div>'+
     '<div class="cm-ws-detail">'+
       '<div class="cm-ws-d-title">'+esc(ws.title)+'</div>'+
       (ws.work_date?'<div class="cm-ws-d-date">📅 '+esc(ws.work_date)+'</div>':'')+
@@ -2821,7 +2830,7 @@ function cmOpenWorksampleForm(commissionId,back){
   enterScreen("cmWsForm",back||cmBackToDetail);
   cmWsForm={commissionId:commissionId,images:[]};
   document.getElementById("main").innerHTML='<div class="cm-root">'+
-    '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>작업 사례 등록</b></div>'+
+    '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>작업물 등록</b></div>'+
     '<div class="cm-reg">'+
       '<div class="cm-reg-label">제목 <span class="cm-reg-req">*</span></div>'+
       '<input class="cm-reg-input" id="cmWsTitle" placeholder="예: LD 반신 채색 작업" oninput="cmWsCheck()">'+
@@ -2843,7 +2852,7 @@ async function cmOpenWsCommissionPicker(back){
   if(!AUTH.user){toast('로그인 후 이용할 수 있어요','🔒');loginWithGoogle();return;}
   enterScreen("cmWsPicker",back||cmRenderRegisterScreen);
   document.getElementById("main").innerHTML='<div class="cm-root">'+
-    '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>작업 사례를 등록할 커미션</b></div>'+
+    '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>작업물을 등록할 커미션</b></div>'+
     '<div class="cm-ws-pick" id="cmWsPickList"><div class="cm-my-empty">불러오는 중...</div></div>'+
   '</div>';
   window.scrollTo({top:0,behavior:"smooth"});
@@ -2935,7 +2944,7 @@ async function cmSubmitWorksample(){
   var imgIns=await window.supabase.from('commission_worksample_images').insert(rows);
   if(imgIns.error){toast('이미지 저장 실패: '+imgIns.error.message);}
   delete cmWsCache[cmWsForm.commissionId];  // 캐시 무효화 → 상세 복귀 시 새로 로드
-  toast('작업 사례를 등록했어요','✅');
+  toast('작업물을 등록했어요','✅');
   screenBack();  // 폼 → 커미션 상세로 복귀(상세가 다시 그려지며 목록도 갱신됨)
 }
 function cmCommissionReviews(commissionId){
@@ -3150,7 +3159,7 @@ function cmRenderRegisterScreen(){
   var tagsHTML=cmReg.tags.map(function(t){return '<div class="cm-reg-tagchip">#'+esc(t)+'<span class="cm-x" onclick="cmRemoveTag(\''+cmQ(t)+'\')">×</span></div>';}).join('');
   document.getElementById("main").innerHTML='<div class="cm-root">'+
     '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg><b>'+(editing?'커미션 수정':'커미션 등록')+'</b></div>'+
-    '<div class="cm-ws-shortcut" onclick="cmOpenWsCommissionPicker()"><span>🎨 이미 등록한 커미션에 작업 사례 올리기</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></div>'+
+    '<div class="cm-ws-shortcut" onclick="cmOpenWsCommissionPicker()"><span>🎨 이미 등록한 커미션에 작업물 올리기</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></div>'+
     '<div class="cm-reg">'+
       '<div class="cm-reg-label">샘플 이미지 <span class="cm-reg-req">*</span> <span class="cm-reg-sub">최대 10장</span></div>'+
       '<input type="file" id="cmRegFileInput" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="cmOnRegFileChange(event)">'+
@@ -3604,7 +3613,7 @@ async function cmOpenMy(tab){
   document.getElementById("main").innerHTML='<div class="cm-root">'+
     '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>내 커미션</b>'+
       (activeTab==='mine'?('<div class="cm-sub-actions">'+
-        '<button class="cm-write-btn ghost" onclick="cmOpenWsCommissionPicker(cmOpenMy)">🎨 작업 사례</button>'+
+        '<button class="cm-write-btn ghost" onclick="cmOpenWsCommissionPicker(cmOpenMy)">🎨 작업물</button>'+
         '<button class="cm-write-btn" onclick="cmOpenRegister()">+ 새 커미션</button>'+
       '</div>'):'')+
     '</div>'+
@@ -6861,6 +6870,41 @@ syncNotifBadge();
 // ===== 모바일 키보드: 텍스트 입력창 포커스 시 하단 탭바 숨김(키보드에 밀려 튀는 것 방지) =====
 // 단, 화면 키보드가 뜨는 터치 기기(주 포인터가 coarse)에서만. PC는 물리 키보드라 화면을 안 가리므로
 // 좁게 봐도(모바일처럼) 탭바를 숨기지 않음.
+/* 하단 탭 — 손을 뗄 때(pointerup) 곧바로 실행한다.
+   브라우저는 터치를 클릭으로 바꾸기 전에 "두 번 두드리기(확대)"인지 잠깐 지켜본다.
+   그 사이에 다음 탭을 눌러 버리면 지켜보던 클릭이 통째로 사라진다 —
+   탭을 연달아 빠르게 누를 때 마지막 것이 씹히던 원인이 이것이다.
+   pointerup은 그 판정을 기다리지 않으므로 몇 번을 연달아 눌러도 전부 들어간다.
+   (누른 채 손가락을 끌어서 버튼 밖에서 떼면 취소되는 동작은 그대로 유지) */
+(function(){
+  if(!window.PointerEvent)return;              // 지원 안 하면 기존 클릭 방식 그대로
+  function tabAt(e){return e.target&&e.target.closest?e.target.closest(".tabbar .tab"):null;}
+  var down=null,ranAt=0,ours=false;
+  document.addEventListener("pointerdown",function(e){
+    if(e.button!==0)return;
+    var btn=tabAt(e);
+    down=btn?{btn:btn,x:e.clientX,y:e.clientY,id:e.pointerId}:null;
+  });
+  document.addEventListener("pointerup",function(e){
+    var d=down;down=null;
+    if(!d||e.pointerId!==d.id)return;
+    if(Math.abs(e.clientX-d.x)>10||Math.abs(e.clientY-d.y)>10)return; // 끌었으면 누른 걸로 안 봄
+    if(tabAt(e)!==d.btn)return;                                       // 다른 탭 위에서 뗐으면 취소
+    ranAt=Date.now();
+    // 마크업의 onclick을 그대로 실행 — 탭별 동작 정의는 한 곳에만 둔다.
+    // click()은 동기라 아래 ours=false가 반드시 처리 후에 실행된다.
+    ours=true;
+    try{d.btn.click();}finally{ours=false;}
+  });
+  document.addEventListener("pointercancel",function(){down=null;});
+  // 위에서 이미 실행했으니, 브라우저가 뒤늦게 보내오는 클릭은 한 번만 무시(중복 실행 방지).
+  // 키보드(엔터·스페이스)로 온 클릭은 pointerup을 거치지 않아 ranAt이 비어 있으므로 그대로 통과한다.
+  document.addEventListener("click",function(e){
+    if(ours||!ranAt||Date.now()-ranAt>700||!tabAt(e))return;
+    ranAt=0;e.stopPropagation();e.preventDefault();
+  },true);
+})();
+
 (function(){
   /* PC에서 가로로 넘기는 줄(게시판 칩·말머리·이모티콘)을 마우스로 끌어서 스크롤.
      터치는 브라우저가 알아서 해주지만 마우스는 휠 말고는 방법이 없어서,

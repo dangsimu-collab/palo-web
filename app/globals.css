@@ -422,7 +422,11 @@
   /* 텍스트 입력창 포커스(모바일 키보드 올라옴) 시 하단 탭바를 숨겨 키보드에 밀려 튀어오르지 않게 함 */
   body.kb-open .tabbar{display:none}
   .tabbar-inner{display:flex;justify-content:space-around;align-items:center;max-width:520px;margin:0 auto}
-  .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:none;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:-.01em;cursor:pointer;padding:7px 0;position:relative;transition:color .16s}
+  /* touch-action:manipulation — 두 번 톡톡 두드려 확대하는 동작을 이 버튼에서만 끈다.
+     iOS 사파리는 user-scalable=no를 무시해서, 탭을 빠르게 연속으로 누르면 두 번째를
+     '확대 제스처'로 보고 클릭을 아예 안 만들어낸다(= 눌러도 씹힘). 이걸 끄면
+     확대 여부를 기다릴 필요가 없어져 클릭이 즉시, 빠짐없이 발생한다. */
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:none;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:-.01em;cursor:pointer;padding:7px 0;position:relative;transition:color .16s;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
   .tab .ic{transition:stroke-width .16s}
   .tab.on{color:var(--brand)}
   .tab.on .ic{stroke-width:2.4}
