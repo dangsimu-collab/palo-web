@@ -302,9 +302,23 @@
   .ed-boardmenu{position:absolute;top:100%;left:0;margin-top:8px;background:var(--surface);border:1.5px solid var(--line-2);border-radius:16px;box-shadow:var(--sh-lg);padding:9px;min-width:240px;z-index:5;display:none;max-height:340px;overflow-y:auto}
   .ed-boardmenu.open{display:block}
   .ed-bm-g{font-size:10.5px;font-weight:800;color:var(--muted-2);letter-spacing:.08em;padding:9px 11px 5px;text-transform:uppercase}
-  .ed-bm-a{display:block;padding:11px 13px;border-radius:11px;font-size:14px;font-weight:700;cursor:pointer}
+  .ed-bm-a{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:11px;font-size:14px;font-weight:700;cursor:pointer}
   .ed-bm-a:hover{background:var(--surface-2)}
   .ed-bm-a.on{background:linear-gradient(120deg,var(--brand),var(--grape));color:#fff;font-weight:800}
+  .ed-bm-n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 게시판 이모지 배지 — 배경색은 글에 붙는 말머리(.cat)와 같은 팔레트를 쓴다 */
+  .ed-bm-ic{flex-shrink:0;width:28px;height:28px;border-radius:9px;display:inline-flex;align-items:center;
+    justify-content:center;font-size:15px;line-height:1;background:var(--surface-2)}
+  .ed-bm-ic.talk-c{background:#e7f0f6}
+  .ed-bm-ic.help-c{background:#efe9f6}
+  .ed-bm-ic.crit-c{background:var(--brand-soft)}
+  .ed-bm-ic.tip-c{background:#eef3e4}
+  .ed-bm-ic.chal-c{background:#f6eddb}
+  .ed-bm-ic.free-c{background:var(--surface-2)}
+  /* 선택된 줄은 브랜드색으로 꽉 차므로, 배지는 흰 반투명으로 바꿔 글자가 묻히지 않게 */
+  .ed-bm-a.on .ed-bm-ic{background:rgba(255,255,255,.26)}
+  /* 고른 게시판을 보여주는 버튼 안에서는 배지를 조금 작게 */
+  .ed-boardpick .ed-bm-ic{width:24px;height:24px;font-size:13.5px;border-radius:8px;margin-right:7px;vertical-align:-6px}
   .ed-tags{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
   .ed-board-guide{margin:2px 0 10px;padding:10px 13px;background:var(--brand-soft);border:1px solid var(--line);border-radius:10px;color:var(--ink-2);font-size:12.5px;font-weight:600;line-height:1.5}
   .ed-lock-notice{margin:2px 0 16px;padding:11px 13px;background:#fff6e5;border:1px solid #f0d79a;border-radius:10px;color:#9a6a00;font-size:12.5px;font-weight:600;line-height:1.55}

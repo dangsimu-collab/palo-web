@@ -927,6 +927,14 @@ function boardName(id){
   return"전체 글";
 }
 function catFor(p){return CATMAP[p.board]||{label:"글",cls:"free-c"}}
+// 게시판별 이모지. 글쓰기의 게시판 고르는 자리에서 한눈에 구분되게 쓴다.
+// 색은 따로 정하지 않고 CATMAP의 말머리 색(talk-c·help-c…)을 그대로 가져와,
+// 고를 때 본 색과 글에 붙는 말머리 색이 어긋나지 않게 한다.
+var BOARD_EMOJI={talk:"💬",doodle:"✏️",wip:"🎨",sketch:"📖",ask:"❓",vote:"🗳️",crit:"👀",ilchim:"⚡",
+  collab:"🤝",challenge:"🏁",tip:"💡",request:"🎁",recruit:"📢",used:"📦",suggest:"🛠️",adult:"🔞",
+  review:"⭐",trade:"💰",all:"📋"};
+function boardEmoji(id){return BOARD_EMOJI[id]||"📄";}
+function boardCls(id){return (CATMAP[id]&&CATMAP[id].cls)||"free-c";}
 // 작업 단계(러프/선화/채색/완성) 라벨은 그 개념이 있는 게시판에서만 표시.
 // 자유게시판 등에 그냥 올린 그림에 "완성"이 붙던 문제 방지(예전에 저장된 글도 함께 해결).
 function stageTagHTML(p){
@@ -4089,7 +4097,9 @@ function buildBoardMenu(){
     if(!items.length)return;
     h+='<div class="ed-bm-g">'+g.group+'</div>';
     items.forEach(function(b){
-      h+='<div class="ed-bm-a'+(edState.board===b.id?' on':'')+'" onclick="pickBoard(\''+b.id+'\')">'+b.name+'</div>';
+      h+='<div class="ed-bm-a'+(edState.board===b.id?' on':'')+'" onclick="pickBoard(\''+b.id+'\')">'+
+        '<span class="ed-bm-ic '+boardCls(b.id)+'">'+boardEmoji(b.id)+'</span>'+
+        '<span class="ed-bm-n">'+esc(b.name)+'</span></div>';
     });
   });
   document.getElementById("edBoardMenu").innerHTML=h;
@@ -4127,7 +4137,12 @@ var BOARD_GUIDE={
   review:"커미션 이용 후기를 남기는 곳이에요."
 };
 function refreshBoardLabel(){
-  document.getElementById("edBoardLabel").textContent=edState.board?boardName(edState.board):"게시판 선택";
+  // 고른 게시판도 목록과 같은 모양(이모지+색)으로 보여줘서 무엇을 골랐는지 바로 알게 한다
+  var lb=document.getElementById("edBoardLabel");
+  if(edState.board){
+    lb.innerHTML='<span class="ed-bm-ic '+boardCls(edState.board)+'">'+boardEmoji(edState.board)+'</span>'+
+      esc(boardName(edState.board));
+  }else lb.textContent="게시판 선택";
   var bg=document.getElementById("edBoardGuide");
   if(bg){
     var g=edState.board?BOARD_GUIDE[edState.board]:null;
