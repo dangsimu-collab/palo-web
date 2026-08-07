@@ -81,10 +81,16 @@ export async function POST(request) {
 
   const supa = createClient(url, key, { auth: { persistSession: false } });
   try {
-    await supa.from("mkt_events").insert(rows);
+    // ⚠️ supabase-js는 실패해도 예외를 던지지 않고 { error }를 돌려준다.
+    //    try/catch만 두면 "저장했다"고 거짓말하게 되므로 반드시 error를 확인한다.
+    const res = await supa.from("mkt_events").insert(rows);
+    if (res.error) {
+      // 표가 아직 없거나(SQL 실행 전) 일시 오류여도 사용자 화면에는 영향이 없어야 한다.
+      // 다만 왜 안 쌓이는지는 알 수 있어야 해서 이유를 돌려준다.
+      return Response.json({ ok: true, stored: 0, why: String(res.error.message || "").slice(0, 120) });
+    }
   } catch (e) {
-    // 표가 아직 없거나(SQL 실행 전) 일시 오류여도 사용자 화면에는 영향이 없어야 한다
-    return Response.json({ ok: true, stored: false });
+    return Response.json({ ok: true, stored: 0, why: "network" });
   }
   return Response.json({ ok: true, stored: rows.length });
 }
