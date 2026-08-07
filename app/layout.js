@@ -5,13 +5,17 @@ import { Analytics } from "@vercel/analytics/next";
 export const metadata = {
   metadataBase: new URL("https://commi.kr"),
   title: "commi · 그림 그리는 사람들의 커뮤니티",
-  description: "그림 그리는 사람들을 위한 커뮤니티 commi. 창작 이야기·피드백·커미션까지, 잘 그린 그림보다 그리는 이야기가 먼저인 곳.",
+  // 검색 결과 설명 문구. 핵심 키워드(그림 커뮤니티·피드백·커미션)를 앞쪽에 두고 155자 이내로 —
+  // 너무 길거나 본문과 동떨어지면 구글이 무시하고 페이지 본문을 대신 긁어온다.
+  // OG(카톡·트위터 미리보기)도 같은 문구로 맞춰 흔들리지 않게 한다.
+  description: "commi는 그림 그리는 사람들의 커뮤니티예요. 창작 과정과 낙서를 공유하고, 서로의 그림에 피드백을 주고받고, 커미션 작가와 의뢰인을 잇습니다.",
   openGraph: {
     title: "commi · 그림 그리는 사람들의 커뮤니티",
-    description: "그림 그리는 사람들을 위한 커뮤니티 commi",
+    description: "commi는 그림 그리는 사람들의 커뮤니티예요. 창작 과정과 낙서를 공유하고, 서로의 그림에 피드백을 주고받고, 커미션 작가와 의뢰인을 잇습니다.",
     url: "https://commi.kr",
     siteName: "commi",
     type: "website",
+    locale: "ko_KR",
     images: [{ url: "/icon-512.png", width: 512, height: 512, alt: "commi" }],
   },
   verification: {
@@ -21,7 +25,13 @@ export const metadata = {
     },
   },
   icons: {
-    icon: [{ url: "/favicon-32.png", sizes: "32x32", type: "image/png" }, { url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+    // 구글 검색 로고는 48px 이상·정사각·48의 배수 favicon을 골라 쓴다.
+    // 큰 PNG(192·512, 둘 다 48의 배수)를 앞에 둬서 32px짜리 대신 이걸 고르게 유도한다.
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+    ],
     apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
   },
   appleWebApp: { capable: true, title: "commi", statusBarStyle: "default" },
