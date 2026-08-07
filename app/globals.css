@@ -245,6 +245,24 @@
   .del-log:hover{border-color:var(--brand)}
   .del-log-open{font-size:12px;font-weight:800;color:var(--brand);margin-top:9px;text-align:right}
   .archived-banner{background:#fbe9e6;border:1.5px solid #e6b3ab;border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:13.5px;font-weight:800;color:#c0392b}
+  /* 보관본에서 되살리기 */
+  .archived-restore{margin-top:10px;width:100%;background:#c0392b;color:#fff;border:none;border-radius:10px;padding:10px 12px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;transition:.14s}
+  .archived-restore:hover{filter:brightness(1.08)}
+  .archived-restored{margin-top:9px;font-size:12px;font-weight:700;color:#7a5b56;background:rgba(255,255,255,.6);border-radius:8px;padding:7px 9px}
+  /* 삭제 기록 탭(글·댓글·커미션) */
+  .del-tabs{display:flex;gap:7px;margin:0 0 14px}
+  .del-tab{flex:1;text-align:center;padding:9px 0;border-radius:10px;border:1.5px solid var(--line-2);background:var(--surface);font-size:13px;font-weight:800;color:var(--muted);cursor:pointer;transition:.14s}
+  .del-tab:hover{border-color:var(--brand)}
+  .del-tab.on{background:var(--brand);border-color:var(--brand);color:#fff}
+  .del-restored{display:inline-block;margin-right:7px;background:#e6f0e4;color:#5b7a4f;border-radius:7px;padding:2px 7px;font-size:10.5px;font-weight:800}
+  /* 커미션 보관본의 항목표(가격·기간 등) */
+  .del-kv-list{border:1px solid var(--line-2);border-radius:12px;padding:4px 12px;margin:14px 0}
+  .del-kv{display:flex;justify-content:space-between;gap:12px;padding:9px 0;font-size:13px;border-bottom:1px solid var(--line)}
+  .del-kv:last-child{border-bottom:none}
+  .del-kv span{color:var(--muted);font-weight:700;flex-shrink:0}
+  .del-kv b{text-align:right;word-break:break-all}
+  /* 댓글의 관리자 삭제 버튼 — 본인 '삭제'와 헷갈리지 않게 붉은색 */
+  .c-admindel{color:#c0392b;font-weight:800;cursor:pointer}
   .archived-banner-sub{font-size:12px;font-weight:600;color:var(--ink-2);margin-top:5px;line-height:1.5}
   .archived-banner-sub b{font-weight:800;color:var(--ink)}
 

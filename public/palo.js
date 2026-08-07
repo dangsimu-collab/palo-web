@@ -1640,32 +1640,61 @@ function renderCommissionBonusLog(rows){
   document.getElementById("main").innerHTML=h;
   window.scrollTo({top:0,behavior:"smooth"});
 }
-async function openAdminDeletionLog(){
+// 보관본은 글·댓글·커미션 세 종류. 표 이름과 화면 문구만 다르고 흐름은 같아 한 화면에서 탭으로 다룬다.
+var ADMIN_DEL_KIND="post";
+var ADMIN_DEL_TABLE={post:"admin_post_deletions",comment:"admin_comment_deletions",commission:"admin_commission_deletions"};
+var ADMIN_DEL_LABEL={post:"글",comment:"댓글",commission:"커미션"};
+async function openAdminDeletionLog(kind){
   if(!AUTH.profile||!AUTH.profile.is_admin||!window.supabase)return;
+  ADMIN_DEL_KIND=ADMIN_DEL_TABLE[kind]?kind:ADMIN_DEL_KIND;
   enterScreen("delLog",openProfile); // 뒤로가기가 프로필로 복귀
-  var res=await window.supabase.from("admin_post_deletions").select("*").order("created_at",{ascending:false}).limit(100);
-  if(res.error){toast("불러오기 실패: "+res.error.message);return;}
+  var res=await window.supabase.from(ADMIN_DEL_TABLE[ADMIN_DEL_KIND])
+    .select("*").order("created_at",{ascending:false}).limit(100);
+  if(res.error){
+    // 표가 없으면(SQL 실행 전) 무엇을 해야 하는지 알려준다 — 그냥 "실패"만 뜨면 원인을 알 수 없다
+    ADMIN_DEL_LOG=[];
+    renderAdminDeletionLog([],/Could not find the table|does not exist/.test(res.error.message)
+      ?"이 기록은 <b>docs/sql/deletion-archive.sql</b>을 실행해야 쌓이기 시작해요."
+      :"불러오지 못했어요: "+esc(res.error.message));
+    return;
+  }
   ADMIN_DEL_LOG=res.data||[];
   renderAdminDeletionLog(ADMIN_DEL_LOG);
 }
-function renderAdminDeletionLog(rows){
+function _delTabsHTML(){
+  return '<div class="del-tabs">'+["post","comment","commission"].map(function(k){
+    return '<div class="del-tab'+(ADMIN_DEL_KIND===k?' on':'')+'" onclick="openAdminDeletionLog(\''+k+'\')">'+ADMIN_DEL_LABEL[k]+'</div>';
+  }).join('')+'</div>';
+}
+// 되살린 뒤에는 카드에 표시를 남긴다(보관본은 지우지 않고 증거로 계속 둔다)
+function _restoredTagHTML(r){
+  return r.restored_at?'<span class="del-restored">되살림 · '+timeAgo(r.restored_at)+'</span>':'';
+}
+function renderAdminDeletionLog(rows,emptyMsg){
+  var kind=ADMIN_DEL_KIND;
   var h='<div class="profile">'+
     '<button class="d-back" onclick="screenBack()">← 내 정보로</button>'+
-    '<div class="pf-sec">🗑 삭제 기록 ('+rows.length+')</div>';
+    '<div class="pf-sec">🗑 삭제 기록</div>'+_delTabsHTML();
   if(!rows.length){
-    h+='<div class="pf-empty">아직 관리자 삭제 기록이 없어요.</div>';
+    h+='<div class="pf-empty">'+(emptyMsg||("아직 삭제한 "+ADMIN_DEL_LABEL[kind]+"이(가) 없어요."))+'</div>';
   }else{
     h+='<div class="del-log-list">';
     rows.forEach(function(r){
-      var snippet=(r.content||"").replace(/\s+/g," ").trim();
-      if(snippet.length>140)snippet=snippet.slice(0,140)+"…";
-      h+='<div class="del-log" onclick="openArchivedPost('+r.id+')">'+
-        '<div class="del-log-top"><span class="del-log-board">'+esc(boardName(r.board)||r.board||"게시판")+'</span><span class="del-log-time">'+timeAgo(r.created_at)+'</span></div>'+
-        '<div class="del-log-title">'+esc(r.title||"(제목 없음)")+'</div>'+
-        (snippet?'<div class="del-log-snip">'+esc(snippet)+'</div>':'')+
+      var body=(kind==="commission"?(r.description||""):(r.content||"")).replace(/\s+/g," ").trim();
+      if(body.length>140)body=body.slice(0,140)+"…";
+      var head=kind==="post"?esc(boardName(r.board)||r.board||"게시판")
+        :(kind==="comment"?"댓글":"커미션");
+      var title=kind==="comment"
+        ?("글: "+esc(r.post_title||"(삭제된 글)"))
+        :esc(r.title||"(제목 없음)");
+      h+='<div class="del-log" onclick="openArchivedItem('+r.id+')">'+
+        '<div class="del-log-top"><span class="del-log-board">'+head+'</span>'+
+          '<span class="del-log-time">'+_restoredTagHTML(r)+timeAgo(r.created_at)+'</span></div>'+
+        '<div class="del-log-title">'+title+'</div>'+
+        (body?'<div class="del-log-snip">'+esc(body)+'</div>':'')+
         '<div class="del-log-meta">작성자 <b>'+esc(r.author_nick||"(알 수 없음)")+'</b> · 삭제 관리자 <b>'+esc(r.admin_nick||"(알 수 없음)")+'</b></div>'+
         '<div class="del-log-reason">사유: '+(r.reason?esc(r.reason):'<span style="opacity:.6">미입력</span>')+(r.notified?'':' · <span style="opacity:.75">알림 미발송</span>')+'</div>'+
-        '<div class="del-log-open">원본 글 보기 ›</div>'+
+        '<div class="del-log-open">보관본 보기 ›</div>'+
       '</div>';
     });
     h+='</div>';
@@ -1674,10 +1703,82 @@ function renderAdminDeletionLog(rows){
   document.getElementById("main").innerHTML=h;
   window.scrollTo({top:0,behavior:"smooth"});
 }
-function openArchivedPost(logId){
+// 보관본에서 되살리기. 원래 번호가 아니라 새 번호로 다시 들어간다(그 번호를 다른 글이 쓸 수 있으므로).
+async function adminRestoreItem(logId){
+  var kind=ADMIN_DEL_KIND;
+  var what=ADMIN_DEL_LABEL[kind];
+  if(!(await confirmDialog("이 "+what+"을(를) 되살릴까요?\\n원래 작성자·작성시각 그대로 다시 올라가요.")))return;
+  var fn={post:"admin_restore_post",comment:"admin_restore_comment",commission:"admin_restore_commission"}[kind];
+  var res=await window.supabase.rpc(fn,{p_log_id:logId});
+  if(res.error){toast("되살리지 못했어요: "+res.error.message);return;}
+  var d=res.data||{};
+  if(!d.ok){
+    var msg={not_admin:"관리자만 사용할 수 있어요",
+      already_restored:"이미 되살린 "+what+"이에요",
+      post_gone:"댓글이 달려 있던 글이 사라져서 되살릴 수 없어요",
+      author_gone:"작성자 계정이 사라져서 되살릴 수 없어요",
+      not_found:"보관본을 찾을 수 없어요"}[d.error]||("되살리지 못했어요 ("+(d.error||"오류")+")");
+    toast(msg);return;
+  }
+  toast(what+"을(를) 되살렸어요","♻️");
+  if(kind==="post"){try{await loadRealPosts(true);}catch(e){}}
+  else if(kind==="commission"){try{await cmLoadCommissions();}catch(e){}}
+  openAdminDeletionLog(kind);
+}
+function openArchivedItem(logId){
   var row=(ADMIN_DEL_LOG||[]).find(function(x){return x.id===logId;});
   if(!row){toast("보관본을 찾을 수 없어요");return;}
-  renderArchivedPost(row);
+  if(ADMIN_DEL_KIND==="post")renderArchivedPost(row);
+  else if(ADMIN_DEL_KIND==="comment")renderArchivedComment(row);
+  else renderArchivedCommission(row);
+}
+// 보관본 화면 위쪽에 공통으로 붙는 붉은 띠(누가·언제·왜 지웠는지 + 되살리기 버튼)
+function _archivedBannerHTML(row,what){
+  var meta='삭제 관리자 <b>'+esc(row.admin_nick||"(알 수 없음)")+'</b> · '+timeAgo(row.created_at)+
+    ' · 사유: '+(row.reason?esc(row.reason):"미입력")+(row.notified?'':' · 알림 미발송');
+  var btn=row.restored_at
+    ?'<div class="archived-restored">♻️ '+timeAgo(row.restored_at)+' 되살림'+(row.restored_id?' (새 번호 '+row.restored_id+')':'')+'</div>'
+    :'<button class="archived-restore" onclick="adminRestoreItem('+row.id+')">♻️ 이 '+what+' 되살리기</button>';
+  return '<div class="archived-banner">🗑 삭제된 '+what+' 보관본<div class="archived-banner-sub">'+meta+'</div>'+btn+'</div>';
+}
+function renderArchivedComment(row){
+  var h='<div class="detail">'+
+    '<button class="d-back" onclick="openAdminDeletionLog(\'comment\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>삭제 기록으로</button>'+
+    _archivedBannerHTML(row,"댓글")+
+    '<div class="d-head"><div class="line1"><span class="cat free-c">댓글</span></div>'+
+      '<h1 class="serif">'+esc(row.post_title||"(글이 삭제됨)")+'</h1>'+
+      '<div class="d-author"><div class="d-ava serif">'+avatarHTML(row.author_nick||"익명",row.author_avatar)+'</div>'+
+      '<div class="d-au-info"><div class="n">'+esc(dispName(row.author_nick||"익명"))+levelBadgeHtml(row.author_level,"lv-badge")+'</div>'+
+      '<div class="meta">'+(row.comment_created_at?timeAgo(row.comment_created_at):"작성시각 알 수 없음")+'</div></div></div></div>'+
+    '<div class="d-content"><p>'+withEmoticons(esc(row.content||"(내용 없음)")).replace(/\n/g,"<br>")+'</p></div>'+
+  '</div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function renderArchivedCommission(row){
+  var imgs=row.images;
+  if(typeof imgs==="string"){try{imgs=JSON.parse(imgs);}catch(e){imgs=null;}}
+  var pics=(imgs&&imgs.length)?'<div class="d-canvas" style="height:auto;display:block;padding:0">'+
+    imgs.map(function(u){return '<img src="'+esc(u)+'" alt="" style="width:100%;display:block;max-height:520px;object-fit:cover">';}).join("")+'</div>':'';
+  var safe=row.description_html?sanitizePostHtml(row.description_html):null;
+  var body=safe?safe:('<p>'+esc(row.description||"(설명 없음)").replace(/\n/g,"<br>")+'</p>');
+  var rows=[["가격",row.price],["작업 기간",row.period],["모집 인원",row.slots],
+    ["태그",(row.tags||[]).join(", ")],["작업물 사용 권한",row.usage_rights],["거래 정책",row.trade_policy]]
+    .filter(function(x){return x[1];})
+    .map(function(x){return '<div class="del-kv"><span>'+x[0]+'</span><b>'+esc(String(x[1]))+'</b></div>';}).join("");
+  var h='<div class="detail">'+
+    '<button class="d-back" onclick="openAdminDeletionLog(\'commission\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>삭제 기록으로</button>'+
+    _archivedBannerHTML(row,"커미션")+
+    '<div class="d-head"><div class="line1"><span class="cat free-c">커미션</span></div>'+
+      '<h1 class="serif">'+esc(row.title||"(제목 없음)")+'</h1>'+
+      '<div class="d-author"><div class="d-ava serif">'+avatarHTML(row.author_nick||"익명",null)+'</div>'+
+      '<div class="d-au-info"><div class="n">'+esc(dispName(row.author_nick||"익명"))+'</div>'+
+      '<div class="meta">'+(row.commission_created_at?timeAgo(row.commission_created_at):"등록시각 알 수 없음")+'</div></div></div></div>'+
+    pics+(rows?'<div class="del-kv-list">'+rows+'</div>':'')+
+    '<div class="d-content">'+body+'</div>'+
+  '</div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
 }
 /* 삭제된 글의 스냅샷(보관본)을 원본 글 상세처럼 읽기 전용으로 재구성 */
 function renderArchivedPost(row){
@@ -1694,11 +1795,10 @@ function renderArchivedPost(row){
     '<div class="d-canvas" style="height:auto;display:block;padding:0">'+(p.stage?'<span class="stage-tag">'+esc(p.stage)+' 단계</span>':'')+
       p.images.map(function(url){return '<img src="'+esc(url)+'" alt="" style="width:100%;display:block;max-height:520px;object-fit:cover">'}).join("")+
     '</div>':'';
-  var delMeta='삭제 관리자 <b>'+esc(row.admin_nick||"(알 수 없음)")+'</b> · '+timeAgo(row.created_at)+' · 사유: '+(row.reason?esc(row.reason):"미입력")+(row.notified?'':' · 알림 미발송');
   var body=safeHtml?safeHtml:(p.content.length?p.content.map(function(x){return '<p>'+esc(x)+'</p>'}).join(""):'<p style="color:var(--muted)">(본문 없음)</p>');
   var h='<div class="detail">'+
-    '<button class="d-back" onclick="openAdminDeletionLog()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>삭제 기록으로</button>'+
-    '<div class="archived-banner">🗑 삭제된 글 보관본<div class="archived-banner-sub">'+delMeta+'</div></div>'+
+    '<button class="d-back" onclick="openAdminDeletionLog(\'post\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>삭제 기록으로</button>'+
+    _archivedBannerHTML(row,"글")+
     '<div class="d-head"><div class="line1"><span class="cat '+c.cls+'">'+c.label+'</span></div><h1 class="serif">'+esc(p.title||"(제목 없음)")+'</h1>'+
     '<div class="d-author"><div class="d-ava serif">'+avatarHTML(p.author,p.authorAvatar)+'</div><div class="d-au-info"><div class="n">'+esc(dispName(p.author))+anonIpHTML(p.ipMasked)+levelBadgeHtml(p.authorLevel,"lv-badge")+'</div><div class="meta">'+esc(p.time)+'</div></div></div></div>'+
     canvas+'<div class="d-content">'+body+'</div>'+
@@ -1967,6 +2067,9 @@ function renderComments(p){
   return list.map(function(item){
     var c=item.c,ci=item.ci;
     var canDelete=c.dbId&&AUTH.user&&c.authorId===AUTH.user.id;
+    // 관리자는 남의 댓글도 지울 수 있어야 한다(지금까진 버튼 자체가 없었다).
+    // 본인 댓글은 위 '삭제'로 조용히 지우고, 남의 댓글은 사유를 받아 보관본을 남기는 경로로 보낸다.
+    var canAdminDelete=c.dbId&&AUTH.user&&AUTH.profile&&AUTH.profile.is_admin&&c.authorId!==AUTH.user.id;
     var isAccepted=isFeedback&&accId&&c.dbId===accId;
     var acceptBtn=(isFeedback&&isPostAuthor&&c.dbId)
       ? (isAccepted?'<span class="cm-accept-btn on" onclick="acceptFeedback('+p.id+','+c.dbId+',true)">채택 취소</span>'
@@ -1974,7 +2077,7 @@ function renderComments(p){
       : '';
     var badge=isAccepted?'<div class="cm-accepted-badge">✅ 채택된 피드백</div>':'';
     var isReply=/^\s*@\S/.test(c.txt||''); // "@닉네임"으로 시작하면 답글
-    return '<div class="cm'+(isAccepted?' accepted':'')+(isReply?' reply':'')+'"><div class="d-ava serif">'+avatarHTML(c.n,c.av)+'</div><div class="cbody">'+badge+'<div class="ch"><span class="cn"'+(c.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+c.authorId+'\')"':'')+'>'+esc(c.n)+anonIpHTML(c.ip)+'</span>'+levelBadgeHtml(c.lv,"lv-badge")+'<span class="ct">'+esc(c.t)+'</span></div><div class="ctext">'+withEmoticons(esc(c.txt).replace(/^@(\S+)/,'<b class="mention">@$1</b>'))+'</div><div class="cfoot"><span onclick="helpful('+p.id+','+ci+',this)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 6h5a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7"/></svg>도움돼요'+(c.h?' <b>'+c.h+'</b>':'')+'</span><span onclick="replyTo(\''+esc(c.n)+'\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>답글</span>'+(canDelete?'<span onclick="deleteComment('+p.id+','+ci+')">삭제</span>':'')+acceptBtn+'</div></div></div>';
+    return '<div class="cm'+(isAccepted?' accepted':'')+(isReply?' reply':'')+'"><div class="d-ava serif">'+avatarHTML(c.n,c.av)+'</div><div class="cbody">'+badge+'<div class="ch"><span class="cn"'+(c.authorId?' style="cursor:pointer" onclick="openUserProfile(\''+c.authorId+'\')"':'')+'>'+esc(c.n)+anonIpHTML(c.ip)+'</span>'+levelBadgeHtml(c.lv,"lv-badge")+'<span class="ct">'+esc(c.t)+'</span></div><div class="ctext">'+withEmoticons(esc(c.txt).replace(/^@(\S+)/,'<b class="mention">@$1</b>'))+'</div><div class="cfoot"><span onclick="helpful('+p.id+','+ci+',this)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 3 2l-1 6h5a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 1H7"/></svg>도움돼요'+(c.h?' <b>'+c.h+'</b>':'')+'</span><span onclick="replyTo(\''+esc(c.n)+'\')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>답글</span>'+(canDelete?'<span onclick="deleteComment('+p.id+','+ci+')">삭제</span>':'')+(canAdminDelete?'<span class="c-admindel" onclick="adminDeleteComment('+p.id+','+ci+')">🗑 관리자 삭제</span>':'')+acceptBtn+'</div></div></div>';
   }).join("");
 }
 async function acceptFeedback(postId,commentDbId,isCancel){
@@ -1991,6 +2094,25 @@ async function acceptFeedback(postId,commentDbId,isCancel){
   else if(data.rewarded)msg="채택했어요! 작성자에게 광고 "+(data.ad!=null?data.ad:25)+"·활동 "+(data.activity!=null?data.activity:25)+"점 지급 🎁";
   else msg="채택했어요";
   toast(msg);
+}
+/* 관리자가 남의 댓글을 삭제 — 사유를 받고 원본을 보관본으로 남긴다.
+   보안: RPC 안에서 is_admin()을 확인하므로 버튼을 숨기는 것과 무관하게 일반 유저는 막힌다. */
+async function adminDeleteComment(postId,ci){
+  var p=POSTS.find(function(x){return x.id===postId});if(!p)return;
+  var c=p.comments[ci];if(!c||!c.dbId)return;
+  var r=await adminDeleteReasonDialog();
+  if(!r)return;
+  if(!(await confirmDialog(r.notify?"이 댓글을 삭제할까요? 작성자에게 알림이 전송돼요.":"이 댓글을 삭제할까요? (작성자에게 알림을 보내지 않습니다)")))return;
+  var res=await window.supabase.rpc("admin_delete_comment",{p_comment_id:c.dbId,p_reason:r.reason,p_notify:r.notify});
+  if(res.error){toast("삭제 실패: "+res.error.message);return;}
+  var d=res.data||{};
+  if(!d.ok){toast(d.error==="not_admin"?"관리자만 사용할 수 있어요":("삭제할 수 없어요 ("+(d.error||"오류")+")"));return;}
+  p.comments.splice(ci,1);
+  var listEl=document.getElementById("cmList");
+  if(listEl)listEl.innerHTML=renderComments(p);
+  var head=document.querySelector(".cm-head");
+  if(head)head.innerHTML='<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>훈수 · 크리틱 '+p.comments.length;
+  toast(r.notify?"관리자 권한으로 댓글을 삭제했어요":"관리자 권한으로 댓글을 삭제했어요 (알림 미발송)");
 }
 async function deleteComment(postId,ci){
   var p=POSTS.find(function(x){return x.id===postId});if(!p)return;
@@ -6325,11 +6447,17 @@ async function adminBlindPost(reportId,postDbId,on){
   openAdminReports();
 }
 async function adminDeleteReportedCommission(reportId,commissionId){
-  if(!(await confirmDialog("이 커미션을 삭제할까요? 되돌릴 수 없어요.")))return;
-  var r=await window.supabase.from("commissions").delete().eq("id",commissionId);
+  // 커미션은 돈이 오가는 거래라 근거가 특히 중요하다 → 보관본을 남기는 RPC로 지운다.
+  // (이미지 파일은 지우지 않아 보관본에서 그림이 그대로 보인다)
+  var q=await adminDeleteReasonDialog();
+  if(!q)return;
+  if(!(await confirmDialog(q.notify?"이 커미션을 삭제할까요? 작가에게 알림이 전송돼요.":"이 커미션을 삭제할까요? (작가에게 알림을 보내지 않습니다)")))return;
+  var r=await window.supabase.rpc("admin_delete_commission",{p_commission_id:commissionId,p_reason:q.reason,p_notify:q.notify});
   if(r.error){toast("삭제 실패: "+r.error.message);return;}
+  var rd=r.data||{};
+  if(!rd.ok){toast(rd.error==="not_admin"?"관리자만 사용할 수 있어요":("삭제할 수 없어요 ("+(rd.error||"오류")+")"));return;}
   await window.supabase.from("reports").update({resolved:true}).eq("id",reportId);
-  await _logModeration("delete",null,reportId,"커미션 #"+commissionId);
+  await _logModeration("delete",null,reportId,"커미션 #"+commissionId+(q.reason?(" — "+q.reason):""));
   cmData=cmData.filter(function(c){return c.id!==commissionId;});
   toast("커미션을 삭제했어요","🗑");
   openAdminReports();
@@ -6352,11 +6480,17 @@ async function dismissReport(reportId){
   openAdminReports();
 }
 async function adminDeleteReportedPost(reportId,postDbId){
-  if(!(await confirmDialog("이 글을 삭제할까요?")))return;
-  var res=await window.supabase.from("posts").delete().eq("id",postDbId);
+  // ⚠️ 예전엔 여기서 posts를 직접 지워 보관본이 남지 않았다. 글 상세의 관리자 삭제와 같은 RPC를 써서
+  //    사유 입력과 원본 스냅샷이 똑같이 남게 한다(신고 건이야말로 나중에 이의신청이 들어온다).
+  var r=await adminDeleteReasonDialog();
+  if(!r)return;
+  if(!(await confirmDialog(r.notify?"이 글을 삭제할까요? 작성자에게 알림이 전송돼요.":"이 글을 삭제할까요? (작성자에게 알림을 보내지 않습니다)")))return;
+  var res=await window.supabase.rpc("admin_delete_post",{p_post_id:postDbId,p_reason:r.reason,p_notify:r.notify});
   if(res.error){toast("삭제 실패: "+res.error.message);return;}
+  var data=res.data||{};
+  if(!data.ok){toast(data.error==="not_admin"?"관리자만 사용할 수 있어요":("삭제할 수 없어요 ("+(data.error||"오류")+")"));return;}
   await window.supabase.from("reports").update({resolved:true}).eq("id",reportId);
-  await _logModeration("delete",postDbId,reportId,null);
+  await _logModeration("delete",postDbId,reportId,r.reason||null);
   POSTS=POSTS.filter(function(x){return x.dbId!==postDbId});
   toast("글을 삭제했어요");
   openAdminReports();

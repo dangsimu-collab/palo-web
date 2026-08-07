@@ -983,6 +983,29 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 
 - **쌓임 순서(z-index) 문제 2건 수정(2026-08-07, 사용자 제보)**: **①커미션 상세의 문의하기·신청하기 바를 푸터가 덮던 문제** — 원인은 `.wrap`의 **전역 규칙**(`position:relative;z-index:1`)이었다. 푸터 마크업(`<footer><div class="wrap">…`)도 이 규칙을 받아 **같은 z-index:1**이 되는데, 같은 값이면 **DOM에서 뒤에 있는 쪽이 위에 그려지므로** 푸터가 본문(`.wrap.grid`) 위의 고정 바를 덮었다. ⚠️ `.cm-apply-bar`의 `z-index:30`을 올려도 소용없다 — `.wrap`이 쌓임 맥락을 만들어 그 안에 **갇혀 있기 때문**(전역 기준으로는 1층). → `footer .wrap{z-index:auto}`로 푸터가 층을 만들지 않게 함(푸터는 층이 필요 없는 단순 텍스트). **②이미지 미리보기가 하단 탭바·헤더를 덮던 문제** — `#imgPreview`는 `document.body`에 붙는 최상위 요소인데 `z-index:200`이라 헤더(60)·탭바(65)보다 위였다. → **50**으로 낮춤(본문 `.wrap`=1보다는 위, 고정 UI보다는 아래). ⚠️ 자동화 환경이 **스크롤을 무시**해 실제 겹침 재현이 불가했다 → 같은 조건의 요소를 강제로 겹쳐놓고 `elementFromPoint`로 판정하는 방식으로 검증. 검증(dev): 푸터 wrap `z-index:auto`·본문 wrap `1`, 겹침 지점 최상단이 **본문 고정요소**로 나옴, 미리보기 z=50(본문보다 위·헤더/탭바보다 아래)·표시/숨김 정상, CTA 바 회귀 없음(문의하기·신청하기 정상 렌더), `next build` 통과.
 
+- **삭제 보관본 확장 + 되살리기(2026-08-08, 사용자 요청 — 삭제 데이터 보관 실태 검토 후)**:
+  검토 결과 **"글 상세의 🗑 관리자 삭제" 한 경로만** 원본을 보관하고 있었다. 나머지는 전부 흔적 없이 사라졌다.
+  특히 **신고함에서 지우면 보관본이 안 남았는데**, 실제 운영에선 그 경로를 훨씬 많이 쓰고
+  이의신청도 그 글에서 나온다(가장 큰 구멍). 아래를 전부 채웠다.
+  **① 신고함 삭제를 RPC로 통일**: `adminDeleteReportedPost`가 `posts.delete()` 직접 호출 → `admin_delete_post` RPC로 교체.
+  사유 입력창(`adminDeleteReasonDialog`)과 원본 스냅샷이 글 상세 경로와 똑같이 따라온다. `_logModeration`의 note에도 사유를 남긴다.
+  **② 댓글 보관본**: `admin_comment_deletions` + RPC `admin_delete_comment(p_comment_id,p_reason,p_notify)`.
+  ⚠️ **그전까지 관리자는 남의 댓글을 지울 버튼 자체가 없었다**(`canDelete`가 본인 한정) → `canAdminDelete`로 붉은 '🗑 관리자 삭제' 추가.
+  **③ 커미션 보관본**: `admin_commission_deletions` + RPC `admin_delete_commission`. 가격·태그·기간·설명·신청서·이미지 URL까지 스냅샷.
+  **관리자 삭제 경로는 R2 파일을 지우지 않아** 보관본에서 그림이 그대로 보인다(작가 본인 삭제는 지금처럼 파일도 정리).
+  **④ 되살리기**: `admin_restore_post/comment/commission(p_log_id)`. **원래 번호가 아니라 새 번호로** 다시 넣는다(그 번호를 다른 글이 쓸 수 있으므로).
+  보관본은 지우지 않고 `restored_at`/`restored_id`만 표시 = 증거 보존. 커미션은 `bumped_at`을 원래 등록시각으로 넣어
+  **되살리자마자 목록 맨 위로 가지 않게** 한다. 댓글은 원본 글이 사라졌으면 `post_gone`, 커미션은 작가 계정이 없으면 `author_gone`으로 거절.
+  **⑤ 화면**: 삭제 기록이 글/댓글/커미션 **3탭**(`.del-tabs`)으로 확장(`ADMIN_DEL_KIND`·`ADMIN_DEL_TABLE`),
+  보관본 상세의 붉은 띠에 되살리기 버튼(`_archivedBannerHTML` 공용), 이미 되살렸으면 버튼 대신 안내.
+  표가 없으면(SQL 실행 전) "deletion-archive.sql을 실행하세요"라고 알려준다.
+  **설계**: 보관본 표는 **select만 `is_admin()`, insert/update/delete 정책 없음** = security definer 함수로만 기록되고 관리자도 못 고침.
+  알림 발송은 `exception when others then` 으로 감싸 **알림이 막혀도 삭제는 진행**되게 했다(`notifications_type_check` 제약 등 대비, type은 기존 `admin_delete` 재사용).
+  📌 **사용자 본인 삭제는 일부러 보관하지 않는다** — 개인정보 최소보관 원칙, "지웠는데 운영자는 다 갖고 있다"는 신뢰 문제.
+  📌 되살릴 때 작성자에게 알림은 **보내지 않는다**(`notifications_type_check`에 새 타입을 넣어야 해서 보류).
+  **실행 필요 SQL: `docs/sql/deletion-archive.sql`**
+  검증: 3탭 목록·보관본 상세(댓글/커미션)·되살림 표시·이미 되살린 건 버튼 숨김, onclick 함수 전부 존재, next build 통과.
+
 - **글쓰기의 게시판 선택에 이모지+색 추가(2026-08-07, 사용자 요청)**: 이름만 나열돼 있어 구분이 어려웠다.
   `BOARD_EMOJI`(게시판별 이모지)와 `boardCls()`를 두고, 메뉴의 각 줄과 고른 게시판 버튼에 배지(`.ed-bm-ic`)를 붙인다.
   ⚠️ **배지 배경색은 새로 만들지 않고 글 말머리(`.cat.talk-c` 등) 색을 그대로 가져다 쓴다** —
