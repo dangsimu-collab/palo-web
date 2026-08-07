@@ -39,6 +39,84 @@ var postsLoaded=false; // loadRealPosts()가 실제 글을 POSTS에 합친 뒤 t
 var userLeftHome=false; // 초기 로딩이 끝나기 전에 사용자가 피드(홈) 밖 화면(커미션/채팅/글쓰기/프로필/글·유저 상세)으로 이동했으면 true — loadRealPosts() 완료 시 홈으로 강제 복귀시키지 않기 위함
 // 하단 탭 경합(레이스) 방지: 사용자가 "마지막으로 선택한" 최상위 탭을 기록. 각 탭 함수가 눌리는 즉시(동기) 갱신하고,
 // 비동기 로딩이 뒤늦게 끝나 화면을 그리기 직전에 "아직 내가 이 탭인가?"를 확인해, 이전 탭 결과가 현재 화면을 덮어쓰지 않게 한다.
+/* ===== 광고 성과 측정 =====
+   광고 링크에 캠페인 코드를 달아 쓴다:  https://commi.kr/?c=tw0808
+   처음 들어온 사람에게 무작위 방문자 번호를 발급하고, **첫 유입 캠페인만** 붙여 둔다(first-touch).
+   나중에 검색으로 다시 들어와도 그 사람의 성과는 처음 데려온 광고의 몫이다.
+   ⚠️ 주소는 renderList()의 pushState 등으로 곧 정리되므로 스크립트가 뜨자마자 붙잡아 둔다.
+   ⚠️ 기록은 브라우저가 DB에 직접 넣지 않고 /api/track을 거친다(아무나 통계를 넣지 못하게). */
+var MKT=(function(){
+  var KV="palo_mkt_v",KC="palo_mkt_c",vid=null,camp=null,on=false;
+  function uuid(){
+    try{ if(crypto&&crypto.randomUUID)return crypto.randomUUID(); }catch(e){}
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,function(c){
+      var r=Math.random()*16|0;return (c==="x"?r:((r&3)|8)).toString(16);});
+  }
+  try{
+    vid=localStorage.getItem(KV);
+    if(!vid){vid=uuid();localStorage.setItem(KV,vid);}
+    camp=localStorage.getItem(KC)||null;
+    var q=new URLSearchParams(location.search);
+    var code=(q.get("c")||q.get("utm_campaign")||"").trim().slice(0,40);
+    // 이미 붙은 캠페인이 있으면 덮어쓰지 않는다 — 처음 데려온 광고의 공로를 지키기 위해
+    if(code&&!camp){camp=code;localStorage.setItem(KC,code);}
+    if(code){ // 주소에서 코드는 지운다(공유했을 때 남의 방문까지 이 캠페인으로 잡히지 않게)
+      q.delete("c");q.delete("utm_campaign");q.delete("utm_source");q.delete("utm_medium");
+      var qs=q.toString();
+      try{history.replaceState({},"",location.pathname+(qs?"?"+qs:""));}catch(e){}
+    }
+    on=true;
+  }catch(e){on=false;} // 시크릿 모드 등으로 저장이 막히면 측정을 포기(사이트는 그대로 동작)
+  var queue=[],timer=null;
+  function payload(){
+    var u=null;try{u=(window.AUTH&&AUTH.user)?AUTH.user.id:null;}catch(e){}
+    return JSON.stringify({v:vid,c:camp,u:u,e:queue.splice(0,30)});
+  }
+  function flush(beacon){
+    if(!on||!queue.length)return;
+    var body=payload();
+    try{
+      if(beacon&&navigator.sendBeacon){
+        navigator.sendBeacon("/api/track",new Blob([body],{type:"application/json"}));return;
+      }
+      fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},body:body,keepalive:true}).catch(function(){});
+    }catch(e){}
+  }
+  function track(name,label){
+    if(!on)return;
+    queue.push({n:name,l:label||null,p:location.pathname});
+    if(queue.length>=20){flush(false);return;}
+    // 한 동작마다 보내면 요청이 너무 잦다 → 몇 초 모아서 한 번에 보낸다
+    if(!timer)timer=setTimeout(function(){timer=null;flush(false);},4000);
+  }
+  // 창을 닫거나 탭을 옮길 때 남은 것을 마저 보낸다(fetch는 이때 취소되므로 sendBeacon)
+  try{
+    document.addEventListener("visibilitychange",function(){if(document.visibilityState==="hidden")flush(true);});
+    window.addEventListener("pagehide",function(){flush(true);});
+  }catch(e){}
+  return {track:track,flush:flush,campaign:function(){return camp;},visitor:function(){return vid;},enabled:function(){return on;}};
+})();
+function track(n,l){try{MKT.track(n,l);}catch(e){}}
+// 버튼 클릭은 버튼마다 코드를 넣지 않고 한 곳에서 잡는다.
+// ⚠️ 글 제목 같은 걸 그대로 이름으로 쓰면 종류가 끝없이 늘어나 통계가 못 쓰게 된다 → 고정 이름으로 묶는다.
+try{
+  document.addEventListener("click",function(e){
+    if(!e.target||!e.target.closest)return;
+    var el=e.target.closest("[data-t],.tab,.cm-fab,.post,.post-card,.cm-card,.bn-a,.cm-chip,button");
+    if(!el)return;
+    var label=el.getAttribute&&el.getAttribute("data-t");
+    if(!label){
+      if(el.classList.contains("tab"))label="탭:"+(el.getAttribute("data-tab")||"글쓰기");
+      else if(el.classList.contains("post")||el.classList.contains("post-card"))label="글 목록 클릭";
+      else if(el.classList.contains("cm-card"))label="커미션 카드 클릭";
+      else if(el.classList.contains("bn-a"))label="게시판 이동";
+      else if(el.classList.contains("cm-chip"))label="태그 칩";
+      else label=(el.innerText||el.textContent||"").replace(/\s+/g," ").trim().slice(0,30);
+    }
+    if(label)track("click",label);
+  },true);
+}catch(e){}
+
 var curTab="home"; // "home" | "commission" | "chat" | "me"
 // 매 탭 전환마다 1씩 증가하는 "번호표". 비동기 로딩을 시작한 시점의 번호를 기억해 두고, 로딩이 끝나 화면을
 // 그리기 직전에 번호가 그대로인지 확인한다. 그새 다른(혹은 같은) 탭을 다시 눌렀으면 번호가 달라져 렌더를 버린다.
@@ -438,6 +516,7 @@ async function initAuth(){
   // ⚠️ 이벤트 리스너를 가장 먼저 등록해야 함 — 재설정 링크의 PASSWORD_RECOVERY 이벤트는
   //    getSession()보다 먼저 발생할 수 있어, 나중에 등록하면 놓친다(새 비밀번호 창이 안 뜨던 원인).
   window.supabase.auth.onAuthStateChange(function(event,session){
+    if(event==="SIGNED_IN")track("login");
     applySession(session);
     if(event==="PASSWORD_RECOVERY")setTimeout(openNewPasswordModal,200);
   });
@@ -813,7 +892,7 @@ async function emailSignup(){
     // 가입 직후 바로 로그인
     var r=await window.supabase.auth.signInWithPassword({email:_idToEmail(loginId),password:pw});
     if(r.error){setLoginMode("login");_lgHint("가입은 됐어요. 아이디와 비밀번호로 로그인해주세요.");_lgBusy(false);return;}
-    closeLoginModal();toast("환영해요! 가입이 완료됐어요","🎉");
+    closeLoginModal();track("signup");toast("환영해요! 가입이 완료됐어요","🎉");
   }catch(e){_lgHint("가입 중 오류가 났어요: "+((e&&e.message)||e));}
   _lgBusy(false);
 }
@@ -1313,6 +1392,7 @@ function renderList(){
   observeAdBanners();
 }
 function openPost(id){
+  track("post_view");
   userLeftHome=true;
   resetScreens();
   leaveChat();
@@ -1639,6 +1719,159 @@ function renderCommissionBonusLog(rows){
   h+='</div>';
   document.getElementById("main").innerHTML=h;
   window.scrollTo({top:0,behavior:"smooth"});
+}
+/* ===== 광고 성과 대시보드 (관리자) =====
+   캠페인 한 줄 = 그 광고로 들어온 사람들의 유입·행동·전환 전부.
+   비율의 분모는 언제나 **그 캠페인 방문자 수**다(좋아요율 = 좋아요 누른 사람 ÷ 방문자).
+   '직접·검색 유입'이 한 줄로 같이 나와서 광고가 자연 유입보다 나은지 바로 비교된다. */
+var MKT_STATS=[],MKT_RANGE=30,MKT_OPEN=null,MKT_FORM=false;
+function _mktPct(n,d){return d>0?Math.round(n*1000/d)/10:0;}
+function _mktFromISO(){
+  if(!MKT_RANGE)return null;
+  return new Date(Date.now()-MKT_RANGE*86400000).toISOString();
+}
+async function openAdminMkt(){
+  if(!AUTH.profile||!AUTH.profile.is_admin||!window.supabase)return;
+  enterScreen("mkt",openProfile);
+  document.getElementById("main").innerHTML='<div class="profile"><div class="pf-empty">불러오는 중…</div></div>';
+  var res=await window.supabase.rpc("get_campaign_stats",{p_from:_mktFromISO(),p_to:null});
+  if(res.error){
+    var miss=/Could not find the function|does not exist/.test(res.error.message);
+    document.getElementById("main").innerHTML='<div class="profile">'+
+      '<button class="d-back" onclick="screenBack()">← 내 정보로</button>'+
+      '<div class="pf-sec">📈 광고 성과</div><div class="pf-empty">'+
+      (miss?'이 기능은 <b>docs/sql/marketing-analytics.sql</b>을 실행해야 켜져요.':esc(res.error.message))+
+      '</div></div>';
+    return;
+  }
+  MKT_STATS=res.data||[];
+  renderAdminMkt();
+}
+function _mktRangeTabs(){
+  return '<div class="del-tabs">'+[[7,"7일"],[30,"30일"],[90,"90일"],[0,"전체"]].map(function(x){
+    return '<div class="del-tab'+(MKT_RANGE===x[0]?' on':'')+'" onclick="mktSetRange('+x[0]+')">'+x[1]+'</div>';
+  }).join('')+'</div>';
+}
+function mktSetRange(d){MKT_RANGE=d;openAdminMkt();}
+// 한 줄 요약: 방문자 → 가입까지 몇 %가 남았는지. 광고를 고를 때 제일 먼저 보는 숫자다.
+function _mktCardHTML(r){
+  var v=Number(r.visitors)||0;
+  var rows=[
+    ["글 열람",r.post_viewers],["커미션 열람",r.cm_viewers],
+    ["좋아요",r.likers],["댓글",r.commenters],["글 작성",r.writers],
+    ["북마크",r.bookmarkers],["커미션 신청",r.appliers],["재방문",r.repeat_visitors]
+  ].map(function(x){
+    var n=Number(x[1])||0;
+    return '<div class="mkt-kv"><span>'+x[0]+'</span><b>'+n+'</b><i>'+_mktPct(n,v)+'%</i></div>';
+  }).join('');
+  var signups=Number(r.signups)||0;
+  var spend=Number(r.spend)||0;
+  var cpa=signups>0&&spend>0?Math.round(spend/signups).toLocaleString()+"원":"—";
+  var open=MKT_OPEN===r.code;
+  return '<div class="mkt-card'+(r.active===false?' off':'')+'">'+
+    '<div class="mkt-head" onclick="mktToggle('+JSON.stringify(r.code).replace(/"/g,"&quot;")+')">'+
+      '<div><div class="mkt-name">'+esc(r.name||r.code)+(r.channel?'<span class="mkt-ch">'+esc(r.channel)+'</span>':'')+'</div>'+
+      '<div class="mkt-code">'+esc(r.code)+'</div></div>'+
+      '<div class="mkt-big"><b>'+v+'</b><span>방문자</span></div>'+
+    '</div>'+
+    '<div class="mkt-top3">'+
+      '<div class="mkt-t"><b>'+signups+'</b><span>가입</span><i>'+_mktPct(signups,v)+'%</i></div>'+
+      '<div class="mkt-t"><b>'+(Number(r.pageviews)||0)+'</b><span>페이지뷰</span><i>'+(v?Math.round((Number(r.pageviews)||0)/v*10)/10:0)+'회/명</i></div>'+
+      '<div class="mkt-t"><b>'+cpa+'</b><span>가입 1명당</span><i>'+(spend?spend.toLocaleString()+"원 집행":"광고비 미입력")+'</i></div>'+
+    '</div>'+
+    (open?('<div class="mkt-detail">'+rows+
+      '<div class="mkt-clicks" id="mktClicks">버튼 클릭 불러오는 중…</div>'+
+      (r.name==='직접·검색 유입'?'':(
+        '<div class="mkt-tools">'+
+          '<button class="mkt-tool" onclick="mktCopyLink('+JSON.stringify(r.code).replace(/"/g,"&quot;")+')">🔗 광고 링크 복사</button>'+
+          '<div class="mkt-spend"><input id="mktSpend_'+esc(r.code)+'" type="number" inputmode="numeric" placeholder="광고비(원)" value="'+(spend||'')+'">'+
+            '<button onclick="mktSetSpend('+JSON.stringify(r.code).replace(/"/g,"&quot;")+')">저장</button></div>'+
+          '<button class="mkt-tool'+(r.active===false?'':' danger')+'" onclick="mktToggleActive('+JSON.stringify(r.code).replace(/"/g,"&quot;")+','+(r.active!==false)+')">'+
+            (r.active===false?'▶ 다시 진행':'⏸ 이 캠페인 중단')+'</button>'+
+        '</div>'))+
+      '</div>'):'')+
+  '</div>';
+}
+function renderAdminMkt(){
+  var h='<div class="profile">'+
+    '<button class="d-back" onclick="screenBack()">← 내 정보로</button>'+
+    '<div class="pf-sec">📈 광고 성과</div>'+
+    '<div class="mkt-guide">광고 링크에 캠페인 코드를 붙여 쓰세요 → <b>https://commi.kr/?c=코드</b><br>'+
+      '처음 들어온 캠페인이 그 사람에게 계속 붙어서, 나중에 가입해도 그 광고의 성과로 잡혀요.</div>'+
+    _mktRangeTabs()+
+    '<button class="mkt-add" onclick="mktNewCampaign()">'+(MKT_FORM?'닫기':'+ 캠페인 만들기')+'</button>'+_mktFormHTML();
+  if(!MKT_STATS.length)h+='<div class="pf-empty">아직 기록이 없어요.</div>';
+  else h+='<div class="mkt-list">'+MKT_STATS.map(_mktCardHTML).join('')+'</div>';
+  h+='</div>';
+  document.getElementById("main").innerHTML=h;
+  window.scrollTo({top:0,behavior:"smooth"});
+  if(MKT_OPEN)_mktLoadClicks(MKT_OPEN);
+}
+function mktToggle(code){
+  MKT_OPEN=(MKT_OPEN===code)?null:code;
+  renderAdminMkt();
+}
+async function _mktLoadClicks(code){
+  var el=document.getElementById("mktClicks");if(!el)return;
+  var res=await window.supabase.rpc("get_campaign_clicks",{p_code:code,p_from:_mktFromISO(),p_to:null});
+  if(res.error){el.textContent="버튼 클릭을 불러오지 못했어요.";return;}
+  var list=res.data||[];
+  if(!list.length){el.textContent="아직 눌린 버튼이 없어요.";return;}
+  el.innerHTML='<div class="mkt-clicks-h">어떤 버튼을 눌렀나</div>'+list.map(function(c){
+    return '<div class="mkt-kv"><span>'+esc(c.label)+'</span><b>'+c.clicks+'회</b><i>'+c.people+'명</i></div>';
+  }).join('');
+}
+// 캠페인 만들기 — 코드는 링크에 그대로 들어가므로 영문·숫자로만 받는다
+function mktNewCampaign(){MKT_FORM=!MKT_FORM;renderAdminMkt();}
+function _mktFormHTML(){
+  if(!MKT_FORM)return '';
+  return '<div class="mkt-form">'+
+    '<div class="cm-reg-label">캠페인 코드 <span class="cm-reg-req">*</span> <span class="cm-reg-sub">링크에 들어갈 영문·숫자</span></div>'+
+    '<input class="cm-reg-input" id="mktCode" placeholder="예: tw0808" maxlength="40">'+
+    '<div class="cm-reg-label">캠페인 이름 <span class="cm-reg-req">*</span></div>'+
+    '<input class="cm-reg-input" id="mktName" placeholder="예: 8월 트위터 런칭" maxlength="60">'+
+    '<div class="cm-reg-label">채널 <span class="cm-reg-sub">선택</span></div>'+
+    '<input class="cm-reg-input" id="mktCh" placeholder="예: 트위터" maxlength="20">'+
+    '<div class="cm-reg-label">집행 광고비 <span class="cm-reg-sub">선택 · 가입 1명당 비용 계산에 쓰여요</span></div>'+
+    '<input class="cm-reg-input" id="mktSpend" type="number" inputmode="numeric" placeholder="예: 50000">'+
+    '<button class="mkt-save" onclick="mktSaveCampaign()">만들기</button>'+
+  '</div>';
+}
+async function mktSaveCampaign(){
+  var code=(document.getElementById("mktCode").value||"").trim().toLowerCase().replace(/[^a-z0-9_-]/g,"").slice(0,40);
+  var name=(document.getElementById("mktName").value||"").trim().slice(0,60);
+  if(!code){toast("코드를 영문·숫자로 지어주세요");return;}
+  if(!name){toast("캠페인 이름을 적어주세요");return;}
+  var ins=await window.supabase.from("mkt_campaigns").insert({
+    code:code,name:name,
+    channel:((document.getElementById("mktCh").value||"").trim().slice(0,20))||null,
+    spend:parseInt((document.getElementById("mktSpend").value||"").replace(/[^0-9]/g,""),10)||0
+  });
+  if(ins.error){toast(/duplicate|unique/i.test(ins.error.message)?"이미 쓰고 있는 코드예요":("만들지 못했어요: "+ins.error.message));return;}
+  MKT_FORM=false;
+  toast("만들었어요 · 링크 /?c="+code,"📈");
+  openAdminMkt();
+}
+// 광고비는 집행하고 나서 알게 되는 경우가 많아 나중에 고칠 수 있어야 한다.
+async function mktSetSpend(code){
+  var el=document.getElementById("mktSpend_"+code);if(!el)return;
+  var v=parseInt((el.value||"").replace(/[^0-9]/g,""),10)||0;
+  var up=await window.supabase.from("mkt_campaigns").update({spend:v}).eq("code",code);
+  if(up.error){toast("저장하지 못했어요: "+up.error.message);return;}
+  toast("광고비를 저장했어요");
+  openAdminMkt();
+}
+// 효율이 나쁜 캠페인은 '중단'으로 내린다. 기록은 남기고 목록에서 흐리게만 표시된다.
+async function mktToggleActive(code,cur){
+  var up=await window.supabase.from("mkt_campaigns").update({active:!cur}).eq("code",code);
+  if(up.error){toast("바꾸지 못했어요: "+up.error.message);return;}
+  toast(cur?"중단했어요":"다시 진행 중으로 바꿨어요");
+  openAdminMkt();
+}
+function mktCopyLink(code){
+  var url=location.origin+"/?c="+code;
+  try{navigator.clipboard.writeText(url);toast("링크를 복사했어요","🔗");}
+  catch(e){toast(url);}
 }
 // 보관본은 글·댓글·커미션 세 종류. 표 이름과 화면 문구만 다르고 흐름은 같아 한 화면에서 탭으로 다룬다.
 var ADMIN_DEL_KIND="post";
@@ -2140,7 +2373,7 @@ async function addComment(id){
   p.comments.push(newComment);
   document.getElementById("cmList").innerHTML=renderComments(p);
   document.querySelector(".cm-head").innerHTML='<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>훈수 · 크리틱 '+p.comments.length;
-  inp.value="";toast("훈수를 남겼어요 🙏");
+  inp.value="";track("comment");toast("훈수를 남겼어요 🙏");
 }
 async function toggleLike(id){
   var p=POSTS.find(function(x){return x.id===id});
@@ -2153,7 +2386,7 @@ async function toggleLike(id){
     }else{
       var ins=await window.supabase.from("likes").insert({post_id:p.dbId,user_id:uid});
       if(ins.error){toast("처리 실패: "+ins.error.message);return;}
-      p._liked=true;p.likes++;
+      p._liked=true;p.likes++;track("like");
     }
   }else{
     p._liked=!p._liked;p.likes+=p._liked?1:-1;
@@ -2560,7 +2793,7 @@ async function cmToggleBookmark(commissionId,el){
     if(ins.error){toast('처리 실패: '+ins.error.message);return;}
     cmBookmarkIds.add(commissionId);
     cmBumpBookmarkCount(commissionId,1);
-    toast('북마크에 저장했어요','🔖');
+    track("bookmark");toast('북마크에 저장했어요','🔖');
   }
   if(el){
     var wrap=el.classList.contains('cm-bookmark')||el.classList.contains('cm-bm')?el:el.closest('.cm-bookmark,.cm-bm');
@@ -2828,7 +3061,7 @@ async function cmSubmitApplication(commissionId){
   };
   var res=await window.supabase.from('commission_applications').insert(payload);
   if(res.error){toast('신청 실패: '+res.error.message);return;}
-  toast('신청서를 제출했어요! 작가의 확인을 기다려주세요','📝');
+  track("commission_apply","신청서 제출");toast('신청서를 제출했어요! 작가의 확인을 기다려주세요','📝');
   cmOpenCommissionById(commissionId);
 }
 async function cmEnsureCommissionInData(commissionId){
@@ -2842,6 +3075,7 @@ async function cmEnsureCommissionInData(commissionId){
   return cmData.length-1;
 }
 async function cmOpenCommissionById(commissionId){
+  track("commission_view");
   userLeftHome=true; // 부팅 딥링크(/commission/id) 시 홈 재렌더가 상세를 덮어쓰지 않게
   var idx=await cmEnsureCommissionInData(commissionId);
   if(idx<0){toast('커미션을 찾을 수 없어요(삭제되었을 수 있어요)');return;}
@@ -2943,6 +3177,7 @@ function cmDetailHTML(d,idx){
   '</div>';
 }
 function cmOpenDetail(idx){
+  track("commission_view");
   enterScreen("cmDetail",cmDetailBack);
   cmDetailCtx={from:'list',idx:idx};
   var d=cmData[idx];
@@ -5261,7 +5496,7 @@ async function submitPost(){
   justAddedId=np.id;setTimeout(function(){justAddedId=null},1800);POSTS.unshift(np);
   closeWrite();state.board=edState.board;state.query="";state.sort="new";state.shown=8;
   renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
-  page=1;renderChips();renderList();toast("글을 올렸어요! ✏️");window.scrollTo({top:0,behavior:"smooth"});
+  page=1;renderChips();renderList();track("write");toast("글을 올렸어요! ✏️");window.scrollTo({top:0,behavior:"smooth"});
 }
 /* drawer / sheet / toast */
 var drawer=document.getElementById('drawer'),scrim=document.getElementById('scrim');
@@ -6206,6 +6441,7 @@ function renderMyProfile(){
        pfRow(pfMiniIcon('<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>'),'후기 분석'+suspN,"openReviewAnalysis()",{})+
        pfRow(pfMiniIcon('<path d="M9 3v6l-4 4v8h14v-8l-4-4V3z"/>'),'매니저 픽 관리',"openManagerPickList()",{})+
        pfRow(pfMiniIcon('<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>'),'삭제 기록',"openAdminDeletionLog()",{})+
+       pfRow(pfMiniIcon('<path d="M3 3v18h18"/><path d="M7 15l3-4 3 2 4-6"/><circle cx="17" cy="7" r="1.6"/>'),'광고 성과',"openAdminMkt()",{})+
        pfRow(pfMiniIcon('<path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/><path d="M16 3l5 5-9 9H7v-5z"/>'),'커미션 추천 관리',"openAdminCommissionMgmt()",{})+
        pfRow(pfMiniIcon('<path d="M12 2l2.4 7.4H22l-6 4.3 2.3 7.3-6.3-4.6-6.3 4.6 2.3-7.3-6-4.3h7.6z"/>'),'추천 점수 조정 기록',"openCommissionBonusLog()",{})+
        '</div>';
@@ -7323,6 +7559,7 @@ loadReadCache();
 // window.supabase는 React 모듈이 평가될 때 주입되므로, 준비 신호를 받고 나서 이어간다.
 // 이미 와 있으면(스크립트 순서가 뒤바뀐 경우) 곧바로 시작 — 어느 쪽이든 한 번만 돈다.
 function _bootBackend(){
+  track("view");
   initAuth().then(function(){loadRealPosts();handleNotifSettingsDeeplink();handleLoginError();});
 }
 if(window.supabase)_bootBackend();
