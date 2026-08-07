@@ -1009,6 +1009,21 @@
     body.hscroll-drag,body.hscroll-drag *{cursor:grabbing!important;user-select:none!important}
   }
 
+  /* 커미션 목록의 '만들기' 버튼 — 우측 하단, 하단 탭 바로 위.
+     본문 폭(480px)에 맞춰 가운데 정렬한 뒤 오른쪽에 붙여, 넓은 화면에서도
+     화면 끝이 아니라 목록 옆에 붙어 보이게 한다. */
+  .cm-fab-wrap{position:fixed;left:50%;transform:translateX(-50%);width:100%;max-width:480px;
+    bottom:calc(var(--cm-tabbar-h,0px) + 16px);pointer-events:none;z-index:40;
+    display:flex;justify-content:flex-end;padding:0 18px}
+  .cm-fab{pointer-events:auto;display:inline-flex;align-items:center;gap:7px;
+    background:linear-gradient(120deg,var(--brand),var(--grape));color:#fff;border:none;
+    border-radius:999px;padding:13px 20px;font-size:14.5px;font-weight:800;font-family:inherit;
+    cursor:pointer;box-shadow:0 6px 20px rgba(224,122,166,.45);transition:transform .14s,box-shadow .14s}
+  .cm-fab:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(224,122,166,.5)}
+  .cm-fab:active{transform:scale(.96)}
+  .cm-fab svg{width:18px;height:18px}
+  @media(max-width:360px){ .cm-fab{padding:13px 16px;font-size:13.5px} }
+
   /* 채팅 말풍선 속 사진 */
   .cr-img{display:block;max-width:min(220px,60vw);max-height:280px;width:auto;height:auto;
     border-radius:12px;cursor:zoom-in;object-fit:cover}
@@ -1404,7 +1419,9 @@
   .cm-chip{white-space:nowrap;padding:9px 18px;border-radius:20px;border:1.5px solid var(--line);
     background:var(--surface);font-size:14px;font-weight:600;color:var(--ink-2);cursor:pointer}
   .cm-chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
-  .cm-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 12px;padding:14px 18px 32px}
+  /* 아래 여백: 하단 탭 + 우측 하단 '만들기' 버튼에 마지막 카드가 가리지 않게 */
+  .cm-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 12px;
+    padding:14px 18px calc(96px + var(--cm-tabbar-h,0px))}
   .cm-card{cursor:pointer}
   .cm-thumb{position:relative;width:100%;aspect-ratio:1/1;border-radius:var(--r);overflow:hidden;background:var(--brand-soft);border:1px solid var(--line)}
   .cm-bookmark{position:absolute;bottom:9px;right:9px;width:32px;height:32px;background:rgba(255,255,255,.85);

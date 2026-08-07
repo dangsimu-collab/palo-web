@@ -2454,7 +2454,17 @@ function cmListHTML(){
     '<div class="cm-sec"><div class="cm-sec-h">지금 많이 찾는 태그</div></div>'+
     '<div class="cm-chips">'+cmChipsHTML()+'</div>'+
     '<div class="cm-grid" id="cmGrid">'+cmGridHTML()+'</div>'+
+    // 커미션 목록에만 뜨는 '만들기' 버튼. 하단 탭 위에 뜨도록 탭 높이만큼 띄운다.
+    // (#main을 다시 그리면 같이 사라지므로 다른 화면으로 새어나가지 않는다)
+    '<div class="cm-fab-wrap"><button class="cm-fab" onclick="cmStartRegister()">'+
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'+
+      '커미션 만들기</button></div>'+
   '</div>';
+}
+// 로그인해야 만들 수 있다. 바로 등록 화면을 열면 저장 단계에서 막혀 헛수고가 되므로 먼저 안내한다.
+function cmStartRegister(){
+  if(!AUTH.user){toast("로그인이 필요해요","🔒");openLoginModal();return;}
+  cmOpenRegister();
 }
 function cmSetTag(t){
   cmState.activeTag=t;
