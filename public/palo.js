@@ -2711,8 +2711,8 @@ function cmDetailHTML(d,idx){
         '<div>'+(realReviews.length?reviewListHTML(realReviews.slice(0,3)):'<div class="cm-my-empty">아직 후기가 없어요.</div>')+'</div>'+
         (canReview?'<button class="cm-write-btn" style="margin-top:10px" onclick="cmOpenWrite('+d.id+')">✍️ 후기 쓰기</button>':'')+
       '</div>'+
-      (d.id!=null?('<div class="cm-ws-sec"><div class="cm-rv-head"><b>최근 작업물</b>'+
-        ((AUTH.user&&d.authorId&&AUTH.user.id===d.authorId)?'<span class="cm-rv-more" onclick="cmOpenWorksampleForm('+d.id+')">+ 작업물 등록</span>':'')+
+      (d.id!=null?('<div class="cm-ws-sec"><div class="cm-rv-head"><b>최신 작업물</b>'+
+        ((AUTH.user&&d.authorId&&AUTH.user.id===d.authorId)?'<span class="cm-rv-more" onclick="cmOpenWorksampleForm('+d.id+')">+ 최신 작업물 올리기</span>':'')+
         '</div><div class="cm-ws-list" id="cmWsList"><div class="cm-my-empty">불러오는 중...</div></div></div>'):'')+
       '<div class="cm-samples">'+samples+'</div>'+
       (usageHTML?('<div class="cm-acc open"><div class="cm-acc-h" onclick="this.parentElement.classList.toggle(\'open\')"><b>작업물 사용 권한</b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 15l6-6 6 6"/></svg></div>'+
@@ -2775,17 +2775,17 @@ function cmOpenArtistProfile(name){
   '</div>';
   window.scrollTo({top:0,behavior:"smooth"});
 }
-/* ---------- 커미션 작업 사례 (worksamples) — 커미션별 작업 결과물 쇼케이스 ---------- */
+/* ---------- 커미션 최신 작업물 (worksamples) — 커미션별 작업 결과물 쇼케이스 ---------- */
 var cmWsCache={};                            // {commissionId: [worksample...]} — 상세를 재조회 없이 재사용
 var cmWsForm={commissionId:null,images:[]};  // 등록 폼 상태
-// 커미션 상세의 "최근 작업물" 목록을 비동기로 불러와 채움(상세 렌더 직후 호출)
+// 커미션 상세의 "최신 작업물" 목록을 비동기로 불러와 채움(상세 렌더 직후 호출)
 async function cmLoadWorksamples(commissionId){
   var el=document.getElementById("cmWsList");
   if(!el||commissionId==null||!window.supabase)return;
   var res=await window.supabase.from("commission_worksamples")
     .select("id,title,description,work_date,created_at,commission_worksample_images(url,sort)")
     .eq("commission_id",commissionId).order("created_at",{ascending:false});
-  if(res.error){el.innerHTML='<div class="cm-my-empty">작업물을 불러오지 못했어요.</div>';return;}
+  if(res.error){el.innerHTML='<div class="cm-my-empty">최신 작업물을 불러오지 못했어요.</div>';return;}
   cmWsCache[commissionId]=res.data||[];
   if(document.getElementById("cmWsList"))document.getElementById("cmWsList").innerHTML=cmWorksampleListHTML(res.data||[],commissionId);
 }
@@ -2794,7 +2794,7 @@ function cmWsThumb(ws){
   return imgs.length?("url('"+cmQ(imgs[0].url)+"') center/cover"):cmGrads[ws.id%cmGrads.length];
 }
 function cmWorksampleListHTML(list,commissionId){
-  if(!list.length)return '<div class="cm-my-empty">아직 등록된 작업물이 없어요.</div>';
+  if(!list.length)return '<div class="cm-my-empty">아직 올라온 작업물이 없어요.</div>';
   return '<div class="cm-ws-strip">'+list.map(function(ws){
     return '<div class="cm-ws-card" onclick="cmOpenWorksample('+ws.id+','+commissionId+')">'+
       '<div class="cm-ws-thumb" style="background:'+cmWsThumb(ws)+'"></div>'+
@@ -2803,17 +2803,17 @@ function cmWorksampleListHTML(list,commissionId){
     '</div>';
   }).join('')+'</div>';
 }
-// 작업 사례 상세 보기
+// 최신 작업물 상세 보기
 function cmOpenWorksample(worksampleId,commissionId){
   enterScreen("cmWorksample",cmBackToDetail);
   var backSvg='<svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>';
   var list=cmWsCache[commissionId]||[];
   var ws=list.find(function(x){return x.id===worksampleId;});
   var main=document.getElementById("main");
-  if(!ws){main.innerHTML='<div class="cm-root"><div class="cm-sub-top">'+backSvg+'<b>최근 작업물</b></div><div class="cm-my-empty">작업물을 찾을 수 없어요.</div></div>';return;}
+  if(!ws){main.innerHTML='<div class="cm-root"><div class="cm-sub-top">'+backSvg+'<b>최신 작업물</b></div><div class="cm-my-empty">작업물을 찾을 수 없어요.</div></div>';return;}
   var imgs=(ws.commission_worksample_images||[]).slice().sort(function(a,b){return a.sort-b.sort;});
   main.innerHTML='<div class="cm-root">'+
-    '<div class="cm-sub-top">'+backSvg+'<b>최근 작업물</b></div>'+
+    '<div class="cm-sub-top">'+backSvg+'<b>최신 작업물</b></div>'+
     '<div class="cm-ws-detail">'+
       '<div class="cm-ws-d-title">'+esc(ws.title)+'</div>'+
       (ws.work_date?'<div class="cm-ws-d-date">📅 '+esc(ws.work_date)+'</div>':'')+
@@ -2823,14 +2823,15 @@ function cmOpenWorksample(worksampleId,commissionId){
   '</div>';
   window.scrollTo({top:0,behavior:"smooth"});
 }
-// 작업 사례 등록 폼 (그 커미션의 작가 본인만 진입 — 버튼도 본인에게만 보이고, RLS로도 서버가 막음)
+// 최신 작업물 올리기 폼 (그 커미션의 작가 본인만 진입 — 버튼도 본인에게만 보이고, RLS로도 서버가 막음)
 // back: 뒤로/등록 후 돌아갈 화면 함수. 기본은 커미션 상세(cmBackToDetail), 등록 페이지 흐름에선 커미션 선택 화면.
 function cmOpenWorksampleForm(commissionId,back){
   if(!AUTH.user){toast('로그인 후 이용할 수 있어요','🔒');loginWithGoogle();return;}
   enterScreen("cmWsForm",back||cmBackToDetail);
   cmWsForm={commissionId:commissionId,images:[]};
   document.getElementById("main").innerHTML='<div class="cm-root">'+
-    '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>작업물 등록</b></div>'+
+    '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>최신 작업물 올리기</b></div>'+
+    '<div class="cm-ws-tip"><b>🚀 올리면 커미션 추천 순위가 올라가요</b><span>추천 점수의 &quot;작업물 활발도&quot;(전체의 12%)에 반영돼요. 작업물은 5개까지 개수가 반영되고, 최근에 올린 것일수록 점수가 높아요 — 마지막 작업물이 오래될수록 점점 내려가 60일이 지나면 0이 돼요.</span></div>'+
     '<div class="cm-reg">'+
       '<div class="cm-reg-label">제목 <span class="cm-reg-req">*</span></div>'+
       '<input class="cm-reg-input" id="cmWsTitle" placeholder="예: LD 반신 채색 작업" oninput="cmWsCheck()">'+
@@ -2846,13 +2847,14 @@ function cmOpenWorksampleForm(commissionId,back){
   '</div>';
   window.scrollTo({top:0,behavior:"smooth"});
 }
-// 커미션 등록 페이지에서 "작업 사례 등록"을 누르면: 내 커미션 중 어느 것에 붙일지 고르는 화면.
+// 커미션 등록 페이지에서 "최신 작업물 올리기"를 누르면: 내 커미션 중 어느 것에 붙일지 고르는 화면.
 // 고르면 기존 등록 폼(cmOpenWorksampleForm)을 그대로 재사용하되, 뒤로는 이 선택 화면으로 돌아오게 함.
 async function cmOpenWsCommissionPicker(back){
   if(!AUTH.user){toast('로그인 후 이용할 수 있어요','🔒');loginWithGoogle();return;}
   enterScreen("cmWsPicker",back||cmRenderRegisterScreen);
   document.getElementById("main").innerHTML='<div class="cm-root">'+
-    '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>작업물을 등록할 커미션</b></div>'+
+    '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>최신 작업물을 올릴 커미션</b></div>'+
+    '<div class="cm-ws-tip"><b>🚀 올리면 커미션 추천 순위가 올라가요</b><span>추천 점수의 &quot;작업물 활발도&quot;(전체의 12%)에 반영돼요. 작업물은 5개까지 개수가 반영되고, 최근에 올린 것일수록 점수가 높아요 — 마지막 작업물이 오래될수록 점점 내려가 60일이 지나면 0이 돼요.</span></div>'+
     '<div class="cm-ws-pick" id="cmWsPickList"><div class="cm-my-empty">불러오는 중...</div></div>'+
   '</div>';
   window.scrollTo({top:0,behavior:"smooth"});
@@ -2944,7 +2946,7 @@ async function cmSubmitWorksample(){
   var imgIns=await window.supabase.from('commission_worksample_images').insert(rows);
   if(imgIns.error){toast('이미지 저장 실패: '+imgIns.error.message);}
   delete cmWsCache[cmWsForm.commissionId];  // 캐시 무효화 → 상세 복귀 시 새로 로드
-  toast('작업물을 등록했어요','✅');
+  toast('최신 작업물을 올렸어요','✅');
   screenBack();  // 폼 → 커미션 상세로 복귀(상세가 다시 그려지며 목록도 갱신됨)
 }
 function cmCommissionReviews(commissionId){
@@ -3159,7 +3161,7 @@ function cmRenderRegisterScreen(){
   var tagsHTML=cmReg.tags.map(function(t){return '<div class="cm-reg-tagchip">#'+esc(t)+'<span class="cm-x" onclick="cmRemoveTag(\''+cmQ(t)+'\')">×</span></div>';}).join('');
   document.getElementById("main").innerHTML='<div class="cm-root">'+
     '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg><b>'+(editing?'커미션 수정':'커미션 등록')+'</b></div>'+
-    '<div class="cm-ws-shortcut" onclick="cmOpenWsCommissionPicker()"><span>🎨 이미 등록한 커미션에 작업물 올리기</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></div>'+
+    '<div class="cm-ws-shortcut" onclick="cmOpenWsCommissionPicker()"><span>🎨 이미 등록한 커미션에 최신 작업물 올리기</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></div>'+
     '<div class="cm-reg">'+
       '<div class="cm-reg-label">샘플 이미지 <span class="cm-reg-req">*</span> <span class="cm-reg-sub">최대 10장</span></div>'+
       '<input type="file" id="cmRegFileInput" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="cmOnRegFileChange(event)">'+
@@ -3572,7 +3574,7 @@ function reportCommission(id){
 async function cmDeleteCommission(id){
   if(id==null||!window.supabase)return;
   if(!(await confirmDialog("이 커미션을 삭제할까요? 삭제하면 되돌릴 수 없어요.")))return;
-  // 1) 삭제 전에 이 커미션(과 그 작업 사례)의 이미지 URL을 모아둠 — DB 삭제 후엔 조회 불가하므로 먼저.
+  // 1) 삭제 전에 이 커미션(과 그 최신 작업물)의 이미지 URL을 모아둠 — DB 삭제 후엔 조회 불가하므로 먼저.
   var urls=[];
   try{
     var imgRes=await window.supabase.from("commission_images").select("url").eq("commission_id",id);
@@ -3613,7 +3615,7 @@ async function cmOpenMy(tab){
   document.getElementById("main").innerHTML='<div class="cm-root">'+
     '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>내 커미션</b>'+
       (activeTab==='mine'?('<div class="cm-sub-actions">'+
-        '<button class="cm-write-btn ghost" onclick="cmOpenWsCommissionPicker(cmOpenMy)">🎨 작업물</button>'+
+        '<button class="cm-write-btn ghost" onclick="cmOpenWsCommissionPicker(cmOpenMy)">🎨 최신 작업물</button>'+
         '<button class="cm-write-btn" onclick="cmOpenRegister()">+ 새 커미션</button>'+
       '</div>'):'')+
     '</div>'+

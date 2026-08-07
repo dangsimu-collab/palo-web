@@ -1457,6 +1457,10 @@
   .cm-as-ctrl button:hover{border-color:#5b7aa8;background:#eef3fa}
   .cm-as-bonusval{min-width:26px;text-align:center;font-size:15px;font-weight:900;color:#c0392b}
   .cm-mgmt-note{font-size:12px;line-height:1.55;color:var(--ink-2);background:#f4f7fb;border:1px solid #cdd8e6;border-radius:10px;padding:10px 12px;margin-bottom:12px}
+  /* 최신 작업물을 올리면 추천 순위가 오른다는 안내 — 올리기 화면 맨 위 */
+  .cm-ws-tip{margin:14px 18px 0;padding:11px 13px;border-radius:12px;background:linear-gradient(120deg,rgba(224,122,166,.1),rgba(150,120,220,.1));border:1px solid rgba(224,122,166,.32)}
+  .cm-ws-tip b{display:block;font-size:13px;font-weight:800;color:var(--brand);margin-bottom:3px}
+  .cm-ws-tip span{display:block;font-size:12px;line-height:1.6;color:var(--ink-2)}
   .cm-mgmt-list{display:flex;flex-direction:column;gap:10px}
   .cm-mgmt{border:1.5px solid var(--line-2);border-radius:14px;padding:12px 13px;background:var(--surface)}
   .cm-mgmt-info{cursor:pointer}
