@@ -2831,7 +2831,7 @@ function cmOpenWorksampleForm(commissionId,back){
   cmWsForm={commissionId:commissionId,images:[]};
   document.getElementById("main").innerHTML='<div class="cm-root">'+
     '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>최신 작업물 올리기</b></div>'+
-    '<div class="cm-ws-tip"><b>🚀 올리면 커미션 추천 순위가 올라가요</b><span>추천 점수의 &quot;작업물 활발도&quot;(전체의 12%)에 반영돼요. 작업물은 5개까지 개수가 반영되고, 최근에 올린 것일수록 점수가 높아요 — 마지막 작업물이 오래될수록 점점 내려가 60일이 지나면 0이 돼요.</span></div>'+
+    '<div class="cm-ws-tip"><b>최근에 작업한 커미션을 올리면 해당 커미션 타입의 추천 점수가 올라가요!</b><span>신청자들은 최근 작업물을 보고 평균 퀄리티를 확인할 수 있고, 커미션 등록자는 추천 순위가 올라가는 시스템이에요!</span></div>'+
     '<div class="cm-reg">'+
       '<div class="cm-reg-label">제목 <span class="cm-reg-req">*</span></div>'+
       '<input class="cm-reg-input" id="cmWsTitle" placeholder="예: LD 반신 채색 작업" oninput="cmWsCheck()">'+
@@ -2854,7 +2854,7 @@ async function cmOpenWsCommissionPicker(back){
   enterScreen("cmWsPicker",back||cmRenderRegisterScreen);
   document.getElementById("main").innerHTML='<div class="cm-root">'+
     '<div class="cm-sub-top"><svg onclick="screenBack()" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg><b>최신 작업물을 올릴 커미션</b></div>'+
-    '<div class="cm-ws-tip"><b>🚀 올리면 커미션 추천 순위가 올라가요</b><span>추천 점수의 &quot;작업물 활발도&quot;(전체의 12%)에 반영돼요. 작업물은 5개까지 개수가 반영되고, 최근에 올린 것일수록 점수가 높아요 — 마지막 작업물이 오래될수록 점점 내려가 60일이 지나면 0이 돼요.</span></div>'+
+    '<div class="cm-ws-tip"><b>최근에 작업한 커미션을 올리면 해당 커미션 타입의 추천 점수가 올라가요!</b><span>신청자들은 최근 작업물을 보고 평균 퀄리티를 확인할 수 있고, 커미션 등록자는 추천 순위가 올라가는 시스템이에요!</span></div>'+
     '<div class="cm-ws-pick" id="cmWsPickList"><div class="cm-my-empty">불러오는 중...</div></div>'+
   '</div>';
   window.scrollTo({top:0,behavior:"smooth"});
