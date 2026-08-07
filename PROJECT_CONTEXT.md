@@ -983,6 +983,26 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 
 - **쌓임 순서(z-index) 문제 2건 수정(2026-08-07, 사용자 제보)**: **①커미션 상세의 문의하기·신청하기 바를 푸터가 덮던 문제** — 원인은 `.wrap`의 **전역 규칙**(`position:relative;z-index:1`)이었다. 푸터 마크업(`<footer><div class="wrap">…`)도 이 규칙을 받아 **같은 z-index:1**이 되는데, 같은 값이면 **DOM에서 뒤에 있는 쪽이 위에 그려지므로** 푸터가 본문(`.wrap.grid`) 위의 고정 바를 덮었다. ⚠️ `.cm-apply-bar`의 `z-index:30`을 올려도 소용없다 — `.wrap`이 쌓임 맥락을 만들어 그 안에 **갇혀 있기 때문**(전역 기준으로는 1층). → `footer .wrap{z-index:auto}`로 푸터가 층을 만들지 않게 함(푸터는 층이 필요 없는 단순 텍스트). **②이미지 미리보기가 하단 탭바·헤더를 덮던 문제** — `#imgPreview`는 `document.body`에 붙는 최상위 요소인데 `z-index:200`이라 헤더(60)·탭바(65)보다 위였다. → **50**으로 낮춤(본문 `.wrap`=1보다는 위, 고정 UI보다는 아래). ⚠️ 자동화 환경이 **스크롤을 무시**해 실제 겹침 재현이 불가했다 → 같은 조건의 요소를 강제로 겹쳐놓고 `elementFromPoint`로 판정하는 방식으로 검증. 검증(dev): 푸터 wrap `z-index:auto`·본문 wrap `1`, 겹침 지점 최상단이 **본문 고정요소**로 나옴, 미리보기 z=50(본문보다 위·헤더/탭바보다 아래)·표시/숨김 정상, CTA 바 회귀 없음(문의하기·신청하기 정상 렌더), `next build` 통과.
 
+- **커미션 끌올(2026-08-07, 사용자 요청)**: 작가가 자기 커미션을 목록 맨 위로 다시 올리는 기능.
+  **DB**: `commissions.bumped_at`(기존 행은 `created_at`으로 채움, default now(), 내림차순 인덱스).
+  **RPC `bump_commission(p_id)`**(security definer, jsonb 반환) — 본인 여부·`status='open'`·**24시간 경과**를
+  서버에서 확인. 실패해도 예외 대신 `{ok:false, reason, next_at}`을 돌려준다(화면에 남은 시간을 안내해야 하므로).
+  reason: `login`/`not_found`/`not_owner`/`closed`/`cooldown`.
+  ⚠️ **트리거 `protect_commission_bump()`**: commissions에는 "본인 것 수정 가능" 정책이 있어
+  `update({bumped_at:...})` 한 줄로 24시간 제한을 무한 우회할 수 있다 → RPC가 켜는 `app.bump_ok` 표식이
+  있을 때만 값 변경을 허용(`protect_adult_fields`·`protect_pack_counters`와 같은 패턴).
+  RPC는 update 직후 표식을 바로 끈다(같은 트랜잭션의 다른 update로 새지 않게).
+  **반영 범위**: 홈·신규 정렬에만. **추천 점수는 일부러 건드리지 않는다** — 버튼 한 번으로 추천 순위가
+  오르면 순위 조작이 된다. 인기(후기 수)도 무관.
+  **클라**: `cmSortByBump()`로 cmData 정렬(⚠️ **DB 쿼리의 order를 bumped_at으로 바꾸면 안 된다** —
+  SQL 실행 전이면 없는 칸이라 커미션 조회가 통째로 실패한다). `CM_BUMP_READY`는 응답 첫 행에
+  `bumped_at` 키가 있는지로 판단 → **SQL 실행 전에는 버튼이 아예 안 뜬다**.
+  버튼 위치: 내 커미션 목록의 각 행(`cmBumpBtnHTML`) + 커미션 상세 더보기 메뉴(본인·접수중일 때만).
+  대기 중이면 버튼 대신 "⏳ N시간 후" 표시(누를 수 없음이 보이게).
+  갓 등록한 커미션은 `bumped_at=created_at`이라 24시간 뒤부터 끌올 가능 — 이미 맨 위에 있으므로 의도된 동작.
+  **실행 필요 SQL: `docs/sql/commission-bump.sql`**
+  검증: 정렬(오래된 글이 끌올로 맨 앞), 대기시간 표기, 버튼 3종(가능/대기/마감), 더보기 메뉴 본인·타인 구분 모두 통과.
+
 - **NHN KCP 휴대폰본인확인 계약 진행 상황(2026-08-07 기준)**: 신청 접수·이용요금 납부 완료,
   상점관리자 계정 발급(`partner.kcp.co.kr`, 아이디 `commi`), **계약서·구비서류 5종 제출 완료**.
   남은 단계: 홈페이지 검수 → 이동통신사 심사 → 서비스 오픈(메일+SMS 통보) → 연동 테스트.

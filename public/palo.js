@@ -2097,6 +2097,76 @@ var cmReg={images:[],tags:[],status:'open',editingId:null};
 var cmDetailCtx={from:'list',idx:0};
 var cmPreviewObj=null;
 function cmQ(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
+/* ===== 커미션 끌올(다시 위로 올리기) =====
+   24시간에 한 번, 홈·신규 정렬에서만 위로 올라온다.
+   추천 점수에는 일부러 반영하지 않는다 — 버튼 한 번으로 추천 순위가 오르면 순위 조작이 된다.
+   실제 제한은 서버(bump_commission RPC)가 건다. 여기 계산은 버튼 문구를 위한 것일 뿐이다. */
+var CM_BUMP_COOLDOWN_MS=24*3600*1000;
+var CM_BUMP_READY=false; // commission-bump.sql 실행 전이면 false → 버튼을 아예 안 그린다
+
+// 남은 대기 시간(ms). 0이면 지금 끌올할 수 있다.
+function cmBumpLeftMs(d){
+  var t=d&&(d.bumpedAt||d.createdAt);
+  if(!t)return 0;
+  var ms=CM_BUMP_COOLDOWN_MS-(Date.now()-new Date(t).getTime());
+  return ms>0?ms:0;
+}
+function cmFmtLeft(ms){
+  var min=Math.ceil(ms/60000),h=Math.floor(min/60),m=min%60;
+  if(h>0)return m?(h+"시간 "+m+"분"):(h+"시간");
+  return Math.max(1,m)+"분";
+}
+// 끌올 버튼 하나(내 커미션 목록용). 마감이거나 SQL 실행 전이면 아무것도 안 그린다.
+function cmBumpBtnHTML(c){
+  if(!CM_BUMP_READY||c.status!=='open')return '';
+  var left=cmBumpLeftMs(c);
+  if(left>0)return '<span class="cm-my-edit cm-bump-wait" title="24시간에 한 번 올릴 수 있어요">⏳ '+cmFmtLeft(left)+' 후</span>';
+  return '<button class="cm-my-edit cm-bump" onclick="cmBumpCommission('+c.id+')">🔝 끌올</button>';
+}
+// 서버에 끌올 요청. 성공하면 목록을 다시 그려 바로 위로 올라간 걸 보여준다.
+async function cmBumpCommission(id){
+  if(!AUTH.user){toast("로그인이 필요해요","🔒");openLoginModal();return;}
+  var res;
+  try{res=await window.supabase.rpc("bump_commission",{p_id:id});}
+  catch(e){toast("끌올하지 못했어요");return;}
+  if(res.error){toast("끌올하지 못했어요: "+res.error.message);return;}
+  var r=res.data||{};
+  if(!r.ok){
+    if(r.reason==="cooldown"){
+      var left=r.next_at?(new Date(r.next_at).getTime()-Date.now()):0;
+      toast(left>0?(cmFmtLeft(left)+" 후에 다시 올릴 수 있어요"):"잠시 후에 다시 올릴 수 있어요","⏳");
+    }
+    else if(r.reason==="closed")toast("마감한 커미션은 올릴 수 없어요","⛔");
+    else if(r.reason==="not_owner")toast("내 커미션만 올릴 수 있어요","🔒");
+    else if(r.reason==="login")toast("로그인이 필요해요","🔒");
+    else toast("끌올하지 못했어요");
+    cmApplyBump(id,null); // 서버가 아는 시각으로 화면을 맞춘다(버튼이 잘못 떠 있었을 수 있음)
+    return;
+  }
+  cmApplyBump(id,r.bumped_at);
+  toast("맨 위로 올렸어요","🔝");
+}
+// 방금 끌올한 결과를 화면 데이터에 반영(다시 불러오지 않고 그 자리에서 갱신).
+function cmApplyBump(id,bumpedAt){
+  var t=bumpedAt||new Date().toISOString();
+  var d=cmData.find(function(c){return c.id===id;});
+  if(d&&bumpedAt)d.bumpedAt=t;
+  var mine=cmMyList.find(function(c){return c.id===id;});
+  if(mine&&bumpedAt)mine.bumpedAt=t;
+  if(cmDetail&&cmDetail.id===id&&bumpedAt)cmDetail.bumpedAt=t;
+  var myEl=document.getElementById('cmMyList');
+  if(myEl)myEl.innerHTML=cmMyListHTML();
+  var gridEl=document.getElementById('cmGrid');
+  if(gridEl)gridEl.innerHTML=cmGridHTML();
+}
+// 끌올 순으로 정렬(끌올한 적 없으면 등록 시각). 목록을 통째로 받아오므로 여기서 정렬해도 된다.
+// ⚠️ DB 쿼리의 order를 bumped_at으로 바꾸지 않는 이유: SQL 실행 전이면 없는 칸이라 조회가 통째로 실패한다.
+function cmSortByBump(list){
+  return list.slice().sort(function(a,b){
+    return String(b.bumpedAt||b.createdAt||'').localeCompare(String(a.bumpedAt||a.createdAt||''));
+  });
+}
+
 function cmRowToData(row,artistNickname){
   var imgs=(row.commission_images||[]).slice().sort(function(a,b){return a.sort-b.sort;}).map(function(x){return x.url;});
   var revs=POSTS.filter(function(p){return p.board==='review'&&p.commissionId===row.id;});
@@ -2109,7 +2179,9 @@ function cmRowToData(row,artistNickname){
     images:imgs,likes:0,views:row.views||0,createdAt:row.created_at,form:row.application_form||[],
     reviewEventOn:!!row.review_event_on,reviewEventBenefit:row.review_event_benefit||'',
     reviewCount:revs.length,satisfaction:revs.length?(goodCount/revs.length):0,
-    adLocked:!!AD_LOCKED_COMMISSION_IDS[row.id]
+    adLocked:!!AD_LOCKED_COMMISSION_IDS[row.id],
+    // 끌올 시각. 칸 자체가 없으면(SQL 실행 전) undefined라 등록 시각으로 대신한다.
+    bumpedAt:row.bumped_at||row.created_at
   };
 }
 async function cmLoadCommissions(){
@@ -2119,10 +2191,12 @@ async function cmLoadCommissions(){
   var profRes=authorIds.length?await window.supabase.from('profiles').select('id,nickname,avatar_url').in('id',authorIds):{data:[]};
   var profById={};
   (profRes.data||[]).forEach(function(p){profById[p.id]={nickname:p.nickname,avatarUrl:p.avatar_url};});
-  cmData=res.data.map(function(row){
+  // bumped_at 칸이 실제로 있는지로 끌올 기능 사용 가능 여부를 판단(commission-bump.sql 실행 여부)
+  CM_BUMP_READY=res.data.length>0&&Object.prototype.hasOwnProperty.call(res.data[0],'bumped_at');
+  cmData=cmSortByBump(res.data.map(function(row){
     var prof=profById[row.author_id];
     return cmRowToData(row,prof?prof.nickname:null);
-  });
+  }));
   await cmLoadBookmarkCounts();
   cmTopTags=cmComputeTopTags();
   await cmLoadRecScores();
@@ -2409,7 +2483,11 @@ function cmFilteredIdx(){
 function cmSortedFilteredIdx(){
   var idxs=cmFilteredIdx();
   if(cmState.sort==='new'){
-    idxs=idxs.slice().sort(function(a,b){return (cmData[b].createdAt||'').localeCompare(cmData[a].createdAt||'');});
+    // 끌올한 커미션이 다시 위로 오도록 등록 시각 대신 끌올 시각으로 정렬
+    idxs=idxs.slice().sort(function(a,b){
+      var ka=cmData[a].bumpedAt||cmData[a].createdAt||'',kb=cmData[b].bumpedAt||cmData[b].createdAt||'';
+      return String(kb).localeCompare(String(ka));
+    });
   }else if(cmState.sort==='hot'){
     idxs=idxs.slice().sort(function(a,b){return (cmData[b].reviewCount||0)-(cmData[a].reviewCount||0);});
   }else if(cmState.sort==='recommend'){
@@ -3475,7 +3553,7 @@ function cmMyListHTML(){
     return '<div class="cm-my-item"><div class="cm-my-thumb" style="'+thumbStyle+'"></div>'+
       '<div class="cm-my-info"><div class="cm-my-title">'+esc(c.title)+'</div>'+
         '<div class="cm-my-price">'+Number(c.price).toLocaleString()+'원~</div>'+st+'</div>'+
-      '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">'+editBtn+
+      '<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">'+cmBumpBtnHTML(c)+editBtn+
         '<button class="cm-my-edit" onclick="openCreateAdForCommission('+c.id+')">📢 광고</button>'+
         '<button class="cm-my-edit cm-my-del" onclick="cmDeleteCommission('+c.id+')">🗑 삭제</button></div></div>';
   }).join('');
@@ -3525,6 +3603,16 @@ async function cmOpenMoreMenu(id){
   var adLocked=!!AD_LOCKED_COMMISSION_IDS[id];
   var items=[];
 
+  if(isOwner&&CM_BUMP_READY&&d.status==='open'){
+    var bumpLeft=cmBumpLeftMs(d);
+    items.push({
+      label:bumpLeft>0?(cmFmtLeft(bumpLeft)+" 후에 올릴 수 있어요"):"맨 위로 끌올",
+      desc:bumpLeft>0?"끌올은 24시간에 한 번만 할 수 있어요":"홈·신규 목록에서 맨 위로 올라가요",
+      icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>',
+      onclick:"closeActionSheet();cmBumpCommission("+id+")",
+      disabled:bumpLeft>0
+    });
+  }
   if(isOwner){
     items.push({
       label:adLocked?"수정할 수 없어요":"커미션 수정",
@@ -3637,7 +3725,8 @@ async function cmOpenMy(tab){
       return{id:row.id,title:row.title,price:row.price,tags:row.tags||[],status:row.status,period:row.period,
         slots:row.slots,desc:row.description,descHtml:row.description_html||null,usage:row.usage_rights,policy:row.trade_policy,images:imgs,
         reviewEventOn:!!row.review_event_on,reviewEventBenefit:row.review_event_benefit||'',
-        form:row.application_form||[],adLocked:!!AD_LOCKED_COMMISSION_IDS[row.id]};
+        form:row.application_form||[],adLocked:!!AD_LOCKED_COMMISSION_IDS[row.id],
+        createdAt:row.created_at,bumpedAt:row.bumped_at||row.created_at};
     });
     var listEl=document.getElementById('cmMyList');
     if(listEl)listEl.innerHTML=cmMyListHTML();

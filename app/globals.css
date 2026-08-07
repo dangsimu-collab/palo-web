@@ -1724,6 +1724,12 @@
   /* 내 커미션 관리 페이지 */
   .cm-my-list{padding:14px 18px 40px}
   .cm-my-item{display:flex;gap:12px;border:1px solid var(--line-2);border-radius:14px;padding:12px;margin-bottom:12px;align-items:center}
+  /* 끌올 — 목록에서 제일 눈에 띄어야 하는 버튼이라 브랜드색을 채운다 */
+  .cm-my-edit.cm-bump{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:800}
+  .cm-my-edit.cm-bump:hover{filter:brightness(1.06)}
+  /* 대기 중에는 버튼이 아니라 남은 시간 표시(누를 수 없다는 게 보이게) */
+  .cm-my-edit.cm-bump-wait{display:inline-flex;align-items:center;justify-content:center;
+    background:var(--line);border-color:var(--line-2);color:var(--muted);cursor:default;white-space:nowrap}
   .cm-my-thumb{width:64px;height:64px;border-radius:10px;flex-shrink:0}
   .cm-my-info{flex:1;min-width:0}
   .cm-my-title{font-size:15px;font-weight:700;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
