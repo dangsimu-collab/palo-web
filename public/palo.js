@@ -4664,9 +4664,49 @@ function removeEdImage(i){
   var cEl=document.getElementById("wContent");
   if(cEl)cEl.querySelectorAll('img[src="'+url+'"]').forEach(function(img){img.remove()});
 }
+// 본문 서식에 쓰는 안전한 CSS 속성만 허용한다.
+// position·top/left·width/height·z-index·transform 같은 '레이아웃 탈취' 속성을 빼서
+// 글이 화면 전체를 덮는 오버레이(클릭재킹·가짜 UI 피싱)를 만들지 못하게 한다.
+var _SAFE_CSS=/^(color|background-color|font-weight|font-style|font-size|font-family|text-decoration|text-decoration-line|text-align|line-height|letter-spacing|max-width|border-radius|opacity|margin|margin-top|margin-bottom|margin-left|margin-right|padding|display|white-space)$/;
+function _filterStyle(v){
+  return String(v||"").split(";").map(function(d){
+    var i=d.indexOf(":");if(i<0)return "";
+    var prop=d.slice(0,i).trim().toLowerCase(), val=d.slice(i+1).trim();
+    if(!_SAFE_CSS.test(prop))return "";                       // 허용 목록 밖 속성 제거
+    if(/url\s*\(|expression|javascript:|\/\*/i.test(val))return ""; // url()·expression 등 제거
+    if(/\d\s*v[wh]/i.test(val))return "";                     // 100vw/100vh 등 뷰포트 크기 제거
+    if(prop==="display"&&!/^(inline|inline-block|block|none)$/i.test(val))return ""; // flex/grid 등 차단
+    return prop+":"+val;
+  }).filter(Boolean).join(";");
+}
+// 본문 이미지·영상은 우리 저장소만 허용 — 외부 주소를 넣어 열람자 IP를 수집하는 추적 픽셀 차단.
+function _safeMediaSrc(src){
+  src=String(src||"");
+  if(/^https:\/\/img\.commi\.kr\//i.test(src))return src;     // R2(현재 저장소)
+  if(/^https:\/\/[a-z0-9-]+\.supabase\.co\/storage\//i.test(src))return src; // 옛 이미지(마이그레이션 전)
+  if(/^data:image\//i.test(src))return src;
+  return "";                                                  // 그 외 외부 주소는 제거
+}
+var _domPurifyHooked=false;
+function _hookDomPurify(){
+  if(_domPurifyHooked||!window.DOMPurify)return;
+  _domPurifyHooked=true;
+  window.DOMPurify.addHook("afterSanitizeAttributes",function(node){
+    if(node.hasAttribute&&node.hasAttribute("style")){
+      var f=_filterStyle(node.getAttribute("style"));
+      if(f)node.setAttribute("style",f);else node.removeAttribute("style");
+    }
+    var tag=node.tagName&&node.tagName.toLowerCase();
+    if((tag==="img"||tag==="video"||tag==="source")&&node.getAttribute("src")){
+      var s=_safeMediaSrc(node.getAttribute("src"));
+      if(s)node.setAttribute("src",s);else node.removeAttribute("src");
+    }
+  });
+}
 function sanitizePostHtml(html){
   if(!html)return "";
   if(!window.DOMPurify)return "";
+  _hookDomPurify();
   return window.DOMPurify.sanitize(html,{
     ALLOWED_TAGS:["b","strong","i","em","u","font","span","ul","ol","li","blockquote","br","div","p","img","video","source"],
     ALLOWED_ATTR:["style","color","src","controls","alt","data-poll"]
