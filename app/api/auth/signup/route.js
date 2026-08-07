@@ -3,6 +3,7 @@
 // 서버에서 email_confirm:true로 생성 → 인증 메일을 아예 보내지 않으므로
 // 대시보드의 "Confirm email" 설정과 무관하게 항상 즉시 가입이 완료된다.
 import { createClient } from "@supabase/supabase-js";
+import { clientIp } from "../../../../lib/client-ip";
 
 export const runtime = "nodejs";
 
@@ -19,20 +20,6 @@ const RESERVED = new Set([
 
 function bad(message, status = 400) {
   return Response.json({ ok: false, message }, { status });
-}
-
-// 접속자 IP(프록시를 거치므로 헤더에서 읽음)
-function clientIp(request) {
-  const h = request.headers;
-  // ⚠️ 클라이언트가 위조할 수 있는 값을 믿으면 안 된다.
-  //  · cf-connecting-ip : 우리는 Cloudflare 프록시(주황 구름) 뒤가 아니라 DNS-only라, 이 헤더는
-  //    클라이언트가 아무 값이나 넣을 수 있다 → 신뢰하지 않는다.
-  //  · x-forwarded-for : "클라이언트가 넣은 값…, Vercel이 붙인 실제 IP" 순이라 첫 값은 위조 가능.
-  //    **맨 뒤 값**(Vercel 엣지가 붙인 것)이 실제 접속 IP다.
-  // Vercel이 직접 채우는 x-real-ip를 우선 쓰고, 없으면 x-forwarded-for의 맨 뒤 값을 쓴다.
-  const xff = h.get("x-forwarded-for") || "";
-  const xffLast = xff.split(",").map((s) => s.trim()).filter(Boolean).pop() || "";
-  return ((h.get("x-real-ip") || "").trim() || xffLast) || null;
 }
 
 // 같은 IP에서 가입이 지나치게 많은지 확인.

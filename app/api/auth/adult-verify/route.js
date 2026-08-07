@@ -9,6 +9,7 @@
 //   생년월일은 나이 계산에만 쓰고 즉시 버리고, CI는 해시만 남긴다.
 import { createClient } from "@supabase/supabase-js";
 import crypto from "node:crypto";
+import { clientIp } from "../../../../lib/client-ip";
 
 export const runtime = "nodejs";
 
@@ -19,18 +20,6 @@ function bad(message, status = 400) {
   return Response.json({ ok: false, message }, { status });
 }
 
-function clientIp(request) {
-  const h = request.headers;
-  // ⚠️ 클라이언트가 위조할 수 있는 값을 믿으면 안 된다.
-  //  · cf-connecting-ip : 우리는 Cloudflare 프록시(주황 구름) 뒤가 아니라 DNS-only라, 이 헤더는
-  //    클라이언트가 아무 값이나 넣을 수 있다 → 신뢰하지 않는다.
-  //  · x-forwarded-for : "클라이언트가 넣은 값…, Vercel이 붙인 실제 IP" 순이라 첫 값은 위조 가능.
-  //    **맨 뒤 값**(Vercel 엣지가 붙인 것)이 실제 접속 IP다.
-  // Vercel이 직접 채우는 x-real-ip를 우선 쓰고, 없으면 x-forwarded-for의 맨 뒤 값을 쓴다.
-  const xff = h.get("x-forwarded-for") || "";
-  const xffLast = xff.split(",").map((s) => s.trim()).filter(Boolean).pop() || "";
-  return ((h.get("x-real-ip") || "").trim() || xffLast) || null;
-}
 
 // 청소년보호법 제2조 기준 — "만 19세 미만"이되, **만 19세가 되는 해의 1월 1일을 맞이한 사람은 제외**.
 // 즉 법적 기준은 만 나이가 아니라 연 나이(올해연도 - 출생연도 >= 19)다.

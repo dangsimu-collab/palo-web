@@ -7,11 +7,18 @@ import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
+// 돌아갈 주소는 Host 헤더에서 만드는데, Host는 클라이언트가 위조할 수 있다.
+// 그대로 쓰면 로그인 흐름을 공격자 도메인으로 유도(오픈 리다이렉트)당할 수 있으므로
+// **미리 정한 우리 도메인일 때만** 그 값을 쓰고, 아니면 commi.kr로 고정한다.
+const ALLOWED_HOSTS = new Set(["commi.kr", "www.commi.kr", "palo-web-nu.vercel.app", "localhost:3000"]);
 function siteBase(request) {
   const h = request.headers;
-  const proto = h.get("x-forwarded-proto") || "https";
-  const host = h.get("x-forwarded-host") || h.get("host") || "commi.kr";
-  return proto + "://" + host;
+  const host = h.get("x-forwarded-host") || h.get("host") || "";
+  if (ALLOWED_HOSTS.has(host)) {
+    const proto = host.startsWith("localhost") ? "http" : "https";
+    return proto + "://" + host;
+  }
+  return "https://commi.kr";
 }
 function getCookie(request, name) {
   const c = request.headers.get("cookie") || "";

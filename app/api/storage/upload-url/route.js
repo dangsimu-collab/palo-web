@@ -13,6 +13,7 @@ import {
   r2Client, r2Configured, R2_BUCKET, FOLDERS, ALLOWED_TYPES, MAX_BYTES,
   buildKey, publicUrlFor,
 } from "../../../../lib/r2";
+import { rateLimit } from "../../../../lib/client-ip";
 
 export const runtime = "nodejs";
 
@@ -49,6 +50,12 @@ export async function POST(request) {
   const { data: userData, error: userErr } = await supa.auth.getUser(token);
   const user = userData?.user;
   if (userErr || !user) return bad("로그인이 필요해요.", 401);
+
+  // 대량 업로드로 저장소를 낭비하는 것을 막는다(사람이 손으로 올리는 속도를 훨씬 웃돌 때만 걸림).
+  // 서명 URL의 용량 상한을 R2가 강제하지는 않으므로, 발급 횟수를 제한해 남용을 막는다.
+  if (rateLimit("upload:" + user.id, { limit: 60, windowMs: 60000 }).blocked) {
+    return bad("잠시 후 다시 시도해주세요.", 429);
+  }
 
   const objectKey = buildKey(folder, user.id, contentType);
 

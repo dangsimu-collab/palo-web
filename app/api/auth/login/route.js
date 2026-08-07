@@ -3,6 +3,7 @@
 // login_ids 표에서 아이디에 연결된 계정을 찾아 그 계정의 이메일로 로그인시킨다.
 // (이메일 자체는 응답에 담지 않는다 — 아이디만 알면 남의 이메일을 알아낼 수 있으면 안 되므로)
 import { createClient } from "@supabase/supabase-js";
+import { clientIp, rateLimit } from "../../../../lib/client-ip";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,13 @@ function fail(message, status = 400) {
 }
 
 export async function POST(request) {
+  // 무차별 대입 완화: 같은 회선에서 1분에 20회를 넘으면 잠시 막는다.
+  // (이 라우트는 폴백 경로이고, 근본 방어는 Supabase Auth Rate Limits가 담당한다.)
+  const ip = clientIp(request);
+  if (ip && rateLimit("login:" + ip, { limit: 20, windowMs: 60000 }).blocked) {
+    return fail("잠시 후 다시 시도해주세요.", 429);
+  }
+
   let body;
   try { body = await request.json(); } catch (e) { return fail("요청을 읽지 못했어요."); }
 
