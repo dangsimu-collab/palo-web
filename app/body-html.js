@@ -84,6 +84,11 @@ export const BODY_HTML = `
 
 <!-- board sheet (게시판 탭) -->
 <div class="sheet-scrim" id="sheetScrim"></div>
+<input type="file" id="chatImgFile" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="onChatImageFile(event)">
+<div class="img-viewer" id="imgViewer" onclick="closeImageViewer()">
+  <button class="iv-close" aria-label="닫기">×</button>
+  <img id="imgViewerImg" alt="">
+</div>
 <div class="sheet-scrim" id="actionScrim" onclick="closeActionSheet()"></div>
 <div class="sheet action-sheet" id="actionSheet" aria-label="더보기">
   <div class="grip"></div>

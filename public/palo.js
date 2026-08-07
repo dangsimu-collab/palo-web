@@ -2464,6 +2464,15 @@ function cmSetTag(t){
   if(gridEl)gridEl.innerHTML=cmGridHTML();
 }
 function cmComingSoon(){toast("아직 준비 중인 기능이에요","🛠")}
+// 커미션 상세의 '구독' — 새 커미션 소식을 받으려고 작가를 팔로우하는 것과 같다.
+// 이미 있는 팔로우 기능을 그대로 쓰고, 버튼 표시만 여기서 맞춘다.
+async function cmToggleSubscribe(authorId,nickname){
+  if(!AUTH.user){toast("로그인이 필요해요","🔒");openLoginModal();return;}
+  if(!authorId||authorId===AUTH.user.id)return;
+  await toggleFollow(authorId,nickname);
+  var b=document.getElementById("cmSubBtn");
+  if(b){var on=FOLLOW.has(authorId);b.classList.toggle("on",on);b.textContent=on?"구독 중":"구독";}
+}
 var cmPendingChatRef=null; // {commissionId,title,conversationId} — 다음에 보낼 메시지에 커미션 참조를 붙일지
 async function cmOpenChatAbout(authorId,commissionId,commissionTitle){
   await openChat(authorId);
@@ -2692,7 +2701,13 @@ function cmDetailHTML(d,idx){
       '<div class="cm-acc"><div class="cm-acc-h" onclick="this.parentElement.classList.toggle(\'open\')"><b>거래 정책 안내</b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 15l6-6 6 6"/></svg></div>'+
         '<div class="cm-acc-c">'+policyHTML+'</div></div>'+
       '<div class="cm-d-tags">'+tags.map(function(t){return '<div class="cm-t">#'+esc(t)+'</div>';}).join('')+'</div>'+
-      '<div class="cm-sub-card"><div class="cm-l"><div class="cm-ci">P</div><div><div class="cm-nm">'+esc(channel)+'</div></div></div><div class="cm-btn" onclick="cmComingSoon()">구독</div></div>'+
+      '<div class="cm-sub-card"><div class="cm-l"><div class="cm-ci">P</div><div><div class="cm-nm">'+esc(channel)+'</div></div></div>'+
+      // 구독 = 이 작가 팔로우. 본인 커미션에는 의미가 없어 숨긴다.
+      ((d.authorId&&(!AUTH.user||AUTH.user.id!==d.authorId))
+        ?('<div class="cm-btn'+(FOLLOW.has(d.authorId)?' on':'')+'" id="cmSubBtn" '+
+          'onclick="cmToggleSubscribe(&quot;'+cmQ(d.authorId)+'&quot;,&quot;'+cmQ(d.artist||d.author||'')+'&quot;)">'+(FOLLOW.has(d.authorId)?'구독 중':'구독')+'</div>')
+        :'')+
+      '</div>'+
     '</div>'+
     '<div class="cm-pad"></div>'+
     '<div class="cm-apply-bar"><div class="cm-bm'+(bookmarked?' on':'')+'"'+(d.id!=null?(' onclick="cmToggleBookmark('+d.id+',this)"'):'')+'><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4z"/></svg></div>'+
@@ -5464,7 +5479,9 @@ function appendChatMessage(m){
   div.innerHTML='<div class="chat-bubble"></div>';
   // 이모티콘 토큰을 이미지로 바꿔야 하므로 innerHTML을 쓴다.
   // esc()로 먼저 막고, withEmoticons가 우리 DB의 이모티콘만 넣는다(임의 HTML은 못 들어옴).
-  div.querySelector(".chat-bubble").innerHTML=withEmoticons(esc(m.content));
+  div.querySelector(".chat-bubble").innerHTML=m.image_url
+    ? '<img class="cr-img" src="'+esc(m.image_url)+'" alt="사진" loading="lazy">'
+    : withEmoticons(esc(m.content));
   box.appendChild(div);
   box.scrollTop=box.scrollHeight;
 }
@@ -5499,6 +5516,7 @@ async function openChat(otherUserId){
   if(msgRes.error){toast("대화를 불러오지 못했어요: "+msgRes.error.message);return;}
   enterScreen("chatRoom",openChatList);
   await ensureChatEmoticons(msgRes.data||[]); // 말풍선을 그리기 전에 이모티콘 주소를 채운다
+  await chatImageSupported();                // '+' 버튼을 보여줄지 미리 판단
   renderChatView(partnerName,msgRes.data||[]);
   subscribeToChat(conv.id);
   window.supabase.rpc("mark_messages_read",{p_conversation_id:conv.id}).then(function(){});
@@ -5523,7 +5541,11 @@ function chatMessagesHtml(messages){
     var time='<span class="cr-time">'+esc(chatTimeLabel(m.created_at))+'</span>';
     var bcls='cr-bubble'+(m.commission_id?' cr-commission':'');
     var bclick=m.commission_id?(' onclick="cmOpenCommissionById('+m.commission_id+')"'):'';
-    var content=withEmoticons(esc(m.content))+(m.commission_id?' <span class="cr-arrow">→</span>':'');
+    // 사진 메시지는 이미지로, 그 외엔 글자로. 주소는 우리가 저장한 값만 쓴다.
+    var content=(m.image_url
+        ? '<img class="cr-img" src="'+esc(m.image_url)+'" alt="사진" loading="lazy" onclick="openImageViewer(&quot;'+cmQ(m.image_url)+'&quot;)">'
+        : withEmoticons(esc(m.content)))
+      +(m.commission_id?' <span class="cr-arrow">→</span>':'');
     if(mine){
       h+='<div class="cr-row mine">'+
         '<div class="cr-meta">'+(m.is_read?'<span class="cr-read">읽음</span>':'')+time+'</div>'+
@@ -5575,7 +5597,7 @@ async function openChatList(origin){
   // 프로필·메시지 조회는 서로 독립적이라 병렬로 실행(예전엔 순차 await라 왕복 지연이 2배로 쌓였음 → 채팅 로딩이 느려 씹힘 창이 컸음)
   var profMsg=await Promise.all([
     partnerIds.length?window.supabase.from("profiles").select("id,nickname,avatar_url").in("id",partnerIds):Promise.resolve({data:[]}),
-    convIds.length?window.supabase.from("messages").select("conversation_id,sender_id,content,is_read,created_at,commission_id").in("conversation_id",convIds).order("created_at",{ascending:true}):Promise.resolve({data:[]})
+    convIds.length?window.supabase.from("messages").select("conversation_id,sender_id,content,is_read,created_at,commission_id,image_url").in("conversation_id",convIds).order("created_at",{ascending:true}):Promise.resolve({data:[]})
   ]);
   var profRes=profMsg[0],msgRes=profMsg[1];
   var nickById={},avaById={};(profRes.data||[]).forEach(function(p){nickById[p.id]=p.nickname;avaById[p.id]=p.avatar_url;});
@@ -5612,7 +5634,7 @@ function renderChatList(convs,partnerIds,nickById,avaById,lastMsgByConv,unreadBy
       var pid=partnerIds[i];
       var name=nickById[pid]||"알 수 없음";
       var last=lastMsgByConv[c.id];
-      var preview=last?(last.commission_id?"🎨 커미션 문의":last.content):"";
+      var preview=last?(last.commission_id?"🎨 커미션 문의":(last.image_url?"📷 사진":last.content)):"";
       var unread=unreadByConv[c.id]||0;
       var srch=(name+" "+(last?last.content:"")).toLowerCase();
       h+='<div class="clist-row" data-search="'+esc(srch)+'" onclick="openChat(\''+cmQ(pid)+'\')">'+
@@ -5648,7 +5670,7 @@ function renderChatView(partnerName,messages){
     '</div>'+
     '<div id="chatMessages" class="cr-msgs">'+chatMessagesHtml(messages)+'</div>'+
     '<div class="cr-inputrow">'+
-      '<button class="cr-icon" onclick="toast(\'첨부 기능은 준비 중이에요\')" aria-label="추가"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>'+
+      '<button class="cr-icon" id="chatAttachBtn" style="display:'+(_chatImgSupported?'':'none')+'" onclick="pickChatImage()" aria-label="사진 보내기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>'+
       '<textarea id="chatInput" rows="1" placeholder="메시지를 입력하세요." oninput="autoGrowChatInput(this)" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendChatMessage();}"></textarea>'+
       '<button class="cr-send" onclick="sendChatMessage()" aria-label="전송"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></button>'+
     '</div>'+
@@ -5665,6 +5687,56 @@ function renderChatView(partnerName,messages){
   var box=document.getElementById("chatMessages");
   if(box)box.scrollTop=box.scrollHeight;
 }
+/* ── 채팅 이미지 첨부 ──
+   messages.image_url 칸이 있어야 동작한다. 없는 환경에서 눌렀다 실패하지 않도록
+   한 번만 확인해서 '+' 버튼 자체를 숨긴다(SQL을 실행하면 자동으로 나타남). */
+var _chatImgSupported=null;
+async function chatImageSupported(){
+  if(_chatImgSupported!==null)return _chatImgSupported;
+  try{
+    var r=await window.supabase.from("messages").select("image_url").limit(1);
+    _chatImgSupported=!r.error;
+  }catch(e){_chatImgSupported=false;}
+  return _chatImgSupported;
+}
+/* 사진 원본 보기 — 말풍선 속 이미지는 작게 나오므로 눌러서 크게 볼 수 있게 한다 */
+function openImageViewer(url){
+  var v=document.getElementById("imgViewer"),im=document.getElementById("imgViewerImg");
+  if(!v||!im||!url)return;
+  im.src=url;
+  v.classList.add("open");
+  document.body.style.overflow="hidden";
+}
+function closeImageViewer(){
+  var v=document.getElementById("imgViewer"),im=document.getElementById("imgViewerImg");
+  if(v)v.classList.remove("open");
+  if(im)im.src="";               // 큰 이미지를 메모리에 물고 있지 않게
+  document.body.style.overflow="";
+}
+function pickChatImage(){
+  if(!currentConversationId||!AUTH.user){toast("채팅방을 먼저 열어주세요");return;}
+  document.getElementById("chatImgFile").click();
+}
+async function onChatImageFile(ev){
+  var f=ev.target.files&&ev.target.files[0];ev.target.value="";
+  if(!f)return;
+  if(!currentConversationId||!AUTH.user)return;
+  if(ALLOWED_IMAGE_TYPES.indexOf(f.type)===-1){toast("이미지 파일만 보낼 수 있어요");return;}
+  if(f.size>MAX_IMAGE_BYTES){toast("40MB 이하만 보낼 수 있어요");return;}
+  toast("사진 보내는 중…");
+  // GIF는 움직임이 깨지니 원본 그대로, 나머지는 줄여서 보낸다
+  var blob=f;
+  if(f.type!=="image/gif"){
+    try{var c=await compressImage(f);blob=c.blob;}catch(e){}
+  }
+  var url=await uploadToStorage(blob,"chat");
+  if(!url)return;
+  var payload={conversation_id:currentConversationId,sender_id:AUTH.user.id,content:"",image_url:url};
+  var res=await window.supabase.from("messages").insert(payload);
+  if(res.error){toast("전송 실패: "+res.error.message);return;}
+  await refreshChatRoom();
+}
+
 async function sendChatMessage(){
   var inp=document.getElementById("chatInput");
   var v=inp.value.trim();
