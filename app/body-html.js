@@ -104,11 +104,11 @@ export const BODY_HTML = `
 <!-- bottom tabs -->
 <nav class="tabbar" aria-label="빠른 이동">
   <div class="tabbar-inner">
-    <button class="tab on" data-tab="home" onclick="goHome()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>홈</button>
-    <button class="tab" data-tab="commission" onclick="openCommissionList()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12l3 3 5-5"/><path d="M3 10l5-5 4 3 4-3 5 5-6 8H9z"/></svg>커미션</button>
-    <button class="tab write" onclick="openWrite()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L20 8l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg><span class="lbl">글쓰기</span></button>
-    <button class="tab" data-tab="chat" onclick="openChatList('home')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8 8.38 8.38 0 0 1 8.5-8.5 8.5 8.5 0 0 1 8.5 8.5z"/></svg>채팅</button>
-    <button class="tab" data-tab="me" onclick="openProfile()"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>내 정보</button>
+    <button class="tab on" data-tab="home" onclick="goHome()"><span class="ic-wrap"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 3 10.6V20a1 1 0 0 0 1 1h5v-6h6v6h5a1 1 0 0 0 1-1v-9.4z"/></svg></span>홈</button>
+    <button class="tab" data-tab="commission" onclick="openCommissionList()"><span class="ic-wrap"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M8.2 3h7.6a1 1 0 0 1 .8.4l3.2 4.2a1 1 0 0 1-.05 1.28l-7 7.8a1 1 0 0 1-1.5 0l-7-7.8A1 1 0 0 1 4.2 7.6L7.4 3.4a1 1 0 0 1 .8-.4z"/></svg></span>커미션</button>
+    <button class="tab write" onclick="openWrite()"><span class="ic-wrap"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M4 17.3V20h2.7l9.5-9.5-2.7-2.7zM19.7 6.3l-2-2a1.1 1.1 0 0 0-1.5 0l-1.5 1.5 2.7 2.7 1.5-1.5a1.1 1.1 0 0 0 0-1.5z"/></svg></span>글쓰기</button>
+    <button class="tab" data-tab="chat" onclick="openChatList('home')"><span class="ic-wrap"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.2c-5 0-9 3.4-9 7.6 0 2.2 1.1 4.2 2.9 5.6L5 21.3l4.5-2.4c.8.2 1.6.3 2.5.3 5 0 9-3.4 9-7.6s-4-7.4-9-7.4z"/></svg></span>채팅</button>
+    <button class="tab" data-tab="me" onclick="openProfile()"><span class="ic-wrap"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12.2a4.6 4.6 0 1 0 0-9.2 4.6 4.6 0 0 0 0 9.2z"/><path d="M12 13.9c-4 0-7.4 2.3-8 5.4-.15.95.62 1.8 1.6 1.8h12.8c.98 0 1.75-.85 1.6-1.8-.6-3.1-4-5.4-8-5.4z"/></svg></span>내 정보</button>
   </div>
 </nav>
 
