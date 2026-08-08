@@ -4200,7 +4200,14 @@ async function cmBulkStatus(status){
 }
 function cmSyncTabbarHeight(){
   var tb=document.querySelector('.tabbar');
-  var h=(tb&&getComputedStyle(tb).display!=="none")?tb.getBoundingClientRect().height:0;
+  var h=0;
+  if(tb&&getComputedStyle(tb).display!=="none"){
+    // ⚠️ 탭바 '높이'가 아니라 **화면 바닥부터 탭 윗변까지의 거리**를 잰다.
+    //    탭바를 띄워 놓아서 아래 여백·안전영역까지 합쳐야 실제로 가리는 높이가 된다.
+    //    (높이만 재면 그 여백만큼 글이 탭에 가린다)
+    var r=tb.getBoundingClientRect();
+    h=Math.max(0,Math.round(window.innerHeight-r.top));
+  }
   document.documentElement.style.setProperty('--cm-tabbar-h',h+'px');
 }
 new MutationObserver(function(){
