@@ -97,6 +97,44 @@ var MKT=(function(){
   return {track:track,flush:flush,campaign:function(){return camp;},visitor:function(){return vid;},enabled:function(){return on;}};
 })();
 function track(n,l){try{MKT.track(n,l);}catch(e){}}
+/* ===== 친구 초대 코드 잡기 =====
+   초대 링크:  https://commi.kr/?ref=ABC1234
+   캠페인 코드(?c=)와 같은 이유로 **스크립트가 뜨자마자** 붙잡고 주소에서 지운다
+   (지우지 않으면 그 주소를 공유했을 때 남의 가입까지 이 사람의 초대로 잡힌다).
+   ⚠️ 링크를 타고 들어와도 가입은 한참 뒤에 할 수 있으므로 저장해 두었다가
+      로그인이 되는 순간 딱 한 번 서버에 보낸다(maybeRegisterReferral). */
+var REF=(function(){
+  var K="palo_ref",code=null;
+  try{
+    code=localStorage.getItem(K)||null;
+    var q=new URLSearchParams(location.search);
+    var v=(q.get("ref")||"").trim().toUpperCase().slice(0,16);
+    // 이미 담아 둔 코드는 덮어쓰지 않는다 — 먼저 데려온 사람의 공로를 지킨다
+    if(v&&!code){code=v;localStorage.setItem(K,v);}
+    if(v){
+      q.delete("ref");
+      var qs=q.toString();
+      try{history.replaceState({},"",location.pathname+(qs?"?"+qs:""));}catch(e){}
+    }
+  }catch(e){} // 시크릿 모드 등으로 저장이 막히면 초대만 포기(사이트는 그대로)
+  return {code:function(){return code;},clear:function(){try{localStorage.removeItem(K);}catch(e){}code=null;}};
+})();
+/* 로그인 직후 한 번 호출. 서버가 "신규 가입자인지·자기 자신은 아닌지"를 전부 판단하므로
+   여기서는 조건을 따지지 않고 보내기만 한다(클라이언트 판단은 얼마든지 조작될 수 있다). */
+async function maybeRegisterReferral(){
+  var code=REF.code();
+  if(!code||!AUTH.user||!window.supabase)return;
+  try{
+    var res=await window.supabase.rpc("register_referral",{p_code:code});
+    var d=res&&res.data?res.data:null;
+    if(res.error)return;                   // 일시적 오류면 다음 로그인 때 다시 시도
+    REF.clear();                           // 성공이든 거절이든 코드는 한 번만 쓴다
+    if(d&&d.ok){
+      track("referral_join",code);
+      toast("친구 초대로 시작했어요! 글이나 댓글을 남기면 보상을 받아요","🎁");
+    }
+  }catch(e){}
+}
 // 버튼 클릭은 버튼마다 코드를 넣지 않고 한 곳에서 잡는다.
 // ⚠️ 글 제목 같은 걸 그대로 이름으로 쓰면 종류가 끝없이 늘어나 통계가 못 쓰게 된다 → 고정 이름으로 묶는다.
 try{
@@ -576,6 +614,7 @@ async function applySession(session){
     loadMyFollows(); // 내 팔로우 목록 로드
     loadMyEmoticons(); // 담아둔 이모티콘 팩
     maybeShowConsent(); // 신규 가입자면 약관·개인정보 동의 창 표시
+    maybeRegisterReferral(); // 초대 링크를 타고 왔다면 이번 로그인에서 초대 관계를 확정
   }else{
     ME.nick="나";
     globalChatNotifUserId=null;
@@ -1697,6 +1736,166 @@ function renderManagerPickList(picks){
   h+='</div>';
   document.getElementById("main").innerHTML=h;
   window.scrollTo({top:0,behavior:"smooth"});
+}
+
+/* ===== 친구 초대 =====
+   ⚠️ 화면에 보이는 보상 액수·현황은 **전부 서버(my_referral_summary)가 준 값**이다.
+      규칙을 클라이언트에 적어 두면 그걸 고쳐서 받은 것처럼 꾸밀 수 있다. */
+var REF_STATUS={pending:["활동 대기"],held:["확인 중"],rewarded:["지급 완료"],
+                capped:["한도 초과"],revoked:["취소됨"]};
+function referralShell(inner){
+  return '<div class="profile"><button class="d-back" onclick="screenBack()">← 내 정보로</button>'+inner+'</div>';
+}
+async function openReferral(){
+  if(!AUTH.user){openLoginModal();return;}
+  enterScreen("referral",openProfile);
+  document.getElementById("main").innerHTML=referralShell('<div class="pf-empty">불러오는 중…</div>');
+  var res=await window.supabase.rpc("my_referral_summary");
+  if(res.error||!res.data||!res.data.ok){
+    document.getElementById("main").innerHTML=referralShell(
+      '<div class="pf-empty">초대 정보를 불러오지 못했어요.'+(res.error?'<br><span style="font-size:12px;opacity:.7">'+esc(res.error.message)+'</span>':'')+'</div>');
+    return;
+  }
+  renderReferral(res.data);
+}
+function renderReferral(d){
+  var link=location.origin+"/?ref="+d.code,r=d.reward,c=d.counts,e=d.earned;
+  var h='<div class="pf-sec">🎁 친구 초대</div>';
+  if(!d.active)h+='<div class="pf-empty">지금은 초대 보상이 잠시 중단된 상태예요.</div>';
+
+  h+='<div class="pf-group"><div class="pf-group-title">내 초대 링크</div>'+
+     '<div class="ref-code">'+esc(d.code)+'</div>'+
+     '<div class="ref-link">'+esc(link)+'</div>'+
+     '<div class="ref-btns">'+
+       '<button class="d-act ref-main" onclick="copyReferralLink()">링크 복사</button>'+
+       (navigator.share?'<button class="d-act" onclick="shareReferralLink()">공유하기</button>':'')+
+     '</div></div>';
+
+  h+='<div class="pf-group"><div class="pf-group-title">받는 보상</div>'+
+     '<div class="pf-list">'+
+       '<div class="pf-item"><span class="pf-item-label">초대한 나</span><span class="pf-item-count">'+r.inviter_score+'점 · 광고 '+r.inviter_points+'P</span></div>'+
+       '<div class="pf-item"><span class="pf-item-label">초대받은 친구</span><span class="pf-item-count">'+r.invitee_score+'점 · 광고 '+r.invitee_points+'P</span></div>'+
+     '</div>'+
+     '<div class="ref-note">친구가 <b>글 '+r.need_posts+'개</b> 또는 <b>댓글 '+r.need_comments+'개</b>를 남기면 양쪽 모두에게 지급돼요. '+
+     '하루 '+r.daily_cap+'명, 최대 '+r.total_cap+'명까지 받을 수 있어요.</div></div>';
+
+  h+='<div class="pf-group"><div class="pf-group-title">내 초대 현황</div>'+
+     '<div class="pf-stats">'+
+       '<div class="pf-st"><b>'+c.total+'</b><span>초대</span></div>'+
+       '<div class="pf-st"><b>'+c.rewarded+'</b><span>지급 완료</span></div>'+
+       '<div class="pf-st"><b>'+c.pending+'</b><span>대기 중</span></div>'+
+     '</div>'+
+     '<div class="ref-note">지금까지 받은 보상: <b>'+e.score+'점 · 광고 '+e.points+'P</b></div></div>';
+
+  h+='<div class="pf-group"><div class="pf-group-title">초대한 친구</div>';
+  if(!d.list.length){
+    h+='<div class="pf-empty">아직 없어요. 링크를 공유해 보세요!</div>';
+  }else{
+    h+='<div class="pf-list">';
+    d.list.forEach(function(x){
+      var s=REF_STATUS[x.status]||[x.status];
+      h+='<div class="pf-item"><span class="pf-item-label">'+esc(x.nick)+
+         '<i class="ref-when">'+timeAgo(x.created_at)+'</i></span>'+
+         '<span class="ref-badge ref-'+esc(x.status)+'">'+s[0]+'</span></div>';
+    });
+    h+='</div>';
+  }
+  h+='</div>';
+  document.getElementById("main").innerHTML=referralShell(h);
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function copyReferralLink(){
+  var el=document.querySelector(".ref-link");if(!el)return;
+  var url=el.textContent;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(function(){toast("초대 링크를 복사했어요","🔗")},function(){toast("복사에 실패했어요")});
+  }else{
+    // 오래된 브라우저 폴백 — 임시 입력창을 만들어 선택·복사
+    var t=document.createElement("textarea");t.value=url;document.body.appendChild(t);t.select();
+    try{document.execCommand("copy");toast("초대 링크를 복사했어요","🔗");}catch(e){toast("복사에 실패했어요");}
+    document.body.removeChild(t);
+  }
+  track("click","초대 링크 복사");
+}
+function shareReferralLink(){
+  var el=document.querySelector(".ref-link");if(!el||!navigator.share)return;
+  navigator.share({title:"commi",text:"그림 그리는 사람들의 커뮤니티, commi에서 같이 그려요!",url:el.textContent})
+    .then(function(){track("click","초대 링크 공유");}).catch(function(){});
+}
+
+/* ===== 관리자: 초대 관리 =====
+   어뷰징은 대개 '한 사람이 같은 회선에서 여러 명을 데려오는' 모양으로 나타난다.
+   그래서 목록에 같은 회선 건수를 함께 보여준다. */
+async function openAdminReferrals(status){
+  if(!AUTH.profile||!AUTH.profile.is_admin)return;
+  enterScreen("adminRef",openProfile);
+  document.getElementById("main").innerHTML=referralShell('<div class="pf-empty">불러오는 중…</div>');
+  var st=await window.supabase.rpc("admin_referral_stats");
+  var ls=await window.supabase.rpc("admin_referral_list",{p_status:status||null,p_limit:200});
+  if(st.error||ls.error){
+    document.getElementById("main").innerHTML=referralShell('<div class="pf-empty">불러오지 못했어요.<br><span style="font-size:12px;opacity:.7">'+esc((st.error||ls.error).message)+'</span></div>');
+    return;
+  }
+  renderAdminReferrals(st.data||{},ls.data||[],status||null);
+}
+function renderAdminReferrals(s,list,cur){
+  var h='<div class="pf-sec">🛡 초대 관리</div>';
+  h+='<div class="pf-group"><div class="pf-group-title">집계</div>'+
+     '<div class="pf-stats">'+
+       '<div class="pf-st"><b>'+(s.total||0)+'</b><span>전체</span></div>'+
+       '<div class="pf-st"><b>'+(s.rewarded||0)+'</b><span>지급</span></div>'+
+       '<div class="pf-st"><b>'+(s.held||0)+'</b><span>보류</span></div>'+
+       '<div class="pf-st"><b>'+(s.pending||0)+'</b><span>대기</span></div>'+
+     '</div>'+
+     '<div class="ref-note">지급 누계: <b>'+(s.paid_score||0)+'점 · 광고 '+(s.paid_points||0)+'P</b></div></div>';
+
+  if(s.top&&s.top.length){
+    h+='<div class="pf-group"><div class="pf-group-title">많이 초대한 사람</div><div class="pf-list">';
+    s.top.forEach(function(t){
+      h+='<div class="pf-item"><span class="pf-item-label">'+esc(t.nick)+'</span>'+
+         '<span class="pf-item-count">'+t.cnt+'명 (지급 '+t.rewarded+(t.held?' · 보류 '+t.held:'')+')</span></div>';
+    });
+    h+='</div></div>';
+  }
+
+  var tabs=[[null,"전체"],["held","보류"],["pending","대기"],["rewarded","지급"],["capped","한도"],["revoked","취소"]];
+  h+='<div class="ref-tabs">'+tabs.map(function(t){
+    return '<button class="tagbar-btn'+(cur===t[0]?" on":"")+'" onclick="openAdminReferrals('+(t[0]?"'"+t[0]+"'":"null")+')">'+t[1]+'</button>';
+  }).join("")+'</div>';
+
+  if(!list.length){
+    h+='<div class="pf-empty">해당하는 초대 기록이 없어요.</div>';
+  }else{
+    h+='<div class="pf-group"><div class="pf-list">';
+    list.forEach(function(x){
+      var st=REF_STATUS[x.status]||[x.status];
+      // 같은 회선에서 2건 이상이면 눈에 띄게 — 가짜 계정 판단의 가장 강한 단서
+      var warn=(x.same_ip_count>1)?'<i class="ref-warn">같은 회선 '+x.same_ip_count+'건</i>':'';
+      h+='<div class="pf-item ref-adm"><span class="pf-item-label">'+
+           esc(x.inviter)+' → '+esc(x.invitee)+warn+
+           '<i class="ref-when">'+timeAgo(x.created_at)+(x.note?' · '+esc(x.note):'')+'</i></span>'+
+         '<span class="ref-adm-act"><span class="ref-badge ref-'+esc(x.status)+'">'+st[0]+'</span>'+
+           (x.status==="held"||x.status==="capped"?'<button class="d-act" onclick="adminReferralApprove('+x.id+')">승인</button>':'')+
+           (x.status==="rewarded"?'<button class="d-act" onclick="adminReferralRevoke('+x.id+')">회수</button>':'')+
+         '</span></div>';
+    });
+    h+='</div></div>';
+  }
+  document.getElementById("main").innerHTML=referralShell(h);
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+async function adminReferralApprove(id){
+  if(!confirm("이 초대를 승인하고 보상을 지급할까요?"))return;
+  var res=await window.supabase.rpc("admin_referral_approve",{p_id:id});
+  if(res.error||!res.data||!res.data.ok){toast("승인 실패"+(res.error?": "+res.error.message:""));return;}
+  toast("승인했어요","✓");openAdminReferrals();
+}
+async function adminReferralRevoke(id){
+  var why=prompt("회수 사유를 적어주세요(선택)","가짜 계정 의심");
+  if(why===null)return;
+  var res=await window.supabase.rpc("admin_referral_revoke",{p_id:id,p_reason:why||null});
+  if(res.error||!res.data||!res.data.ok){toast("회수 실패"+(res.error?": "+res.error.message:""));return;}
+  toast("지급을 회수했어요","↩");openAdminReferrals();
 }
 /* 관리자 삭제 기록 뷰어 — admin_post_deletions 표(RLS로 관리자만 조회 가능)를 읽어 목록 표시.
    각 행은 삭제된 글의 스냅샷(제목·본문·이미지 등)을 담고 있어, 클릭하면 원본 글처럼 보관본을 볼 수 있음. */
@@ -6533,6 +6732,7 @@ function renderMyProfile(){
      pfTile(pfMiniIcon('<path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8 8.38 8.38 0 0 1 8.5-8.5 8.5 8.5 0 0 1 8.5 8.5z"/>'),'채팅','주고받은 대화',"openChatList('profile')")+
      pfTile(pfMiniIcon('<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/>'),'이모티콘','담기·만들기',"openEmoticonMarket()")+
      pfTile(pfMiniIcon('<circle cx="12" cy="12" r="9"/><path d="M12 8v8M9 12h6"/>'),'포인트','광고 P '+(AUTH.profile?(AUTH.profile.ad_points||0):0),"openScoreLog()")+
+     pfTile(pfMiniIcon('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>'),'친구 초대','보상 받기',"openReferral()")+
      '</div>');
   h+=pfSection('알림','받고 싶은 알림만 골라서 켜요',notifEnableHTML()+
      '<label class="pf-toggle-row"><span class="pf-item-label">내 글에 댓글이 달리면 알림</span><input type="checkbox" '+(SETTINGS.cm?'checked':'')+' onchange="toggleNotifPref(\'cm\',this.checked,\'댓글\')"></label>'+
@@ -6557,6 +6757,7 @@ function renderMyProfile(){
        pfRow(pfMiniIcon('<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>'),'유료 광고 관리',"openAdminCampaigns()",{})+
        pfRow(pfMiniIcon('<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>'),'후기 분석'+suspN,"openReviewAnalysis()",{})+
        pfRow(pfMiniIcon('<path d="M9 3v6l-4 4v8h14v-8l-4-4V3z"/>'),'매니저 픽 관리',"openManagerPickList()",{})+
+       pfRow(pfMiniIcon('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>'),'초대 관리',"openAdminReferrals()",{})+
        pfRow(pfMiniIcon('<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>'),'삭제 기록',"openAdminDeletionLog()",{})+
        pfRow(pfMiniIcon('<path d="M3 3v18h18"/><path d="M7 15l3-4 3 2 4-6"/><circle cx="17" cy="7" r="1.6"/>'),'광고 성과',"openAdminMkt()",{})+
        pfRow(pfMiniIcon('<path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6"/><path d="M16 3l5 5-9 9H7v-5z"/>'),'커미션 추천 관리',"openAdminCommissionMgmt()",{})+

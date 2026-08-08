@@ -1648,6 +1648,34 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
   컬럼 이름은 라이브 REST API로 실제 조회해 맞췄지만(`profiles`/`posts`/`comments`/`commissions`/`likes`),
   `commission_applications`·`mkt_*`는 행이 0건이라 `docs/sql/*.sql` 정의를 근거로 썼다.
 
+**친구 초대(레퍼럴) — 보상 지급 + 집계 (2026-08-08, 사용자 요청)** — **실행 필요 SQL: `docs/sql/referral.sql`**
+사용자 결정: 보상은 **등급 점수 + 광고 포인트 둘 다**, 지급은 **초대받은 사람이 활동했을 때**, 대상은 **양쪽 다**.
+- **흐름**: 초대 링크 `?ref=코드` → `REF` 모듈이 스크립트 로드 직후 붙잡아 localStorage에 저장하고 **주소에서 제거**
+  (안 지우면 그 URL을 공유했을 때 남의 가입까지 이 사람 초대로 잡힌다 — `MKT`의 `?c=`와 같은 이유·같은 패턴).
+  **첫 코드만 고정**(first-touch, 덮어쓰지 않음). 로그인되는 순간 `applySession`에서 `register_referral(코드)` 1회 호출 →
+  **로그인 수단(아이디/구글/네이버/X)에 상관없이 한 곳으로 모인다**(가입 라우트에 넣으면 OAuth 가입이 빠진다).
+- **지급 시점**: `posts`/`comments` AFTER INSERT 트리거 → `referral_try_qualify()` → 글 1개 **또는** 댓글 3개면
+  `referral_grant()`가 양쪽에 지급 + 알림(`notifications.type='referral'`). 기본값 초대자 20점·150P / 피초대자 10점·100P.
+  ⚠️ 트리거는 **예외를 통째로 삼킨다** — 보상 로직이 깨져도 글쓰기·댓글이 막히면 안 되기 때문.
+- ⚠️ **광고 포인트는 현금성 가치가 있다**(배너 광고 최소 500P) → 가짜 계정 유인이 실재한다. 방어 8겹:
+  ①자기 자신 불가 ②`invitee_id UNIQUE`로 평생 1회만 초대받음 ③가입 후 24시간 안에만 코드가 붙음
+  ④가입만으론 0원(글/댓글 필요) ⑤**같은 회선(IP 앞 3자리)이면 `held`로 보류 → 관리자 승인 필요**
+  ⑥하루 3명·누적 20명 한도(넘으면 `capped`, 기록만) ⑦차단 회원 제외 ⑧관리자 회수(`admin_referral_revoke`)로 준 만큼 차감.
+  IP는 PostgREST가 넘겨주는 `request.headers`에서 읽고 **원본은 저장하지 않고 앞 3자리만** 남긴다(`client_ip_prefix()`).
+- 🚨 **만들다 발견해 막은 치명적 구멍**: Postgres는 함수를 만들면 **기본적으로 모두에게 EXECUTE를 준다.**
+  `referral_award`/`referral_grant`가 security definer라 그대로 뒀으면 로그인한 누구나 브라우저에서
+  `supabase.rpc('referral_award',{p_user:내ID,p_score:999999,p_points:999999})`로 **포인트를 무한 생성**할 수 있었다.
+  → 내부 함수 전부 `revoke all ... from public, anon, authenticated`. **RLS로는 못 막는다 — 함수 실행 권한은 별개다.**
+  같은 이유로 `referrals` 테이블에 insert/update/delete 정책을 두지 않았다(select만, 본인·관리자).
+- **설정표 `referral_rules`(1행)**: 보상액·자격 조건·한도·`hold_same_ip`·`active`를 **여기서만 바꾼다**(코드 수정 불필요,
+  `level_thresholds`·`rate_limit_rules`와 같은 패턴). select만 공개(초대 화면이 "얼마 받는지" 보여줘야 함), 쓰기 정책 없음.
+- **화면**: 내 정보 → 내 활동 → **친구 초대**(`openReferral`) — 코드·링크·복사/공유·보상 안내·현황·초대 목록.
+  관리자 → **초대 관리**(`openAdminReferrals`) — 집계, 많이 초대한 사람 10명, 상태별 필터, **같은 회선 N건 경고**, 승인·회수.
+  ⚠️ 보상 액수·현황은 전부 서버(`my_referral_summary`)가 준 값 — 클라이언트에 규칙을 두면 고쳐서 꾸밀 수 있다.
+- 검증(dev): `?ref=abc1234&c=tw0808` → 주소에서 둘 다 제거·대문자 저장, 재방문 시 첫 코드 유지,
+  초대/관리자 화면 렌더·배지·승인/회수 버튼 노출 조건·가로 넘침 없음. 406 콘솔 오류는 기존 것(referral 요청 0건).
+- ⚠️ **SQL은 아직 실행 전이라 RPC 실동작은 검증되지 않았다.** 실행 전에는 초대 화면이 오류 메시지를 보여준다.
+
 ---
 
 ## 9. 로컬 개발 환경
