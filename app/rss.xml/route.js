@@ -30,7 +30,9 @@ export async function GET() {
 
   const items = posts.map((p) => {
     const link = `${BASE}/post/${p.id}`;
-    const desc = (p.content || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+    // 본문 전체를 담는다 — 네이버 가이드: "최신글은 본문 전체를 포함하여 RSS 피드에 담아주세요"
+    // (예전엔 200자로 잘랐다. content는 순수 텍스트 버전이라 태그 걱정 없이 그대로 쓴다)
+    const desc = (p.content || '').trim();
     const date = p.created_at ? new Date(p.created_at).toUTCString() : new Date().toUTCString();
     return `<item><title>${xmlEsc(p.title)}</title><link>${link}</link><guid>${link}</guid><description>${xmlEsc(desc)}</description><pubDate>${date}</pubDate></item>`;
   }).join('');
