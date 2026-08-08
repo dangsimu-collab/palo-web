@@ -510,16 +510,22 @@
   @media (display-mode: standalone){ .tabbar{bottom:calc(env(safe-area-inset-bottom,8px) + 20px)} }
   /* 텍스트 입력창 포커스(모바일 키보드 올라옴) 시 하단 탭바를 숨겨 키보드에 밀려 튀어오르지 않게 함 */
   body.kb-open .tabbar{display:none}
-  /* ── 스크롤을 내리면 접힘: 글자를 접고 높이를 줄여 화면을 넓게 쓴다 ──
-     아이콘과 선택 표시는 남겨서 접힌 상태에서도 지금 어느 탭인지 보인다. */
-  .tabbar{transition:padding .28s cubic-bezier(.4,0,.2,1)}
-  .tab{transition:color .26s,padding .28s cubic-bezier(.4,0,.2,1)}
-  .tab .lbl{display:block;max-height:16px;opacity:1;overflow:hidden;
-    transition:max-height .28s cubic-bezier(.4,0,.2,1),opacity .2s,margin-top .28s}
-  .tabbar.mini{padding:4px}
-  .tabbar.mini .tab{padding:7px 0}
-  .tabbar.mini .tab .lbl{max-height:0;opacity:0;margin-top:-3px}
-  .tabbar.mini .tab .ic{width:23px;height:23px}
+  /* ── 스크롤을 내리면 접힘: 지금 보고 있는 탭 하나만 남고 나머지는 그쪽으로 빨려 들어간다 ──
+     ⚠️ 폭을 애니메이션하려면 px 값이어야 한다(calc/auto 는 전환이 안 된다) → palo.js가 inline으로 넣는다.
+     왼쪽 끝을 고정해 둬서, 줄어들 때 오른쪽 탭들이 왼쪽(홈 방향)으로 접혀 들어가는 것처럼 보인다. */
+  .tabbar{overflow:hidden;
+    transition:width .34s cubic-bezier(.33,1.02,.4,1),padding .28s cubic-bezier(.4,0,.2,1)}
+  .tabbar-inner{overflow:hidden}
+  .tab{transition:color .26s,opacity .2s,padding .28s cubic-bezier(.4,0,.2,1)}
+  .tabbar.mini{padding:5px}
+  /* 남는 탭이 공간을 다 가져가고, 나머지는 폭 0으로 접히며 사라진다 */
+  .tabbar.mini .tab.on{flex:1 0 auto;padding:8px 10px}
+  .tabbar.mini .tab:not(.on){flex:0 1 0;min-width:0;padding-left:0;padding-right:0;opacity:0;pointer-events:none}
+  /* 접히면 움직이는 조각 대신 남은 탭이 직접 유리 배경을 갖는다(폭이 계속 변해 조각 위치를 못 맞춘다) */
+  .tabbar.mini .tab-ind{opacity:0}
+  .tabbar.mini .tab.on{border-radius:20px;
+    background:linear-gradient(180deg,rgba(255,255,255,.72) 0%,rgba(246,208,228,.6) 100%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 1px 2px rgba(31,22,28,.06)}
   .tabbar-inner{display:flex;align-items:stretch;gap:2px;position:relative}
   /* 선택 표시를 탭이 아니라 별도 조각으로 두고 위치만 옮긴다 →
      탭을 바꿀 때 '넘어가는 과정'이 보인다(그냥 켜고 끄면 툭 바뀐다). */

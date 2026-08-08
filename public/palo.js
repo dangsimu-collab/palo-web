@@ -4356,7 +4356,40 @@ window.addEventListener("resize",syncTabInd);
    접혀도 아이콘과 선택 표시는 남아 지금 어느 탭인지 알 수 있고, 그대로 누를 수도 있다. */
 (function(){
   var lastY=0,idle=null,lastRun=0;
+  var MINI_W=104; // 접혔을 때 폭(남는 탭 하나가 들어갈 만큼)
   function tabbar(){return document.querySelector('.tabbar');}
+  // 펼친 폭을 px로 계산해 넣는다. calc()나 auto로는 폭 전환이 안 된다.
+  // 왼쪽 끝을 고정해 둬야 줄어들 때 오른쪽 탭들이 '왼쪽으로 빨려 들어가는' 모양이 된다.
+  function fullW(){return Math.min(window.innerWidth-24,440);}
+  function pin(tb){
+    var w=fullW();
+    tb.style.left=Math.round((window.innerWidth-w)/2)+"px";
+    tb.style.transform="none";
+    if(!tb.classList.contains("mini"))tb.style.width=w+"px";
+  }
+  function expand(tb){
+    tb.classList.remove("mini");
+    tb.style.width=fullW()+"px";
+    if(typeof cmSyncTabbarHeight==="function")cmSyncTabbarHeight();
+    // 폭이 다 펴진 뒤에 선택 조각 자리를 다시 잡는다(펴지는 중엔 탭 폭이 계속 변한다)
+    setTimeout(function(){if(typeof syncTabInd==="function")syncTabInd();},360);
+  }
+  function collapse(tb){
+    tb.classList.add("mini");
+    tb.style.width=MINI_W+"px";
+  }
+  window.addEventListener("resize",function(){var tb=tabbar();if(tb)pin(tb);});
+  // 접힌 상태에서 탭바를 누르면 곧바로 펼친다(다시 불러오는 수단)
+  document.addEventListener("pointerdown",function(e){
+    var tb=tabbar();
+    if(tb&&tb.classList.contains("mini")&&e.target&&e.target.closest&&e.target.closest(".tabbar"))expand(tb);
+  },true);
+  (function init(){
+    var tb=tabbar();
+    if(!tb){setTimeout(init,60);return;}
+    var keep=tb.style.transition;tb.style.transition="none";
+    pin(tb); void tb.offsetWidth; tb.style.transition=keep;
+  })();
   function apply(){
     // 하는 일이 클래스 토글뿐이라 requestAnimationFrame까지 쓸 필요는 없다.
     // (rAF는 화면이 안 그려지는 환경에서 아예 안 돌아 검증도 어렵다)
@@ -4367,15 +4400,12 @@ window.addEventListener("resize",syncTabInd);
     var y=window.scrollY||document.documentElement.scrollTop||0;
     var dy=y-lastY;
     // 6px 미만의 흔들림으로는 상태를 바꾸지 않는다(손가락 떨림에 깜빡이지 않게)
-    if(y>90&&dy>6)tb.classList.add('mini');
-    else if(dy<-6||y<=90)tb.classList.remove('mini');
+    if(y>90&&dy>6)collapse(tb);
+    else if(dy<-6||y<=90)expand(tb);
     lastY=y;
     clearTimeout(idle);
     // 멈추면 다시 펼친다 — 접힌 채로 굳어 있으면 탭을 찾기 어렵다
-    idle=setTimeout(function(){
-      var t=tabbar();if(t){t.classList.remove('mini');
-        if(typeof cmSyncTabbarHeight==="function")cmSyncTabbarHeight();}
-    },900);
+    idle=setTimeout(function(){var t=tabbar();if(t)expand(t);},900);
   }
   window.addEventListener('scroll',apply,{passive:true});
 })();
