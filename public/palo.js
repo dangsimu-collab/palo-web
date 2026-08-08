@@ -2124,6 +2124,14 @@ function _delTabsHTML(){
 function _restoredTagHTML(r){
   return r.restored_at?'<span class="del-restored">되살림 · '+timeAgo(r.restored_at)+'</span>':'';
 }
+/* 누가 지웠는지. 본인이 지운 것도 보관하게 되면서(2026-08-08) 이 구분이 중요해졌다 —
+   예전처럼 관리자 닉네임만 찍으면 본인 삭제가 전부 "관리자 (알 수 없음)"으로 보인다.
+   ⚠️ deleted_by가 없는 옛 기록은 전부 관리자 삭제다(그때는 그것만 보관했으므로). */
+function delActorHTML(r,kind){
+  if(r.deleted_by==="author")return '<span class="del-by-self">'+(kind==="commission"?"작가 본인":"작성자 본인")+'</span>';
+  if(r.deleted_by==="other") return '<span class="del-by-etc">연쇄 삭제</span>';
+  return esc(r.admin_nick||"(알 수 없음)")+' <span class="del-by-adm">관리자</span>';
+}
 function renderAdminDeletionLog(rows,emptyMsg){
   var kind=ADMIN_DEL_KIND;
   var h='<div class="profile">'+
@@ -2146,7 +2154,7 @@ function renderAdminDeletionLog(rows,emptyMsg){
           '<span class="del-log-time">'+_restoredTagHTML(r)+timeAgo(r.created_at)+'</span></div>'+
         '<div class="del-log-title">'+title+'</div>'+
         (body?'<div class="del-log-snip">'+esc(body)+'</div>':'')+
-        '<div class="del-log-meta">작성자 <b>'+esc(r.author_nick||"(알 수 없음)")+'</b> · 삭제 관리자 <b>'+esc(r.admin_nick||"(알 수 없음)")+'</b></div>'+
+        '<div class="del-log-meta">작성자 <b>'+esc(r.author_nick||"(알 수 없음)")+'</b> · 지운 사람 <b>'+delActorHTML(r,kind)+'</b></div>'+
         '<div class="del-log-reason">사유: '+(r.reason?esc(r.reason):'<span style="opacity:.6">미입력</span>')+(r.notified?'':' · <span style="opacity:.75">알림 미발송</span>')+'</div>'+
         '<div class="del-log-open">보관본 보기 ›</div>'+
       '</div>';
@@ -4248,23 +4256,15 @@ function reportCommission(id){
 async function cmDeleteCommission(id){
   if(id==null||!window.supabase)return;
   if(!(await confirmDialog("이 커미션을 삭제할까요? 삭제하면 되돌릴 수 없어요.")))return;
-  // 1) 삭제 전에 이 커미션(과 그 최신 작업물)의 이미지 URL을 모아둠 — DB 삭제 후엔 조회 불가하므로 먼저.
-  var urls=[];
-  try{
-    var imgRes=await window.supabase.from("commission_images").select("url").eq("commission_id",id);
-    (imgRes.data||[]).forEach(function(r){if(r.url)urls.push(r.url);});
-    var wsRes=await window.supabase.from("commission_worksamples").select("id").eq("commission_id",id);
-    var wsIds=(wsRes.data||[]).map(function(w){return w.id;});
-    if(wsIds.length){
-      var wsImgRes=await window.supabase.from("commission_worksample_images").select("url").in("worksample_id",wsIds);
-      (wsImgRes.data||[]).forEach(function(r){if(r.url)urls.push(r.url);});
-    }
-  }catch(e){}
-  // 2) DB에서 커미션 삭제(RLS로 본인만). cascade로 이미지·작업사례·신청·광고 '기록'이 자동 삭제됨.
+  // DB에서 커미션 삭제(RLS로 본인만). cascade로 이미지·작업사례·신청·광고 '기록'이 자동 삭제됨.
+  // 삭제 직전에 DB 트리거가 보관본(admin_commission_deletions)에 사본을 남긴다.
   var res=await window.supabase.from("commissions").delete().eq("id",id);
   if(res.error){toast("삭제 실패: "+res.error.message);return;}
-  // 3) 스토리지 실제 파일 삭제(본인 uid 폴더의 파일만 — 버킷 RLS가 그렇게 허용). 실패해도 삭제 자체엔 지장 없음.
-  await deleteFromStorage(urls);
+  // ⚠️ **저장소 파일은 일부러 지우지 않는다(2026-08-08).**
+  //    예전에는 여기서 R2 파일까지 지웠는데, 그러면 보관본에 주소만 남고 그림은 사라져
+  //    분쟁이 생겼을 때 "무엇을 걸고 판 커미션이었는지"를 확인할 수 없다.
+  //    커미션은 돈이 오가는 거래라 근거가 특히 중요하다 → 파일을 남긴다.
+  //    (관리자 삭제 경로는 원래부터 파일을 남기고 있었다. 이제 본인 삭제도 같아졌다.)
   cmData=cmData.filter(function(c){return c.id!==id;});
   if(Array.isArray(cmMyList))cmMyList=cmMyList.filter(function(c){return c.id!==id;});
   if(cmWsCache)delete cmWsCache[id];

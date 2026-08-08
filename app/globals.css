@@ -2044,3 +2044,8 @@
 .ref-tabs::-webkit-scrollbar{display:none}
 .ref-adm{align-items:flex-start}
 .ref-adm-act{display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
+
+/* 삭제 기록 — 누가 지웠는지 한눈에. 본인 삭제가 늘어나면서 구분이 필요해졌다. */
+.del-by-self{background:rgba(224,122,166,.16);color:#9c3566;font-weight:800;font-size:11px;padding:2px 7px;border-radius:999px}
+.del-by-adm {background:rgba(31,22,28,.08);color:var(--muted);font-weight:800;font-size:11px;padding:2px 7px;border-radius:999px}
+.del-by-etc {background:rgba(31,22,28,.06);color:var(--muted);font-weight:700;font-size:11px;padding:2px 7px;border-radius:999px}
