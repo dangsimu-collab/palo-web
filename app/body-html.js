@@ -391,21 +391,37 @@ export const BODY_HTML = `
 </div>
 <div class="rules-scrim" id="loginModal" onclick="if(event.target===this)closeLoginModal()">
   <div class="rules login-modal">
-    <h3 id="loginTitle">commi 시작하기</h3>
-    <p class="login-desc" id="loginDesc">구글 계정 또는 이메일로 시작해요.</p>
+    <!-- 상단 바: 왼쪽 닫기 + 가운데 제목. 제목은 setLoginMode가 모드에 맞게 바꾼다 -->
+    <div class="lg-top">
+      <button type="button" class="lg-close" aria-label="닫기" onclick="closeLoginModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <span class="lg-top-title" id="loginTitle">로그인</span>
+    </div>
+
+    <div class="lg-brand">
+      <span class="lg-logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.5-.8 1-1.5-.5-.8 0-1.5 1-1.5h1a4 4 0 0 0 4-4c0-5-3-9-8-9z"/><circle cx="7.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="10.5" r="1" fill="currentColor" stroke="none"/></svg></span>
+      <div class="lg-name">commi</div>
+      <p class="login-desc" id="loginDesc">그림 그리는 사람들의 커뮤니티</p>
+    </div>
+
+    <div class="lg-safe" id="lgSafeBox">
+      <span class="lg-safe-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
+      <div class="lg-safe-tx"><b>계정 정보는 안전하게 보호돼요</b><span>로그인 정보는 안전한 연결로 처리하고, 서비스에 필요한 정보만 사용해요.</span></div>
+    </div>
+
     <div id="loginSocial">
       <div id="gsiButton" class="gsi-wrap"></div>
-      <button type="button" class="login-naver-btn" onclick="loginWithNaver()"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.273 12.845 7.376 0H0v24h7.726V11.156L16.624 24H24V0h-7.727z"/></svg>네이버로 로그인</button>
-      <button type="button" class="login-x-btn" onclick="loginWithTwitter()"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>X로 로그인</button>
-      <div class="login-or"><span>또는 이메일로</span></div>
+      <button type="button" class="lg-social login-naver-btn" onclick="loginWithNaver()"><span class="lg-social-ic nv"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.273 12.845 7.376 0H0v24h7.726V11.156L16.624 24H24V0h-7.727z"/></svg></span>네이버로 계속하기</button>
+      <button type="button" class="lg-social login-x-btn" onclick="loginWithTwitter()"><span class="lg-social-ic xx"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></span>X로 계속하기</button>
+      <div class="login-or"><span>또는</span></div>
     </div>
+
     <input id="lgEmail" class="nick-in" type="email" autocomplete="email" placeholder="이메일" onkeydown="if(event.key==='Enter')loginSubmit()">
     <input id="lgPw" class="nick-in" type="password" autocomplete="current-password" placeholder="비밀번호" onkeydown="if(event.key==='Enter')loginSubmit()">
     <input id="lgPw2" class="nick-in" type="password" autocomplete="new-password" placeholder="비밀번호 확인" style="display:none" onkeydown="if(event.key==='Enter')loginSubmit()">
     <input id="lgNick" class="nick-in" maxlength="12" placeholder="닉네임 (2~12자)" style="display:none" onkeydown="if(event.key==='Enter')loginSubmit()">
     <button class="r-ok" id="lgSubmit" onclick="loginSubmit()">로그인</button>
     <p class="login-hint" id="loginHint"></p>
-    <button class="login-signup-btn" id="lgToSignup" onclick="setLoginMode('signup')">이메일 없이 회원가입</button>
+    <button class="login-signup-btn" id="lgToSignup" onclick="setLoginMode('signup')">이메일 없이 시작하기</button>
     <div class="login-links">
       <button class="login-alt" id="lgToReset" onclick="setLoginMode('reset')">비밀번호 찾기</button>
       <button class="login-alt" id="lgToLogin" onclick="setLoginMode('login')" style="display:none">← 로그인으로 돌아가기</button>

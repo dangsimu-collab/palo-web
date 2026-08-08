@@ -629,12 +629,13 @@ async function openLoginModal(){
   // 항상 '로그인' 모드로 열고 입력값은 비움(제목·안내문구·버튼 문구는 setLoginMode가 맞춰줌)
   ["lgEmail","lgPw","lgPw2","lgNick"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});
   setLoginMode("login");
-  // 구글 버튼: PWA(홈 화면)나 GIS 미로드 상태에선 팝업이 막히므로(400) '리다이렉트 방식' 버튼을, 아니면 GIS 버튼을 그림.
-  if(isStandalonePWA()||!_gisReady()){
-    if(gwrap)gwrap.innerHTML='<button type="button" class="login-google-btn" onclick="_loginRedirectFallback()">'+GOOGLE_G_SVG+'구글로 로그인</button>';
-    m.classList.add("open");document.body.style.overflow="hidden";
-    return;
-  }
+  // 구글도 네이버·X와 같은 모양의 버튼으로 통일한다.
+  // ⚠️ 구글이 직접 그려주는 버튼(GIS)은 생김새를 바꿀 수 없어서, 우리 버튼 + 리다이렉트 방식으로 맞췄다.
+  //    (원래 GIS 팝업 방식은 PWA에서 막혀 어차피 리다이렉트로 빠지고 있었다)
+  if(gwrap)gwrap.innerHTML='<button type="button" class="lg-social" onclick="_loginRedirectFallback()">'+
+    '<span class="lg-social-ic gg">'+GOOGLE_G_SVG+'</span>Google로 계속하기</button>';
+  m.classList.add("open");document.body.style.overflow="hidden";
+  return;
   var n;
   try{n=await _makeLoginNonce();}catch(e){
     if(gwrap)gwrap.innerHTML='<button type="button" class="login-google-btn" onclick="_loginRedirectFallback()">'+GOOGLE_G_SVG+'구글로 로그인</button>';
@@ -673,17 +674,18 @@ function setLoginMode(mode){
   if(hint)hint.textContent="";
   var isLogin=mode==="login",isSignup=mode==="signup",isReset=mode==="reset",isNew=mode==="newpw";
   show("loginSocial",isLogin);                 // 소셜 버튼은 로그인 화면에서만
+  show("lgSafeBox",isLogin||isSignup);         // 안전 안내는 계정을 만들거나 들어올 때만 의미 있음
   show("loginAltBtn",isLogin);
   show("lgEmail",!isNew);                      // 새 비밀번호 설정에선 이메일 입력 불필요
   show("lgPw",!isReset);
   show("lgPw2",isSignup||isNew);
   show("lgNick",isSignup);
   show("lgToSignup",isLogin); show("lgToReset",isLogin); show("lgToLogin",isSignup||isReset);
-  if(title)title.textContent=isSignup?"commi 회원가입":isReset?"비밀번호 찾기":isNew?"새 비밀번호 설정":"commi 시작하기";
+  if(title)title.textContent=isSignup?"회원가입":isReset?"비밀번호 찾기":isNew?"새 비밀번호":"로그인";
   if(desc)desc.textContent=isSignup?"이메일 없이 아이디만으로 가입할 수 있어요."
     :isReset?"이메일로 가입한 계정만 재설정 링크를 받을 수 있어요."
     :isNew?"새로 사용할 비밀번호를 입력해주세요."
-    :(function(){var ns=["구글"];if(NAVER_LOGIN_ENABLED)ns.push("네이버");if(TWITTER_LOGIN_ENABLED)ns.push("X");return ns.join("·")+" 계정 또는 아이디로 시작해요.";})();
+    :"그림 그리는 사람들의 커뮤니티";
   var idIn=_lgEl("lgEmail");
   if(idIn){
     idIn.placeholder=isSignup?"아이디 (영문 소문자·숫자 4~20자)":isReset?"가입한 이메일":"아이디 또는 이메일";

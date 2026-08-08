@@ -1331,19 +1331,44 @@
   .nick-in:focus{outline:none;border-color:var(--brand);background:var(--surface)}
   .nick-hint{font-size:12px;color:var(--muted);margin-bottom:16px}
   /* 구글 로그인(GIS) 모달 */
-  .login-modal{text-align:center}
+  /* ── 로그인 화면 ──
+     흰 배경 · 넉넉한 여백 · 소셜 버튼은 전부 같은 모양(넓은 회색 알약)으로 통일. */
+  .login-modal{text-align:center;padding:16px 22px 24px}
+  .lg-top{position:relative;display:flex;align-items:center;justify-content:center;height:44px;margin-bottom:6px}
+  .lg-top-title{font-size:16px;font-weight:800;color:var(--ink)}
+  .lg-close{position:absolute;left:0;top:50%;transform:translateY(-50%);width:36px;height:36px;border:none;border-radius:50%;
+    background:var(--surface-2);color:var(--ink-2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.14s}
+  .lg-close svg{width:17px;height:17px}
+  .lg-close:hover{background:var(--line)}
+  .lg-brand{margin:14px 0 20px}
+  .lg-logo{width:66px;height:66px;border-radius:20px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg,var(--brand),var(--grape));color:#fff;box-shadow:0 8px 22px rgba(224,122,166,.32)}
+  .lg-logo svg{width:38px;height:38px}
+  .lg-name{font-size:23px;font-weight:900;letter-spacing:-.02em;color:var(--ink)}
+  /* 안전 안내 박스 — 계정을 맡기는 자리라 무엇을 하고 안 하는지 짧게 알린다 */
+  .lg-safe{display:flex;gap:11px;text-align:left;background:var(--surface-2);border-radius:14px;padding:13px 14px;margin-bottom:20px}
+  .lg-safe-ic{flex-shrink:0;width:34px;height:34px;border-radius:11px;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--brand-2)}
+  .lg-safe-ic svg{width:18px;height:18px}
+  .lg-safe-tx{min-width:0}
+  .lg-safe-tx b{display:block;font-size:13px;font-weight:800;color:var(--ink);margin-bottom:2px}
+  .lg-safe-tx span{display:block;font-size:11.5px;line-height:1.55;color:var(--muted)}
+  /* 소셜 버튼 — 구글·네이버·X 모두 같은 틀. 로고만 각자 색을 쓴다 */
+  .lg-social{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:50px;margin-bottom:9px;
+    border:1px solid var(--line);border-radius:14px;background:var(--surface-2);color:var(--ink);
+    font-family:inherit;font-size:14.5px;font-weight:700;cursor:pointer;transition:.14s;padding:0 14px}
+  .lg-social:hover{background:var(--line);border-color:var(--line-2)}
+  .lg-social:active{transform:scale(.99)}
+  .lg-social-ic{display:flex;align-items:center;justify-content:center;width:20px;height:20px;flex-shrink:0}
+  .lg-social-ic svg{width:100%;height:100%}
+  .lg-social-ic.nv{color:#03C75A}
+  .lg-social-ic.xx{color:#000}
+  .gsi-wrap{display:block;min-height:0}
   .login-desc{font-size:14px;color:var(--ink-2);margin-bottom:20px}
   .gsi-wrap{display:flex;justify-content:center;min-height:44px}
   /* 네이버 로그인 버튼(브랜드 초록) + PWA용 구글 리다이렉트 버튼 */
-  .login-naver-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:260px;max-width:100%;height:44px;margin:10px auto 0;border:none;border-radius:22px;background:#03C75A;color:#fff;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:filter .14s}
-  .login-naver-btn svg{width:16px;height:16px;flex:none}
-  .login-naver-btn:hover{filter:brightness(.96)}
-  .login-naver-btn:active{filter:brightness(.92)}
+  /* (아래 .lg-social 로 통일 — 예전 개별 색 버튼 규칙은 제거) */
   /* X(트위터) — 브랜드가 검정이라 그대로 따른다 */
-  .login-x-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:260px;max-width:100%;height:44px;margin:10px auto 0;border:none;border-radius:22px;background:#000;color:#fff;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:.14s}
-  .login-x-btn svg{width:15px;height:15px;flex:none}
-  .login-x-btn:hover{background:#1a1a1a}
-  .login-x-btn:active{background:#2a2a2a}
+  /* (아래 .lg-social 로 통일 — 예전 개별 색 버튼 규칙은 제거) */
   .login-google-btn{display:flex;align-items:center;justify-content:center;gap:9px;width:260px;max-width:100%;height:44px;margin:0 auto;border:1.5px solid var(--line-2);border-radius:22px;background:#fff;color:#3c4043;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:background .14s}
   .login-google-btn svg{width:18px;height:18px;flex:none}
   .login-google-btn:hover{background:var(--surface-2)}
