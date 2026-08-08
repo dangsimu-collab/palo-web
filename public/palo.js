@@ -4871,8 +4871,186 @@ function advanceSavedSelection(){
 }
 function insertInlineMedia(url){
   restoreEditorSelection();
-  document.execCommand("insertHTML",false,'<img src="'+esc(url)+'" style="max-width:100%;border-radius:10px;display:block;margin:10px 0"><br>');
+  // margin-left/right:auto = 가운데 정렬. 아래 이미지 도구에서 왼/오른쪽으로 바꿀 수 있다.
+  document.execCommand("insertHTML",false,'<img src="'+esc(url)+'" style="max-width:100%;border-radius:10px;display:block;margin:10px auto"><br>');
   advanceSavedSelection();
+}
+
+/* ===== 글꼴 · 글자 크기 =====================================================
+   ⚠️ 웹폰트는 **필요할 때만** 불러온다. 한글 폰트는 글자 수가 많아 무겁고,
+      글꼴을 쓰지 않는 대부분의 방문에는 한 바이트도 받을 이유가 없다.
+      → 글꼴 메뉴를 처음 열 때, 그리고 그 폰트를 쓴 글을 실제로 그릴 때만 부른다.
+      (구글이 unicode-range로 잘게 쪼개 보내므로 실제로 쓰인 글자 조각만 받는다) */
+var _edFontsLoaded=false;
+function edEnsureWebFonts(){
+  if(_edFontsLoaded)return;
+  _edFontsLoaded=true;
+  var l=document.createElement("link");
+  l.rel="stylesheet";
+  l.href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Do+Hyeon"+
+         "&family=Gowun+Dodum&family=Jua&family=Nanum+Gothic:wght@400;700"+
+         "&family=Nanum+Myeongjo:wght@400;700&family=Nanum+Pen+Script&display=swap";
+  document.head.appendChild(l);
+}
+// 드롭다운을 누르는 순간 커서가 본문에서 빠진다 → 그 직전 위치를 붙잡아 둔다
+function edSaveForMenu(e){
+  saveEditorSelection();
+  if(e&&e.currentTarget&&e.currentTarget.id==="edFontSel")edEnsureWebFonts();
+}
+/* 선택 영역(또는 커서 자리)에 style을 입힌다.
+   ⚠️ **execCommand를 쓰지 않는다.** 폐기 예정인 API인 데다 `<font size=7>` 같은 옛 태그를 만들어
+      매번 span으로 바꿔 심어야 했고, 창에 포커스가 없으면 조용히 아무 일도 하지 않는다.
+      Range API로 직접 감싸면 그런 조건에 기대지 않고 결과도 예측 가능하다.
+   ⚠️ 아무것도 선택하지 않았으면 빈 span을 만들고 그 안에 커서를 둔다 —
+      그래야 네이버처럼 '미리 골라 두고 이어서 입력'이 된다. */
+function edApplyInline(setStyle){
+  var ed=document.getElementById("wContent");if(!ed)return;
+  restoreEditorSelection();
+  var sel=window.getSelection();if(!sel||!sel.rangeCount)return;
+  var r=sel.getRangeAt(0);
+  if(!ed.contains(r.commonAncestorContainer))return;
+  var span=document.createElement("span");
+  setStyle(span);
+  if(sel.isCollapsed){
+    span.appendChild(document.createTextNode("​")); // 폭 없는 글자 — 커서가 머무를 자리
+    r.insertNode(span);
+    var r2=document.createRange();
+    r2.setStart(span.firstChild,1);r2.collapse(true);
+    sel.removeAllRanges();sel.addRange(r2);
+  }else{
+    try{
+      r.surroundContents(span);            // 한 요소 안의 선택이면 이걸로 깔끔하게 감싼다
+    }catch(e){
+      // 선택이 여러 요소에 걸쳐 있으면 surroundContents가 거부한다 → 떼어내서 감싸 넣는다
+      span.appendChild(r.extractContents());
+      r.insertNode(span);
+    }
+    var r3=document.createRange();
+    r3.selectNodeContents(span);
+    sel.removeAllRanges();sel.addRange(r3);
+  }
+  advanceSavedSelection();
+}
+function edSetSize(px){
+  if(!px)return;
+  edApplyInline(function(el){el.style.fontSize=px+"px";});
+}
+function edSetFont(family){
+  if(!family)return;
+  edEnsureWebFonts();
+  edApplyInline(function(el){el.style.fontFamily=family;});
+}
+
+/* ===== 본문에 넣은 이미지 조절 ==============================================
+   이미지를 누르면 그 아래에 작은 도구가 뜬다: 정렬 · 크기 · 위아래 이동 · 대표 지정 · 삭제.
+   ⚠️ 도구는 position:fixed 로 화면에 띄우고 스크롤할 때마다 자리를 다시 잡는다.
+      본문 안에 넣으면 그것까지 글 내용으로 저장돼 버린다. */
+var edImgTarget=null;
+function edImgBar(){
+  var b=document.getElementById("edImgBar");
+  if(b)return b;
+  b=document.createElement("div");
+  b.id="edImgBar";b.className="ed-imgbar";b.style.display="none";
+  b.innerHTML=
+    '<button type="button" title="왼쪽" onclick="edImgAlign(\'left\')">⬅</button>'+
+    '<button type="button" title="가운데" onclick="edImgAlign(\'center\')">⬍</button>'+
+    '<button type="button" title="오른쪽" onclick="edImgAlign(\'right\')">➡</button>'+
+    '<span class="ed-imgbar-div"></span>'+
+    '<button type="button" title="작게" onclick="edImgSize(50)">작게</button>'+
+    '<button type="button" title="중간" onclick="edImgSize(75)">중간</button>'+
+    '<button type="button" title="원래대로" onclick="edImgSize(100)">100%</button>'+
+    '<span class="ed-imgbar-div"></span>'+
+    '<button type="button" title="위로 옮기기" onclick="edImgMove(-1)">↑</button>'+
+    '<button type="button" title="아래로 옮기기" onclick="edImgMove(1)">↓</button>'+
+    '<span class="ed-imgbar-div"></span>'+
+    '<button type="button" class="ed-imgbar-rep" onclick="edImgMakeCover()">★ 대표</button>'+
+    '<button type="button" class="ed-imgbar-del" onclick="edImgDelete()">삭제</button>';
+  document.body.appendChild(b);
+  return b;
+}
+function edPlaceImgBar(){
+  if(!edImgTarget||!document.body.contains(edImgTarget)){edHideImgBar();return;}
+  var b=edImgBar(),r=edImgTarget.getBoundingClientRect();
+  b.style.display="flex";
+  var top=r.bottom+8;
+  if(top>window.innerHeight-60)top=Math.max(8,r.top-b.offsetHeight-8); // 화면 아래로 나가면 위쪽에
+  b.style.top=Math.round(top)+"px";
+  var left=r.left+r.width/2-b.offsetWidth/2;
+  left=Math.max(8,Math.min(left,window.innerWidth-b.offsetWidth-8));   // 화면 밖으로 새지 않게
+  b.style.left=Math.round(left)+"px";
+}
+function edShowImgBar(img){
+  edImgTarget=img;
+  img.classList.add("ed-img-on");
+  edImgBar();edPlaceImgBar();
+}
+function edHideImgBar(){
+  var b=document.getElementById("edImgBar");if(b)b.style.display="none";
+  if(edImgTarget)edImgTarget.classList.remove("ed-img-on");
+  edImgTarget=null;
+}
+document.addEventListener("click",function(e){
+  var ed=document.getElementById("wContent");if(!ed)return;
+  var t=e.target;
+  if(t&&t.tagName==="IMG"&&ed.contains(t)){edShowImgBar(t);return;}
+  if(t&&t.closest&&t.closest("#edImgBar"))return;  // 도구 자체를 누른 건 유지
+  edHideImgBar();
+});
+window.addEventListener("scroll",function(){if(edImgTarget)edPlaceImgBar();},{passive:true});
+window.addEventListener("resize",function(){if(edImgTarget)edPlaceImgBar();});
+function edImgAlign(how){
+  if(!edImgTarget)return;
+  var s=edImgTarget.style;
+  s.display="block";
+  s.marginLeft = (how==="left")  ? "0"    : "auto";
+  s.marginRight= (how==="right") ? "0"    : "auto";
+  edPlaceImgBar();
+}
+function edImgSize(pct){
+  if(!edImgTarget)return;
+  edImgTarget.style.maxWidth=pct+"%";
+  edPlaceImgBar();
+}
+// 에디터 바로 아래 단계까지 올라가서 그 덩어리째 옮긴다(문단 안에 들어 있는 경우 대비)
+function edImgBlockOf(img){
+  var ed=document.getElementById("wContent"),n=img;
+  while(n&&n.parentNode&&n.parentNode!==ed)n=n.parentNode;
+  return n;
+}
+function edImgMove(dir){
+  if(!edImgTarget)return;
+  var blk=edImgBlockOf(edImgTarget);if(!blk||!blk.parentNode)return;
+  // 그림을 넣을 때 바로 뒤에 붙인 <br>은 그림의 일부처럼 같이 옮긴다.
+  // 안 그러면 그림만 빠져나가고 빈 줄이 원래 자리에 남는다.
+  var tail=(blk.nextElementSibling&&blk.nextElementSibling.tagName==="BR")?blk.nextElementSibling:null;
+  var last=tail||blk;
+  var sib=(dir<0)?blk.previousElementSibling:last.nextElementSibling;
+  if(!sib){toast(dir<0?"맨 위예요":"맨 아래예요");return;}
+  if(dir<0){
+    blk.parentNode.insertBefore(blk,sib);
+    if(tail)blk.parentNode.insertBefore(tail,sib);
+  }else{
+    blk.parentNode.insertBefore(sib,blk);
+  }
+  edPlaceImgBar();
+}
+function edImgMakeCover(){
+  if(!edImgTarget)return;
+  var i=edState.images.indexOf(edImgTarget.getAttribute("src"));
+  if(i<0){toast("이 그림은 목록에 없어요");return;}
+  edSetCover(i);
+}
+function edImgDelete(){
+  if(!edImgTarget)return;
+  var url=edImgTarget.getAttribute("src");
+  var blk=edImgBlockOf(edImgTarget);
+  edImgTarget.remove();
+  // 이미지만 있던 덩어리는 빈 껍데기로 남으므로 같이 치운다
+  if(blk&&blk!==edImgTarget&&blk.parentNode&&!blk.textContent.trim()&&!blk.querySelector("img,video"))blk.remove();
+  edHideImgBar();
+  var j=edState.images.indexOf(url);
+  if(j>-1){edState.images.splice(j,1);renderEdImages();}
+  toast("그림을 뺐어요");
 }
 function pickImage(e){e.preventDefault();saveEditorSelection();document.getElementById("edFile").click()}
 function loadImageFromFile(file){
@@ -5550,14 +5728,30 @@ async function onEditorDrop(e){
     await uploadAndInsertImage(files[i]);
   }
 }
+/* 올린 그림 목록. **맨 앞(대표)이 글 목록의 미리보기 그림이 된다**
+   — post_images.sort 순서가 곧 이 배열 순서이고, 목록은 images[0]을 쓴다.
+   그래서 '대표로'를 누르면 그 그림을 배열 맨 앞으로 옮긴다(따로 칸을 두지 않아도 된다). */
 function renderEdImages(){
   var el=document.getElementById("edImages");if(!el)return;
+  if(!edState.images.length){el.innerHTML="";return;}
   el.innerHTML=edState.images.map(function(url,i){
-    return '<div style="position:relative;width:64px;height:64px">'+
-      '<img src="'+esc(url)+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:10px">'+
-      '<button type="button" onclick="removeEdImage('+i+')" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:#000;color:#fff;border:none;font-size:11px;cursor:pointer">×</button>'+
+    return '<div class="ed-thumb'+(i===0?" rep":"")+'">'+
+      '<img src="'+esc(url)+'" alt="">'+
+      (i===0?'<span class="ed-thumb-badge">대표</span>'
+            :'<button type="button" class="ed-thumb-set" onclick="edSetCover('+i+')">대표로</button>')+
+      '<button type="button" class="ed-thumb-x" onclick="removeEdImage('+i+')" aria-label="빼기">×</button>'+
     '</div>';
-  }).join("");
+  }).join("")+
+  (edState.images.length>1
+    ? '<p class="ed-thumb-help">글 목록에는 <b>대표</b> 그림 한 장만 미리보기로 보여요. 바꾸려면 다른 그림의 “대표로”를 누르세요.</p>'
+    : '');
+}
+function edSetCover(i){
+  if(i<=0||i>=edState.images.length)return;
+  var u=edState.images.splice(i,1)[0];
+  edState.images.unshift(u);
+  renderEdImages();
+  toast("대표 그림을 바꿨어요","🖼");
 }
 function removeEdImage(i){
   var url=edState.images[i];
@@ -5609,10 +5803,13 @@ function sanitizePostHtml(html){
   if(!html)return "";
   if(!window.DOMPurify)return "";
   _hookDomPurify();
-  return window.DOMPurify.sanitize(html,{
+  var out=window.DOMPurify.sanitize(html,{
     ALLOWED_TAGS:["b","strong","i","em","u","font","span","ul","ol","li","blockquote","br","div","p","img","video","source"],
     ALLOWED_ATTR:["style","color","src","controls","alt","data-poll"]
   });
+  // 글꼴을 쓴 글을 그릴 때만 웹폰트를 불러온다(안 쓰는 글에서는 한 바이트도 받지 않는다)
+  if(out.indexOf("font-family")>-1&&typeof edEnsureWebFonts==="function")edEnsureWebFonts();
+  return out;
 }
 /* ===== 글쓰기 투표(다중·본문 삽입형) ===== edState.polls = {key:{question,options,allowMultiple,anonymous,closesDays}} */
 function edPollBlockInner(key){ // 본문 안 투표 블록의 표시 내용(라벨+편집/삭제)

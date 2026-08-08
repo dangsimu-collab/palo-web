@@ -162,6 +162,30 @@ export const BODY_HTML = `
         <button title="글자색" onmousedown="fmt(event,'foreColor','#bf400c')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.5-.8 1-1.5-.5-.8 0-1.5 1-1.5h1a4 4 0 0 0 4-4c0-5-3-9-8-9z"/><circle cx="7.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="10.5" r="1" fill="currentColor" stroke="none"/></svg><span class="ed-tool-lbl">글자색</span></button>
         <button title="형광펜" onmousedown="fmt(event,'hiliteColor','#fbe9c8')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10-4-4L4 16v4z"/><path d="M13 7l4 4"/></svg><span class="ed-tool-lbl">형광펜</span></button>
         <span class="ed-div"></span>
+        <!-- 글꼴·크기는 '고르면 바로 적용되는 메뉴'다. 고른 뒤 다시 첫 항목으로 돌아온다.
+             ⚠️ 드롭다운을 누르면 본문에서 포커스가 빠지므로, 적용 직전에 저장해 둔 커서를 되살린다. -->
+        <select class="ed-sel" id="edFontSel" title="글꼴" aria-label="글꼴"
+          onmousedown="edSaveForMenu(event)" onchange="edSetFont(this.value);this.selectedIndex=0">
+          <option value="">글꼴</option>
+          <option value="'Nanum Gothic', sans-serif">나눔고딕</option>
+          <option value="'Nanum Myeongjo', serif">나눔명조</option>
+          <option value="'Nanum Pen Script', cursive">나눔손글씨</option>
+          <option value="'Gowun Dodum', sans-serif">고운돋움</option>
+          <option value="'Jua', sans-serif">주아</option>
+          <option value="'Do Hyeon', sans-serif">도현</option>
+          <option value="'Black Han Sans', sans-serif">검은고딕</option>
+        </select>
+        <select class="ed-sel" id="edSizeSel" title="글자 크기" aria-label="글자 크기"
+          onmousedown="edSaveForMenu(event)" onchange="edSetSize(this.value);this.selectedIndex=0">
+          <option value="">크기</option>
+          <option value="13">아주 작게</option>
+          <option value="15">작게</option>
+          <option value="17">보통</option>
+          <option value="20">크게</option>
+          <option value="24">더 크게</option>
+          <option value="30">제목만큼</option>
+        </select>
+        <span class="ed-div"></span>
         <button title="목록" onmousedown="fmt(event,'insertUnorderedList')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span class="ed-tool-lbl">목록</span></button>
         <button title="인용" onmousedown="insertQuote(event)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h4v6H7c0-3 0-4 2-6M15 7h4v6h-4c0-3 0-4 2-6"/></svg><span class="ed-tool-lbl">인용</span></button>
         <span class="ed-div"></span>

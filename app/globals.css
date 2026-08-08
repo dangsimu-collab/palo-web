@@ -2049,3 +2049,40 @@
 .del-by-self{background:rgba(224,122,166,.16);color:#9c3566;font-weight:800;font-size:11px;padding:2px 7px;border-radius:999px}
 .del-by-adm {background:rgba(31,22,28,.08);color:var(--muted);font-weight:800;font-size:11px;padding:2px 7px;border-radius:999px}
 .del-by-etc {background:rgba(31,22,28,.06);color:var(--muted);font-weight:700;font-size:11px;padding:2px 7px;border-radius:999px}
+
+/* ===== 글쓰기: 글꼴·크기 드롭다운 ===== */
+.ed-toolbar .ed-sel{height:34px;border:1.5px solid var(--line-2);border-radius:10px;background:var(--surface);
+  color:var(--ink);font-family:inherit;font-size:12.5px;font-weight:700;padding:0 6px;cursor:pointer;flex-shrink:0}
+.ed-toolbar .ed-sel:focus{outline:none;border-color:var(--brand)}
+
+/* ===== 글쓰기: 본문 이미지 조절 도구 =====
+   position:fixed 로 화면에 띄운다 — 본문 안에 넣으면 글 내용으로 같이 저장돼 버린다. */
+.ed-imgbar{position:fixed;z-index:80;display:flex;align-items:center;gap:2px;
+  background:rgba(255,255,255,.94);border:1px solid var(--line-2);border-radius:14px;padding:5px 6px;
+  box-shadow:0 6px 22px rgba(31,22,28,.18);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  max-width:calc(100vw - 16px);overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ed-imgbar::-webkit-scrollbar{display:none}
+.ed-imgbar button{border:none;background:none;font-family:inherit;font-size:12px;font-weight:800;
+  color:var(--ink);padding:6px 8px;border-radius:9px;cursor:pointer;white-space:nowrap;min-height:32px}
+.ed-imgbar button:hover{background:var(--surface-2)}
+.ed-imgbar button:active{transform:scale(.94)}
+.ed-imgbar .ed-imgbar-rep{color:#9c3566}
+.ed-imgbar .ed-imgbar-del{color:#a53030}
+.ed-imgbar-div{width:1px;height:18px;background:var(--line-2);margin:0 3px;flex-shrink:0}
+/* 고른 이미지에 테두리를 둘러 무엇을 조절 중인지 보이게 */
+.ed-content img.ed-img-on{outline:2.5px solid var(--brand);outline-offset:2px}
+
+/* ===== 글쓰기: 올린 그림 목록(대표 지정) ===== */
+#edImages{align-items:flex-start}
+.ed-thumb{position:relative;width:72px;height:72px;flex-shrink:0}
+.ed-thumb img{width:100%;height:100%;object-fit:cover;border-radius:12px;display:block;border:2px solid transparent}
+.ed-thumb.rep img{border-color:var(--brand)}
+.ed-thumb-badge{position:absolute;left:0;bottom:0;background:var(--brand);color:#fff;font-size:10px;
+  font-weight:800;padding:2px 7px;border-radius:0 8px 0 10px}
+.ed-thumb-set{position:absolute;left:0;bottom:0;right:0;background:rgba(31,22,28,.66);color:#fff;border:none;
+  font-family:inherit;font-size:10px;font-weight:800;padding:3px 0;border-radius:0 0 10px 10px;cursor:pointer}
+.ed-thumb-set:hover{background:var(--brand)}
+.ed-thumb-x{position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;
+  background:#1f161c;color:#fff;border:2px solid #fff;font-size:12px;line-height:1;cursor:pointer}
+.ed-thumb-help{flex-basis:100%;width:100%;margin:2px 0 0;font-size:12px;color:var(--muted);line-height:1.5}
+.ed-thumb-help b{color:var(--ink)}
