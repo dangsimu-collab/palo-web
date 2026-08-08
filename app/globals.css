@@ -2071,6 +2071,8 @@
 .ed-imgbar-div{width:1px;height:18px;background:var(--line-2);margin:0 3px;flex-shrink:0}
 /* 고른 이미지에 테두리를 둘러 무엇을 조절 중인지 보이게 */
 .ed-content img.ed-img-on{outline:2.5px solid var(--brand);outline-offset:2px}
+/* 두 번 톡톡 두드려 확대하는 동작을 꺼서, 그림을 누르면 기다림 없이 바로 도구가 뜨게 한다 */
+.ed-content img{touch-action:manipulation}
 
 /* ===== 글쓰기: 올린 그림 목록(대표 지정) ===== */
 #edImages{align-items:flex-start}

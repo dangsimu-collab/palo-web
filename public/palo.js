@@ -4869,12 +4869,48 @@ function advanceSavedSelection(){
   var sel=window.getSelection();
   if(sel&&sel.rangeCount>0)savedEditorRange=sel.getRangeAt(0).cloneRange();
 }
+/* 본문 커서 자리에 그림을 넣는다.
+   ⚠️ **execCommand("insertHTML")을 쓰지 않는다.** 사진 선택 창(앨범 앱)이 열렸다 닫히면
+      본문이 포커스를 잃는데, iOS는 코드로 다시 focus() 해도 편집 영역에 포커스를 돌려주지 않는다.
+      그 상태의 execCommand는 **조용히 아무 일도 하지 않아** 그림이 안 들어가거나 맨 끝에 붙는다.
+      Range API로 직접 넣으면 포커스와 무관하게 저장해 둔 자리에 정확히 들어간다.
+   ⚠️ margin:10px auto = 가운데 정렬. 넣은 뒤 이미지를 눌러 왼/오른쪽으로 바꿀 수 있다. */
 function insertInlineMedia(url){
-  restoreEditorSelection();
-  // margin-left/right:auto = 가운데 정렬. 아래 이미지 도구에서 왼/오른쪽으로 바꿀 수 있다.
-  document.execCommand("insertHTML",false,'<img src="'+esc(url)+'" style="max-width:100%;border-radius:10px;display:block;margin:10px auto"><br>');
-  advanceSavedSelection();
+  var ed=document.getElementById("wContent");if(!ed)return;
+  var img=document.createElement("img");
+  img.setAttribute("src",url);
+  img.setAttribute("style","max-width:100%;border-radius:10px;display:block;margin:10px auto");
+  var br=document.createElement("br");
+
+  // 저장해 둔 커서 자리. 없거나 본문 밖이면 맨 끝에 붙인다.
+  var r=null;
+  if(savedEditorRange&&ed.contains(savedEditorRange.commonAncestorContainer)){
+    try{r=savedEditorRange.cloneRange();}catch(e){r=null;}
+  }
+  if(!r){r=document.createRange();r.selectNodeContents(ed);r.collapse(false);}
+  r.deleteContents();
+  r.insertNode(br);
+  r.insertNode(img);   // br 앞에 넣어야 <img><br> 순서가 된다
+
+  // 다음 그림은 이 그림 바로 아래로 들어가게 커서를 옮겨 둔다
+  var after=document.createRange();
+  after.setStartAfter(br);after.collapse(true);
+  savedEditorRange=after.cloneRange();
+  try{var sel=window.getSelection();sel.removeAllRanges();sel.addRange(after);}catch(e){}
 }
+
+/* 본문 안 커서 위치를 **계속** 기억해 둔다.
+   ⚠️ 사진을 고르는 동안 선택이 사라지므로, 버튼을 누른 순간에만 저장하면 놓치는 경우가 있다
+      (툴바를 먼저 만졌거나, 앨범 앱을 다녀오며 선택이 버려진 경우).
+      본문에 커서가 놓일 때마다 기록해 두면 '원하는 위치'가 훨씬 안정적으로 유지된다. */
+document.addEventListener("selectionchange",function(){
+  var ed=document.getElementById("wContent");if(!ed)return;
+  var sel=window.getSelection();if(!sel||!sel.rangeCount)return;
+  var r=sel.getRangeAt(0);
+  if(ed.contains(r.commonAncestorContainer)){
+    try{savedEditorRange=r.cloneRange();}catch(e){}
+  }
+});
 
 /* ===== 글꼴 · 글자 크기 =====================================================
    ⚠️ 웹폰트는 **필요할 때만** 불러온다. 한글 폰트는 글자 수가 많아 무겁고,
@@ -4996,6 +5032,14 @@ document.addEventListener("click",function(e){
   if(t&&t.closest&&t.closest("#edImgBar"))return;  // 도구 자체를 누른 건 유지
   edHideImgBar();
 });
+/* ⚠️ iOS 사파리는 편집 영역 안의 이미지를 톡 눌렀을 때 click을 안 만들어 주는 경우가 있다
+   (그림 선택 제스처로 가져가 버린다). 그래서 pointerup으로도 한 번 더 잡는다.
+   click까지 오면 같은 동작이 두 번 실행되지만 결과가 같아 문제되지 않는다. */
+document.addEventListener("pointerup",function(e){
+  var ed=document.getElementById("wContent");if(!ed)return;
+  var t=e.target;
+  if(t&&t.tagName==="IMG"&&ed.contains(t))edShowImgBar(t);
+},true);
 window.addEventListener("scroll",function(){if(edImgTarget)edPlaceImgBar();},{passive:true});
 window.addEventListener("resize",function(){if(edImgTarget)edPlaceImgBar();});
 function edImgAlign(how){
