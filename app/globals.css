@@ -1988,3 +1988,59 @@
 [data-skin="d"] .r-ok{border-radius:7px}
 [data-skin="d"] .pf-bell{border-radius:8px;border:1px solid rgba(31,22,28,.08)}
 [data-skin="d"] .pf-group-title{font-size:13.5px}
+
+/* -- 시안 확장: 프로필 상단(히어로·팔로우·등급 진행바·후기 통계) -- */
+/* A. 글래스모피즘 */
+[data-skin="a"] .pfh{background-color:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.7);
+  -webkit-backdrop-filter:blur(18px) saturate(1.5);backdrop-filter:blur(18px) saturate(1.5);
+  box-shadow:0 10px 34px rgba(31,22,28,.1)}
+[data-skin="a"] .pfh-stats{border-color:rgba(255,255,255,.8);background-color:rgba(255,255,255,.45)}
+[data-skin="a"] .pfh-stat{border-right-color:rgba(255,255,255,.8)}
+[data-skin="a"] .pfh-link{background-color:rgba(255,255,255,.62);border-color:rgba(255,255,255,.8)}
+[data-skin="a"] .pf-fb{background-color:rgba(255,255,255,.62);border-color:rgba(255,255,255,.8);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+[data-skin="a"] .pf-progress{background-color:rgba(255,255,255,.62);border-color:rgba(255,255,255,.8);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+[data-skin="a"] .pf-progress .pp-bar{background-color:rgba(255,255,255,.55)}
+[data-skin="a"] .pf-empty{background-color:rgba(255,255,255,.5);border-color:rgba(255,255,255,.8)}
+[data-skin="a"] .pfh-cm-list{background-color:rgba(255,255,255,.55);border-color:rgba(255,255,255,.75)}
+
+/* B. 심플·미니멀 — 면을 비우고 선만 남긴다 */
+[data-skin="b"] .pfh{background-color:transparent;border:none;border-bottom:1px solid var(--line);border-radius:0;padding-bottom:24px}
+[data-skin="b"] .pfh-cover{background-image:none;background-color:var(--surface-2);height:76px}
+[data-skin="b"] .pfh-stats{border:none;border-top:1px solid var(--line);border-radius:0}
+[data-skin="b"] .pfh-stat{border-right-color:var(--line)}
+[data-skin="b"] .pfh-link{background-color:transparent;border-color:var(--line)}
+[data-skin="b"] .pf-fb{background-color:transparent;border-color:var(--line)}
+[data-skin="b"] .pf-fb:hover{background-color:var(--surface-2)}
+[data-skin="b"] .pf-progress{background-color:transparent;border:none;border-bottom:1px solid var(--line);border-radius:0;padding:12px 2px 16px}
+[data-skin="b"] .pf-progress .pp-bar{background-color:var(--line)}
+[data-skin="b"] .pf-progress .pp-fill{background-image:none;background-color:var(--ink)}
+[data-skin="b"] .pf-empty{background-color:transparent;border-style:solid;border-color:var(--line);border-width:1px}
+[data-skin="b"] .pfh-cm-list{background-color:transparent;border-color:var(--line)}
+
+/* C. 머터리얼 — 그림자로 높이, 큰 곡률, 브랜드 면 */
+[data-skin="c"] .pfh{border:none;border-radius:24px;box-shadow:0 1px 2px rgba(0,0,0,.09),0 4px 10px rgba(0,0,0,.07)}
+[data-skin="c"] .pfh-stats{border:none;border-radius:16px;background-color:var(--brand-soft)}
+[data-skin="c"] .pfh-stat{border-right-color:rgba(255,255,255,.7)}
+[data-skin="c"] .pfh-link{background-color:var(--brand-soft);border-color:transparent}
+[data-skin="c"] .pf-fb{background-color:var(--brand-soft);border-color:transparent;border-radius:16px}
+[data-skin="c"] .pf-fb:hover{background-color:rgba(224,122,166,.22)}
+[data-skin="c"] .pf-progress{background-color:var(--surface);border:none;border-radius:16px;
+  box-shadow:0 1px 2px rgba(0,0,0,.09),0 2px 6px rgba(0,0,0,.06)}
+[data-skin="c"] .pf-progress .pp-bar{background-color:var(--brand-soft);height:10px;border-radius:5px}
+[data-skin="c"] .pf-empty{background-color:var(--brand-soft);border-style:solid;border-color:transparent;border-radius:16px}
+[data-skin="c"] .pfh-cm-list{border:none;border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.09),0 2px 6px rgba(0,0,0,.06)}
+
+/* D. 플루언트 — 얇은 테두리, 낮은 곡률 */
+[data-skin="d"] .pfh{border:1px solid rgba(31,22,28,.08);border-radius:10px;box-shadow:0 2px 5px rgba(31,22,28,.05)}
+[data-skin="d"] .pfh-stats{border-color:rgba(31,22,28,.08);border-radius:8px}
+[data-skin="d"] .pfh-stat{border-right-color:rgba(31,22,28,.08)}
+[data-skin="d"] .pfh-link{border-color:rgba(31,22,28,.08);border-radius:8px}
+[data-skin="d"] .pf-fb{border-color:rgba(31,22,28,.08);border-radius:7px;box-shadow:0 1px 2px rgba(31,22,28,.05)}
+[data-skin="d"] .pf-fb:hover{border-color:var(--brand)}
+[data-skin="d"] .pf-progress{border-color:rgba(31,22,28,.08);border-radius:7px;box-shadow:0 1px 2px rgba(31,22,28,.05)}
+[data-skin="d"] .pf-progress .pp-bar{border-radius:2px;height:6px}
+[data-skin="d"] .pf-progress .pp-fill{border-radius:2px}
+[data-skin="d"] .pf-empty{border-radius:8px;border-color:rgba(31,22,28,.12)}
+[data-skin="d"] .pfh-cm-list{border-color:rgba(31,22,28,.08);border-radius:8px}
