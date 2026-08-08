@@ -4355,7 +4355,15 @@ window.addEventListener("resize",syncTabInd);
    아래로 내릴 때만 접고, 위로 올리거나 스크롤이 멈추면 다시 펼친다.
    접혀도 아이콘과 선택 표시는 남아 지금 어느 탭인지 알 수 있고, 그대로 누를 수도 있다. */
 (function(){
-  var lastY=0,idle=null,lastRun=0;
+  var lastY=0,idle=null,lastRun=0,lastInput=0;
+  // 손가락이나 휠로 '지금 직접' 내리고 있는가.
+  // 손을 뗀 뒤 미끄러지는 관성 스크롤은 scroll 이벤트만 오고 touchmove/wheel 은 오지 않는다.
+  // 이걸로 구분하면 관성 때문에 다시 접히는 일이 없어져, 기다릴 필요 없이 바로 펼칠 수 있다.
+  function mark(){lastInput=Date.now();}
+  ["touchstart","touchmove","wheel","keydown"].forEach(function(t){
+    window.addEventListener(t,mark,{passive:true});
+  });
+  function userDriven(){return Date.now()-lastInput<220;}
   var MINI_W=46,expandH=0; // 접혔을 때 지름(기본 탭 66px보다 작게)
   // 바닥에서 이만큼 안쪽까지는 '반동 구간'으로 보고 위로 향한 움직임을 무시한다.
   // (여기서 진짜로 올리고 싶으면 이 거리만큼 올리면 되고, 멈추면 어차피 0.9초 뒤 펼쳐진다)
@@ -4376,7 +4384,7 @@ window.addEventListener("resize",syncTabInd);
   function markResizing(tb){
     tb.classList.add("resizing");
     clearTimeout(resizeT);
-    resizeT=setTimeout(function(){tb.classList.remove("resizing");},380);
+    resizeT=setTimeout(function(){tb.classList.remove("resizing");},280);
   }
   function expand(tb){
     if(!tb.classList.contains("mini"))return; // 이미 펴져 있으면 건드리지 않는다
@@ -4389,17 +4397,13 @@ window.addEventListener("resize",syncTabInd);
     void tb.offsetWidth;
     tb.classList.add("opening");
     clearTimeout(openT);
-    openT=setTimeout(function(){tb.classList.remove("opening");},620);
+    openT=setTimeout(function(){tb.classList.remove("opening");},420);
     if(typeof cmSyncTabbarHeight==="function")cmSyncTabbarHeight();
     // 폭이 다 펴진 뒤에 선택 조각 자리를 다시 잡는다(펴지는 중엔 탭 폭이 계속 변한다)
     setTimeout(function(){if(typeof syncTabInd==="function")syncTabInd();},360);
   }
   function collapse(tb){
     if(tb.classList.contains("mini"))return;
-    // 손으로 펼친 직후에는 잠시 접지 않는다.
-    // 화면이 미끄러지는 중에 동그라미를 누르면 펼쳐지자마자 남은 관성이 '아래로 내림'으로 잡혀
-    // 곧바로 다시 접혀 버린다(= 한 번 더 눌러야 펴지는 것처럼 보인다).
-    if(Date.now()-(window.__tabExpandAt||0)<1200)return;
     // 펼친 높이를 기억해 둔다 — auto 에서는 높이 전환이 안 걸리므로 px로 오갈 수 있어야 한다
     if(!expandH)expandH=Math.round(tb.getBoundingClientRect().height);
     markResizing(tb);
@@ -4442,7 +4446,8 @@ window.addEventListener("resize",syncTabInd);
     var maxY=Math.max(0,(document.documentElement.scrollHeight||0)-window.innerHeight);
     var nearBottom=y>=maxY-BOUNCE_ZONE;
     // 6px 미만의 흔들림으로는 상태를 바꾸지 않는다(손가락 떨림에 깜빡이지 않게)
-    if(y>90&&dy>6)collapse(tb);
+    // 사람이 직접 내리는 중일 때만 접는다(관성으로는 접히지 않는다)
+    if(y>90&&dy>6&&userDriven())collapse(tb);
     else if(y<=90)expand(tb);
     else if(dy<-6&&!nearBottom)expand(tb);
     lastY=y;
