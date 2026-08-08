@@ -39,6 +39,44 @@ var postsLoaded=false; // loadRealPosts()가 실제 글을 POSTS에 합친 뒤 t
 var userLeftHome=false; // 초기 로딩이 끝나기 전에 사용자가 피드(홈) 밖 화면(커미션/채팅/글쓰기/프로필/글·유저 상세)으로 이동했으면 true — loadRealPosts() 완료 시 홈으로 강제 복귀시키지 않기 위함
 // 하단 탭 경합(레이스) 방지: 사용자가 "마지막으로 선택한" 최상위 탭을 기록. 각 탭 함수가 눌리는 즉시(동기) 갱신하고,
 // 비동기 로딩이 뒤늦게 끝나 화면을 그리기 직전에 "아직 내가 이 탭인가?"를 확인해, 이전 탭 결과가 현재 화면을 덮어쓰지 않게 한다.
+/* ===== 디자인 시안 전환기 (A~D) =====
+   로그인 화면과 내 정보 화면의 겉모습만 바꾼다. 기능·구조는 그대로.
+   주소에 ?skin=a 처럼 붙이면 전환기가 뜨고, 고른 값은 브라우저에 저장된다.
+   ⚠️ 고르고 나면 이 전환기와 안 쓰는 시안 CSS는 지울 것(임시 도구다). */
+var SKINS={a:"글래스모피즘",b:"심플·미니멀",c:"머터리얼",d:"플루언트"};
+function applySkin(k){
+  if(k&&SKINS[k]){document.documentElement.setAttribute("data-skin",k);try{localStorage.setItem("palo_skin",k);}catch(e){}}
+  else{document.documentElement.removeAttribute("data-skin");try{localStorage.removeItem("palo_skin");}catch(e){}}
+  var bar=document.getElementById("skinBar");if(bar)renderSkinBar();
+}
+function renderSkinBar(){
+  var cur=document.documentElement.getAttribute("data-skin")||"";
+  var bar=document.getElementById("skinBar");if(!bar)return;
+  bar.innerHTML='<span class="sk-t">디자인</span>'+
+    Object.keys(SKINS).map(function(k){
+      return '<button class="sk-b'+(cur===k?" on":"")+'" onclick="applySkin(&quot;'+k+'&quot;)">'+k.toUpperCase()+'</button>';
+    }).join('')+
+    '<button class="sk-b'+(cur?"":" on")+'" onclick="applySkin(null)">현재</button>'+
+    '<span class="sk-n">'+(SKINS[cur]||"지금 디자인")+'</span>';
+}
+(function(){
+  var want=null;
+  try{
+    var q=new URLSearchParams(location.search);
+    if(q.has("skin"))want=q.get("skin")||"1";
+    var saved=localStorage.getItem("palo_skin");
+    if(saved&&SKINS[saved])document.documentElement.setAttribute("data-skin",saved);
+    if(want&&SKINS[want])applySkin(want);
+  }catch(e){}
+  if(!want)return; // 주소에 ?skin이 없으면 전환기를 안 띄운다(일반 사용자에겐 안 보임)
+  function mount(){
+    if(document.getElementById("skinBar"))return;
+    var bar=document.createElement("div");bar.id="skinBar";bar.className="skin-bar";
+    document.body.appendChild(bar);renderSkinBar();
+  }
+  if(document.body)mount(); else document.addEventListener("DOMContentLoaded",mount);
+})();
+
 /* ===== 광고 성과 측정 =====
    광고 링크에 캠페인 코드를 달아 쓴다:  https://commi.kr/?c=tw0808
    처음 들어온 사람에게 무작위 방문자 번호를 발급하고, **첫 유입 캠페인만** 붙여 둔다(first-touch).
