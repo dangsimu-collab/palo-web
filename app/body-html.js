@@ -199,7 +199,7 @@ export const BODY_HTML = `
       <div id="wContent" class="ed-content" contenteditable="true"
         ondragover="onEditorDragOver(event)" ondragleave="onEditorDragLeave(event)" ondrop="onEditorDrop(event)"
         data-ph="이야기를 자유롭게 적어 주세요. 커서를 원하는 위치에 두고 위 🖼 버튼으로 그림을 그 자리에 넣을 수 있어요. 이미지 파일을 끌어다 놓아도 돼요."></div>
-      <input type="file" id="edFile" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" class="hidden" onchange="onImage(event)">
+      <input type="file" id="edFile" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" multiple class="hidden" onchange="onImage(event)">
       <div id="edImages" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"></div>
 
       <!-- 투표는 위 도구바 📊 버튼으로 본문 원하는 위치에 삽입(여러 개 가능) -->
@@ -251,6 +251,24 @@ export const BODY_HTML = `
     <div style="display:flex;gap:10px">
       <button id="confirmModalCancelBtn" class="r-ok" style="background:var(--surface-2);color:var(--ink)">취소</button>
       <button id="confirmModalOkBtn" class="r-ok" style="background:linear-gradient(120deg,#e0607a,#c0392b)">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- 사진을 고른 뒤 "이만큼 넣을게요" 확인하는 창.
+     고르자마자 올리지 않고 여기서 확인을 받아야 올라간다(잘못 고른 걸 되돌릴 수 있게). -->
+<div class="rules-scrim" id="imgPickModal" onclick="if(event.target===this)closeImgPick()">
+  <div class="imgpick">
+    <div class="imgpick-head">
+      <b id="imgPickTitle">사진 넣기</b>
+      <button class="imgpick-close" onclick="closeImgPick()" aria-label="닫기">✕</button>
+    </div>
+    <p class="imgpick-desc">확인을 누르면 <b>커서가 있던 자리</b>에 고른 순서대로 들어가요. 뺄 사진은 × 를 누르세요.</p>
+    <div class="imgpick-grid" id="imgPickGrid"></div>
+    <p class="imgpick-warn" id="imgPickWarn" style="display:none"></p>
+    <div class="imgpick-foot">
+      <button class="imgpick-btn cancel" onclick="closeImgPick()">취소</button>
+      <button class="imgpick-btn ok" id="imgPickOk" onclick="confirmImgPick()">넣기</button>
     </div>
   </div>
 </div>

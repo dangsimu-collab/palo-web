@@ -2088,3 +2088,30 @@
   background:#1f161c;color:#fff;border:2px solid #fff;font-size:12px;line-height:1;cursor:pointer}
 .ed-thumb-help{flex-basis:100%;width:100%;margin:2px 0 0;font-size:12px;color:var(--muted);line-height:1.5}
 .ed-thumb-help b{color:var(--ink)}
+
+/* ===== 사진 넣기 확인 창 ===== */
+.imgpick{background:var(--surface);border-radius:24px;padding:20px 18px 16px;width:min(440px,calc(100vw - 32px));
+  max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(31,22,28,.28)}
+.imgpick-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.imgpick-head b{font-size:17px;font-weight:900}
+.imgpick-close{background:none;border:none;font-size:16px;color:var(--muted);cursor:pointer;width:34px;height:34px;border-radius:10px}
+.imgpick-close:hover{background:var(--surface-2)}
+.imgpick-desc{font-size:12.5px;color:var(--muted);line-height:1.6;margin:0 0 12px}
+.imgpick-desc b{color:var(--ink)}
+.imgpick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:9px;
+  overflow-y:auto;flex:1;min-height:0;padding:2px 2px 4px}
+.imgpick-item{position:relative;aspect-ratio:1;border-radius:12px;overflow:visible}
+.imgpick-item img{width:100%;height:100%;object-fit:cover;border-radius:12px;display:block;background:var(--surface-2)}
+/* 몇 번째로 들어가는지 = 본문에 놓이는 순서 */
+.imgpick-no{position:absolute;left:6px;top:6px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;
+  background:rgba(31,22,28,.72);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.imgpick-x{position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;
+  background:#1f161c;color:#fff;border:2px solid var(--surface);font-size:13px;line-height:1;cursor:pointer}
+.imgpick-warn{margin:10px 0 0;font-size:12px;line-height:1.5;color:#a53030;
+  background:rgba(200,60,60,.09);border-radius:10px;padding:9px 11px}
+.imgpick-foot{display:flex;gap:9px;margin-top:14px;flex-shrink:0}
+.imgpick-btn{flex:1;min-height:48px;border:none;border-radius:15px;font-family:inherit;font-size:14.5px;
+  font-weight:800;cursor:pointer}
+.imgpick-btn.cancel{background:var(--surface-2);color:var(--ink)}
+.imgpick-btn.ok{background:var(--brand);color:#fff}
+.imgpick-btn.ok:disabled{opacity:.5;cursor:default}

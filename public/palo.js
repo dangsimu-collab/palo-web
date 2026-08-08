@@ -5703,38 +5703,110 @@ async function compressImage(file){
 }
 var ALLOWED_IMAGE_TYPES=["image/jpeg","image/png","image/webp","image/gif","image/bmp"];
 var MAX_IMAGE_BYTES=40*1024*1024;
-async function uploadAndInsertImage(f){
-  if(!window.supabase){toast("이미지 업로드를 사용할 수 없어요");return;}
-  if(ALLOWED_IMAGE_TYPES.indexOf(f.type)===-1){toast("이미지 파일만 올릴 수 있어요");return;}
-  if(f.size>MAX_IMAGE_BYTES){toast("40MB 이하 이미지만 올릴 수 있어요");return;}
-  var uploadBlob=f,ext=(f.name.match(/\.([^.]+)$/)||[,"png"])[1],skippedCompression=false;
+/* 한 장을 올리고 본문 커서 자리에 넣는다. 성공하면 true.
+   idx/total을 주면 "2/5장" 처럼 진행 상황을 알려 준다(여러 장 올릴 때). */
+async function uploadAndInsertImage(f,idx,total){
+  var step=(idx&&total&&total>1)?("("+idx+"/"+total+") "):"";
+  if(!window.supabase){toast("이미지 업로드를 사용할 수 없어요");return false;}
+  if(ALLOWED_IMAGE_TYPES.indexOf(f.type)===-1){toast("이미지 파일만 올릴 수 있어요");return false;}
+  if(f.size>MAX_IMAGE_BYTES){toast("40MB 이하 이미지만 올릴 수 있어요");return false;}
+  var uploadBlob=f;
   if(f.type==="image/gif"){
-    skippedCompression=true; // GIF는 애니메이션이 깨지니 압축 없이 원본 그대로 업로드
+    // GIF는 애니메이션이 깨지니 압축 없이 원본 그대로 업로드
   }else{
-    toast("이미지 압축 중...");
+    toast(step+"이미지 압축 중...");
     try{
       var compressed=await compressImage(f);
-      uploadBlob=compressed.blob;ext=compressed.ext;
+      uploadBlob=compressed.blob;
       console.log("[이미지 압축] "+f.name+": "+(f.size/1024).toFixed(1)+"KB → "+(uploadBlob.size/1024).toFixed(1)+"KB ("+Math.round((1-uploadBlob.size/f.size)*100)+"% 감소)");
     }catch(err){
       console.error("이미지 압축 실패, 원본으로 업로드:",err);
-      skippedCompression=true;
     }
   }
 
-  toast("이미지 업로드 중...");
+  toast(step+"이미지 업로드 중...");
   var postUrl=await uploadToStorage(uploadBlob,"post");
-  if(!postUrl)return;
+  if(!postUrl)return false;
   edState.images.push(postUrl);
   edState.img=true;
   renderEdImages();
-  insertInlineMedia(pub.data.publicUrl);
-  toast("이미지를 넣었어요");
+  // ⚠️ 예전엔 여기서 `pub.data.publicUrl`을 넘겼다. Supabase Storage → R2로 옮길 때 놓친 옛 변수라
+  //    **본문에 넣기 직전에 ReferenceError로 죽었고**, 그래서 그림이 아래 목록에만 생기고
+  //    본문에는 들어가지 않았다(오류가 조용히 삼켜져 원인이 안 보였다).
+  insertInlineMedia(postUrl);
+  if(!step)toast("이미지를 넣었어요");   // 여러 장일 땐 마지막에 한 번만 알린다
+  return true;
 }
-async function onImage(e){
-  var f=e.target.files[0];if(!f)return;
-  e.target.value="";
-  await uploadAndInsertImage(f);
+/* ===== 사진 고르기 → 확인 → 올리기 ==========================================
+   고르자마자 올리지 않는다. 잘못 고른 걸 되돌릴 수 없고, 여러 장을 한꺼번에
+   올릴 때 몇 장이 들어가는지도 알 수 없기 때문이다.
+   → 고른 목록을 먼저 보여 주고, '넣기'를 눌러야 그때 올린다.
+   ⚠️ 커서 자리는 파일 선택 창을 열기 전(pickImage)에 이미 잡아 뒀고,
+      selectionchange가 계속 갱신하므로 앨범을 다녀와도 그 자리가 유지된다. */
+var imgPick=[];   // [{file, url(미리보기용 objectURL)}]
+function onImage(e){
+  var files=[].slice.call(e.target.files||[]);
+  e.target.value="";                 // 같은 사진을 다시 고를 수 있게 비운다
+  if(!files.length)return;
+  openImgPick(files);
+}
+function openImgPick(files){
+  var reject=[];
+  imgPick=[];
+  files.forEach(function(f){
+    if(ALLOWED_IMAGE_TYPES.indexOf(f.type)===-1){reject.push(f.name+" (이미지 파일이 아님)");return;}
+    if(f.size>MAX_IMAGE_BYTES){reject.push(f.name+" (40MB 초과)");return;}
+    imgPick.push({file:f,url:URL.createObjectURL(f)});
+  });
+  var warn=document.getElementById("imgPickWarn");
+  if(reject.length){
+    warn.style.display="block";
+    warn.innerHTML="다음 "+reject.length+"개는 넣을 수 없어요 — "+esc(reject.join(", "));
+  }else warn.style.display="none";
+  if(!imgPick.length){toast("넣을 수 있는 사진이 없어요");warn.style.display="none";return;}
+  renderImgPick();
+  document.getElementById("imgPickModal").classList.add("open");
+}
+function renderImgPick(){
+  var g=document.getElementById("imgPickGrid");if(!g)return;
+  g.innerHTML=imgPick.map(function(it,i){
+    return '<div class="imgpick-item">'+
+      '<img src="'+it.url+'" alt="">'+
+      '<span class="imgpick-no">'+(i+1)+'</span>'+
+      '<button type="button" class="imgpick-x" onclick="imgPickRemove('+i+')" aria-label="빼기">×</button>'+
+    '</div>';
+  }).join("");
+  document.getElementById("imgPickTitle").textContent="사진 "+imgPick.length+"장";
+  document.getElementById("imgPickOk").textContent=imgPick.length?("넣기 ("+imgPick.length+"장)"):"넣기";
+  document.getElementById("imgPickOk").disabled=!imgPick.length;
+}
+function imgPickRemove(i){
+  var it=imgPick[i];if(!it)return;
+  try{URL.revokeObjectURL(it.url);}catch(e){}
+  imgPick.splice(i,1);
+  if(!imgPick.length){closeImgPick();return;}
+  renderImgPick();
+}
+function closeImgPick(){
+  // ⚠️ 미리보기용 objectURL은 반드시 풀어 준다. 안 그러면 브라우저가 파일을 계속 붙들고 있는다.
+  imgPick.forEach(function(it){try{URL.revokeObjectURL(it.url);}catch(e){}});
+  imgPick=[];
+  var m=document.getElementById("imgPickModal");if(m)m.classList.remove("open");
+  var w=document.getElementById("imgPickWarn");if(w)w.style.display="none";
+}
+async function confirmImgPick(){
+  if(!imgPick.length)return;
+  var list=imgPick.slice();
+  imgPick=[];                                   // 닫기가 objectURL을 풀기 전에 목록만 넘겨받는다
+  document.getElementById("imgPickModal").classList.remove("open");
+  var ok=0;
+  for(var i=0;i<list.length;i++){
+    // 순서대로 올리고 순서대로 넣는다(insertInlineMedia가 넣을 때마다 커서를 그 아래로 옮긴다)
+    var done=await uploadAndInsertImage(list[i].file,i+1,list.length);
+    if(done)ok++;
+    try{URL.revokeObjectURL(list[i].url);}catch(e){}
+  }
+  toast(ok===list.length?(ok+"장을 넣었어요"):(ok+"장만 들어갔어요 ("+(list.length-ok)+"장 실패)"),"🖼");
 }
 function rangeFromPoint(x,y){
   if(document.caretRangeFromPoint)return document.caretRangeFromPoint(x,y);
