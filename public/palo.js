@@ -4356,9 +4356,7 @@ window.addEventListener("resize",syncTabInd);
    접혀도 아이콘과 선택 표시는 남아 지금 어느 탭인지 알 수 있고, 그대로 누를 수도 있다. */
 (function(){
   var lastY=0,idle=null,lastRun=0;
-  // 접혔을 때 폭. 남는 탭이 원래 탭 하나 정도로 보이게 잡는다.
-  // (너무 넓게 잡으면 탭이 그 공간을 채우려 들어 혼자 커 보인다)
-  var MINI_W=78;
+  var MINI_W=46,expandH=0; // 접혔을 때 지름(기본 탭 66px보다 작게)
   function tabbar(){return document.querySelector('.tabbar');}
   // 펼친 폭을 px로 계산해 넣는다. calc()나 auto로는 폭 전환이 안 된다.
   // 왼쪽 끝을 고정해 둬야 줄어들 때 오른쪽 탭들이 '왼쪽으로 빨려 들어가는' 모양이 된다.
@@ -4372,13 +4370,17 @@ window.addEventListener("resize",syncTabInd);
   function expand(tb){
     tb.classList.remove("mini");
     tb.style.width=fullW()+"px";
+    if(expandH)tb.style.height=expandH+"px";
     if(typeof cmSyncTabbarHeight==="function")cmSyncTabbarHeight();
     // 폭이 다 펴진 뒤에 선택 조각 자리를 다시 잡는다(펴지는 중엔 탭 폭이 계속 변한다)
     setTimeout(function(){if(typeof syncTabInd==="function")syncTabInd();},360);
   }
   function collapse(tb){
+    // 펼친 높이를 기억해 둔다 — auto 에서는 높이 전환이 안 걸리므로 px로 오갈 수 있어야 한다
+    if(!expandH)expandH=Math.round(tb.getBoundingClientRect().height);
     tb.classList.add("mini");
     tb.style.width=MINI_W+"px";
+    tb.style.height=MINI_W+"px";
   }
   window.addEventListener("resize",function(){var tb=tabbar();if(tb)pin(tb);});
   // 접힌 상태에서 탭바를 누르면 곧바로 펼친다(다시 불러오는 수단)
@@ -4390,7 +4392,9 @@ window.addEventListener("resize",syncTabInd);
     var tb=tabbar();
     if(!tb){setTimeout(init,60);return;}
     var keep=tb.style.transition;tb.style.transition="none";
-    pin(tb); void tb.offsetWidth; tb.style.transition=keep;
+    pin(tb);
+    expandH=Math.round(tb.getBoundingClientRect().height); // 펼친 높이 기록
+    void tb.offsetWidth; tb.style.transition=keep;
   })();
   function apply(){
     // 하는 일이 클래스 토글뿐이라 requestAnimationFrame까지 쓸 필요는 없다.

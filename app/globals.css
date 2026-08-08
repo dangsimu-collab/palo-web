@@ -514,19 +514,19 @@
      ⚠️ 폭을 애니메이션하려면 px 값이어야 한다(calc/auto 는 전환이 안 된다) → palo.js가 inline으로 넣는다.
      왼쪽 끝을 고정해 둬서, 줄어들 때 오른쪽 탭들이 왼쪽(홈 방향)으로 접혀 들어가는 것처럼 보인다. */
   .tabbar{overflow:hidden;
-    transition:width .34s cubic-bezier(.33,1.02,.4,1),padding .28s cubic-bezier(.4,0,.2,1)}
+    transition:width .34s cubic-bezier(.33,1.02,.4,1),height .34s cubic-bezier(.33,1.02,.4,1),
+      border-radius .3s ease,padding .28s cubic-bezier(.4,0,.2,1)}
   .tabbar-inner{overflow:hidden}
   .tab{transition:color .26s,opacity .2s,padding .28s cubic-bezier(.4,0,.2,1)}
-  .tabbar.mini{padding:5px}
-  /* 남는 탭은 '내용 크기'만 차지한다. flex:1로 두면 남은 공간을 다 먹어 혼자 커 보인다. */
-  .tabbar.mini .tabbar-inner{justify-content:center}
-  .tabbar.mini .tab.on{flex:0 0 auto;padding:8px 13px}
-  .tabbar.mini .tab:not(.on){flex:0 1 0;min-width:0;padding-left:0;padding-right:0;opacity:0;pointer-events:none}
-  /* 접히면 움직이는 조각 대신 남은 탭이 직접 유리 배경을 갖는다(폭이 계속 변해 조각 위치를 못 맞춘다) */
+  /* 접히면 탭들을 모두 감추고 동그란 버튼 하나만 남긴다(기본 탭 66px보다 작은 46px) */
+  .tabbar.mini{padding:0;border-radius:50%}
+  .tabbar.mini .tabbar-inner{opacity:0;pointer-events:none}
   .tabbar.mini .tab-ind{opacity:0}
-  .tabbar.mini .tab.on{border-radius:20px;
-    background:linear-gradient(180deg,rgba(255,255,255,.72) 0%,rgba(246,208,228,.6) 100%);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 1px 2px rgba(31,22,28,.06)}
+  .tabbar.mini .tab-mini{opacity:1}
+  .tab-mini{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    opacity:0;pointer-events:none;color:#9c3566;transition:opacity .22s}
+  .tab-mini svg{width:22px;height:22px}
+  .tabbar-inner{transition:opacity .2s}
   .tabbar-inner{display:flex;align-items:stretch;gap:2px;position:relative}
   /* 선택 표시를 탭이 아니라 별도 조각으로 두고 위치만 옮긴다 →
      탭을 바꿀 때 '넘어가는 과정'이 보인다(그냥 켜고 끄면 툭 바뀐다). */
