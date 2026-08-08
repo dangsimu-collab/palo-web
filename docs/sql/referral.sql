@@ -16,7 +16,7 @@
 --       ③ 가입 후 24시간 안에만 초대 코드가 붙는다(오래된 계정을 나중에 끌어다 쓰지 못하게)
 --       ④ 가입만으로는 0원 — 글/댓글을 실제로 써야 지급(가짜 계정 비용을 올린다)
 --       ⑤ 초대한 사람과 같은 회선(IP 앞 3자리)에서 온 초대는 **보류**되어 관리자가 직접 승인
---       ⑥ 하루 한도 · 누적 한도(기본 3명/20명)를 넘으면 기록만 남고 보상은 없다
+--       ⑥ 하루 한도를 넘으면 기록만 남고 보상은 없다(기본 10명/일, 누적 한도는 없음)
 --       ⑦ 차단된 회원은 초대자도 피초대자도 될 수 없다
 --       ⑧ 관리자가 언제든 지급을 회수할 수 있다
 --
@@ -38,7 +38,7 @@ create table if not exists public.referral_rules (
   need_posts            integer not null default 1,    -- 자격: 글 몇 개
   need_comments         integer not null default 3,    -- 또는 댓글 몇 개
   -- 한도. ⚠️ **0을 넣으면 무제한**이다(큰 숫자를 넣으면 화면에 그 숫자가 그대로 보인다).
-  daily_cap             integer not null default 3,    -- 한 사람이 하루에 보상받을 수 있는 초대 수
+  daily_cap             integer not null default 10,   -- 하루 한도 (0 = 무제한)
   total_cap             integer not null default 0,    -- 누적 한도 (0 = 무제한)
   hold_same_ip          boolean not null default true, -- 같은 회선이면 보류할지
   active                boolean not null default true, -- 기능 전체 on/off
