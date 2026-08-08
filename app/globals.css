@@ -443,7 +443,10 @@
   .ed-sentiment-btn.good.on{background:linear-gradient(120deg,#7cc38a,#5aab8f);border-color:transparent;color:#fff}
   .ed-sentiment-btn.bad.on{background:linear-gradient(120deg,#e0837a,#c05a5a);border-color:transparent;color:#fff}
   .ed-content-hint{font-size:12.5px;color:var(--muted);margin:8px 0 6px}
-  .ed-toolbar{display:flex;align-items:center;gap:2px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:12px 0;padding:5px 6px;background:var(--surface-2);border:1.5px solid var(--line-2);border-radius:12px;position:sticky;top:0;z-index:2;box-shadow:0 3px 10px rgba(0,0,0,.05)}
+  /* ⚠️ 줄바꿈 허용 — 예전엔 한 줄 + 가로 스크롤이라 좁은 화면에서 도구의 40%(이미지·투표 포함)가
+     화면 밖에 있었고, 옆으로 넘길 수 있다는 표시도 없어 그 도구들이 없는 줄 알게 됐다.
+     두 줄이 되더라도 모든 도구가 한눈에 보이는 쪽이 낫다. */
+  .ed-toolbar{display:flex;align-items:center;gap:2px;row-gap:3px;flex-wrap:wrap;margin:12px 0;padding:5px 6px;background:var(--surface-2);border:1.5px solid var(--line-2);border-radius:12px;position:sticky;top:0;z-index:2;box-shadow:0 3px 10px rgba(0,0,0,.05)}
   .ed-toolbar::-webkit-scrollbar{height:0}
   .ed-toolbar button{display:inline-flex;align-items:center;justify-content:center;min-width:0;flex:none;height:36px;box-sizing:border-box;padding:0 10px;border:none;background:none;border-radius:9px;color:var(--ink-2);cursor:pointer;transition:.12s}
   .ed-toolbar button:hover{background:var(--surface);color:var(--brand)}
@@ -2115,3 +2118,11 @@
 .imgpick-btn.cancel{background:var(--surface-2);color:var(--ink)}
 .imgpick-btn.ok{background:var(--brand);color:#fff}
 .imgpick-btn.ok:disabled{opacity:.5;cursor:default}
+
+/* 글쓰기: 임시저장 안내 줄 */
+.ed-draftbar{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  background:var(--brand-soft);border-radius:12px;padding:9px 12px;margin-top:10px;
+  font-size:12.5px;font-weight:700;color:var(--ink)}
+.ed-draftbar button{border:none;background:var(--surface);color:#9c3566;font-family:inherit;
+  font-size:12px;font-weight:800;padding:7px 12px;border-radius:9px;cursor:pointer;flex-shrink:0;
+  box-shadow:0 1px 3px rgba(31,22,28,.08)}

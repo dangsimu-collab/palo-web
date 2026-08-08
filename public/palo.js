@@ -4694,6 +4694,7 @@ function openWrite(){
   document.getElementById("edSubmitBtn").textContent="등록";
   document.getElementById("writeModal").classList.add("open");document.body.style.overflow="hidden";
   document.getElementById("edBoardMenu").classList.remove("open");
+  edRestoreDraft(); // 쓰다 만 글이 있으면 이어서
 }
 function openEditPost(id){
   var p=POSTS.find(function(x){return x.id===id});if(!p)return;
@@ -4715,6 +4716,7 @@ function openEditPost(id){
   document.getElementById("edSubmitBtn").textContent="수정 완료";
   document.getElementById("writeModal").classList.add("open");document.body.style.overflow="hidden";
   document.getElementById("edBoardMenu").classList.remove("open");
+  var _db=document.getElementById("edDraftBar");if(_db)_db.style.display="none"; // 수정 화면엔 임시저장 안내가 안 뜬다
 }
 var commissionReviewFilter=null;
 function openCommissionReviews(postId){
@@ -4756,7 +4758,91 @@ function openReviewFor(postId){
   edState.reviewedUserId=p.authorId||null;
   renderCommissionSelected();
 }
-function closeWrite(){editingPostId=null;document.getElementById("writeModal").classList.remove("open");document.body.style.overflow=""}
+function closeWrite(){
+  edSaveDraft(); // ⚠️ 나가기 전에 마지막 모습을 저장 — 실수로 닫아도 글이 사라지지 않는다
+  editingPostId=null;
+  document.getElementById("writeModal").classList.remove("open");
+  document.body.style.overflow="";
+}
+
+/* ===== 임시저장 =====
+   글쓰기는 실수로 닫히기 너무 쉽다(나가기 오터치·ESC·뒤로가기·브라우저 이탈).
+   예전엔 그 순간 쓰던 글이 통째로 사라졌다 → 입력할 때마다 자동 저장하고, 다시 열면 되살린다.
+   ⚠️ 글 '수정'(editingPostId) 중에는 저장하지 않는다 — 원본이 DB에 있으므로 잃을 게 없고,
+      수정하다 만 내용이 새 글 화면에 되살아나면 더 혼란스럽다. */
+var ED_DRAFT_KEY="palo_draft_v1";
+var _edDraftT=null;
+function edSaveDraftSoon(){clearTimeout(_edDraftT);_edDraftT=setTimeout(edSaveDraft,800);}
+function edSaveDraft(){
+  clearTimeout(_edDraftT);
+  if(editingPostId)return;
+  var tEl=document.getElementById("wTitle"),ed=document.getElementById("wContent");
+  if(!tEl||!ed)return;
+  var title=tEl.value,text=ed.textContent.replace(/​/g,"").trim();
+  if(!title.trim()&&!text&&!edState.images.length){ // 빈 화면이면 남겨 둘 것도 없다
+    try{localStorage.removeItem(ED_DRAFT_KEY);}catch(e){}
+    return;
+  }
+  try{
+    localStorage.setItem(ED_DRAFT_KEY,JSON.stringify({
+      board:edState.board,tag:edState.tag,title:title,html:ed.innerHTML,
+      images:edState.images,polls:edState.polls||{},ts:Date.now()
+    }));
+  }catch(e){} // 저장 공간 부족 등 — 임시저장은 보조 기능이라 조용히 포기
+}
+function edLoadDraft(){
+  try{
+    var d=JSON.parse(localStorage.getItem(ED_DRAFT_KEY)||"null");
+    if(!d)return null;
+    if(Date.now()-(d.ts||0)>3*24*3600*1000){localStorage.removeItem(ED_DRAFT_KEY);return null;} // 3일 지나면 버림
+    return d;
+  }catch(e){return null;}
+}
+function edClearDraft(){
+  try{localStorage.removeItem(ED_DRAFT_KEY);}catch(e){}
+  var b=document.getElementById("edDraftBar");if(b)b.style.display="none";
+}
+function edDropDraft(){ // '새로 쓰기' — 지우고 빈 화면으로 다시 연다
+  edClearDraft();
+  openWrite();
+  toast("새 글로 시작해요");
+}
+/* openWrite가 초기화를 끝낸 뒤 불린다. 되살릴 게 있으면 채워 넣는다. */
+function edRestoreDraft(){
+  var bar=document.getElementById("edDraftBar");
+  var d=edLoadDraft();
+  if(!d){if(bar)bar.style.display="none";return;}
+  edState.board=d.board||null;
+  edState.tag=d.tag||null;
+  edState.images=(d.images||[]).slice();
+  edState.img=edState.images.length>0;
+  edState.polls=d.polls||{};
+  buildBoardMenu();refreshBoardLabel();renderEdTags();updateReviewNickField();
+  document.getElementById("wTitle").value=d.title||"";
+  var ed=document.getElementById("wContent");
+  // ⚠️ localStorage도 본문과 같은 살균을 거친다(내 저장소라도 그대로 innerHTML에 넣지 않는다).
+  //    살균이 투표 블록 안의 편집/삭제 버튼을 지우므로 마커마다 안쪽을 다시 그린다.
+  ed.innerHTML=sanitizePostHtml(d.html||"");
+  ed.querySelectorAll("[data-poll]").forEach(function(el){
+    var key=el.getAttribute("data-poll");
+    el.className="poll-anchor";el.setAttribute("contenteditable","false");
+    el.innerHTML=edPollBlockInner(key);
+  });
+  renderEdImages();
+  document.getElementById("edCrit").checked=(edState.board==="crit");
+  if(bar){
+    var min=Math.max(1,Math.round((Date.now()-(d.ts||Date.now()))/60000));
+    var when=min<60?(min+"분 전"):(Math.round(min/60)+"시간 전");
+    document.getElementById("edDraftBarMsg").textContent="쓰던 글을 불러왔어요 ("+when+")";
+    bar.style.display="flex";
+  }
+}
+// 입력할 때마다(0.8초 잠잠해지면) 저장
+(function(){
+  var t=document.getElementById("wTitle"),ed=document.getElementById("wContent");
+  if(t)t.addEventListener("input",edSaveDraftSoon);
+  if(ed)ed.addEventListener("input",edSaveDraftSoon);
+})();
 function buildBoardMenu(){
   var h="";
   BOARDS.forEach(function(g){
@@ -6000,7 +6086,22 @@ function edSavePollModal(){
   closePollEdit();
   toast('투표를 저장했어요','📊');
 }
+/* 등록 버튼 이중 실행 방지 — 업로드가 느릴 때 연타하면 같은 글이 여러 번 올라갔다.
+   진행 중에는 버튼을 잠그고 "올리는 중…"으로 바꿔 뭔가 되고 있음을 보여 준다. */
+var _postSubmitting=false;
 async function submitPost(){
+  if(_postSubmitting)return;
+  _postSubmitting=true;
+  var btn=document.getElementById("edSubmitBtn");
+  var keep=btn?btn.textContent:"";
+  if(btn){btn.disabled=true;btn.textContent=editingPostId?"수정 중…":"올리는 중…";}
+  try{ await _submitPostBody(); }
+  finally{
+    _postSubmitting=false;
+    if(btn){btn.disabled=false;btn.textContent=keep;}
+  }
+}
+async function _submitPostBody(){
   var t=document.getElementById("wTitle").value.trim();
   var cEl=document.getElementById("wContent");
   var html=sanitizePostHtml(cEl.innerHTML.trim());
@@ -6117,7 +6218,9 @@ async function submitPost(){
     polls:(typeof _insertedPolls!=="undefined"?_insertedPolls:[]),pollId:(typeof _insertedPolls!=="undefined"&&_insertedPolls[0]?_insertedPolls[0].id:null),
     html:html,content:text.split("\n").filter(Boolean),comments:[]};
   justAddedId=np.id;setTimeout(function(){justAddedId=null},1800);POSTS.unshift(np);
-  closeWrite();state.board=edState.board;state.query="";state.sort="new";state.shown=8;
+  closeWrite();
+  edClearDraft(); // ⚠️ closeWrite가 마지막 모습을 임시저장하므로, 등록 성공 후엔 반드시 그 뒤에 지운다
+  state.board=edState.board;state.query="";state.sort="new";state.shown=8;
   renderNav(document.getElementById("boardNav"));renderNav(document.getElementById("boardNavM"));renderNav(document.getElementById("boardNavS"));
   page=1;renderChips();renderList();track("write");toast("글을 올렸어요! ✏️");window.scrollTo({top:0,behavior:"smooth"});
 }

@@ -140,6 +140,12 @@ export const BODY_HTML = `
       <div class="ed-lock-notice" id="edLockNotice" style="display:none"></div>
       <div class="ed-accept-notice" id="edAcceptNotice" style="display:none"></div>
 
+      <!-- 쓰다 만 글을 되살렸을 때만 보이는 안내 줄 -->
+      <div class="ed-draftbar" id="edDraftBar" style="display:none">
+        <span id="edDraftBarMsg">쓰던 글을 불러왔어요</span>
+        <button type="button" onclick="edDropDraft()">새로 쓰기</button>
+      </div>
+
       <!-- 제목 -->
       <input type="text" id="wTitle" class="ed-title-input" placeholder="제목을 입력해 주세요">
       <input type="text" id="edReviewNickInput" class="ed-title-input" placeholder="커미션 제작자 닉네임으로 구직 글 검색" oninput="searchCommissionPosts()" style="display:none;margin-top:8px;font-size:14px">
