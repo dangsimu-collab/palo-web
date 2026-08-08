@@ -4325,15 +4325,25 @@ function syncTabInd(){
   // 탭바가 안 보이는 상태(PC·키보드 올라옴)에선 폭이 0이라 자리를 못 잡는다 → 숨긴다
   if(!on||!inner.offsetWidth){ind.style.opacity="0";return;}
   ind.style.opacity="1";
+  var x=on.offsetLeft;
+  var moved=(ind.dataset.x!==String(x));
   ind.style.width=on.offsetWidth+"px";
-  ind.style.transform="translateX("+on.offsetLeft+"px)";
+  ind.style.translate=x+"px 0";   // transform이 아니라 translate — scale(출렁임)과 겹치지 않게
+  ind.dataset.x=String(x);
+  // 자리를 실제로 옮겼을 때만 출렁임을 다시 재생(같은 탭을 또 눌러도 흔들리면 산만하다)
+  if(moved){
+    ind.classList.remove("wobble");
+    void ind.offsetWidth;         // 클래스를 뗐다 붙이는 것만으론 애니메이션이 다시 안 돈다
+    ind.classList.add("wobble");
+  }
 }
 // 처음 한 번은 전환 없이 제자리에 놓는다(페이지가 뜨자마자 왼쪽에서 미끄러져 오면 어색하다)
 function initTabInd(){
   var ind=document.getElementById("tabInd");if(!ind)return;
   var keep=ind.style.transition;ind.style.transition="none";
   syncTabInd();
-  void ind.offsetWidth; // 위치를 먼저 반영시킨 뒤 전환을 되살린다
+  ind.classList.remove("wobble");  // 첫 표시는 출렁임 없이 조용히
+  void ind.offsetWidth;            // 위치를 먼저 반영시킨 뒤 전환을 되살린다
   ind.style.transition=keep;
 }
 window.addEventListener("resize",syncTabInd);
