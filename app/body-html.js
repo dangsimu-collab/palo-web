@@ -396,6 +396,7 @@ export const BODY_HTML = `
     <div id="loginSocial">
       <div id="gsiButton" class="gsi-wrap"></div>
       <button type="button" class="login-naver-btn" onclick="loginWithNaver()"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.273 12.845 7.376 0H0v24h7.726V11.156L16.624 24H24V0h-7.727z"/></svg>네이버로 로그인</button>
+      <button type="button" class="login-x-btn" onclick="loginWithTwitter()"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>X로 로그인</button>
       <div class="login-or"><span>또는 이메일로</span></div>
     </div>
     <input id="lgEmail" class="nick-in" type="email" autocomplete="email" placeholder="이메일" onkeydown="if(event.key==='Enter')loginSubmit()">

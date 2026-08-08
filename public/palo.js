@@ -593,8 +593,17 @@ function _gisReady(){return !!(window.google&&window.google.accounts&&window.goo
 // 네이버 로그인 노출 스위치: 네이버 개발자센터 '검수'가 승인되면 이 값을 true로만 바꿔 배포하면 네이버 버튼이 다시 나타남.
 // (검수 전에는 앱 소유자만 로그인 가능하므로 일반 사용자에게 잠시 숨김)
 var NAVER_LOGIN_ENABLED=false;
+// 트위터(X) 로그인 노출 스위치 — X 개발자 앱을 만들고 Supabase에 키를 넣은 뒤 true로 바꿔 배포하면 버튼이 나타남.
+// (설정 전에 켜 두면 눌렀을 때 오류만 나므로 기본은 꺼 둠. docs/트위터-로그인-설정.md 참고)
+var TWITTER_LOGIN_ENABLED=false;
 // 로그인 진입점(여러 곳에서 openLogin 대신 이 이름으로 호출) — 구글+네이버가 함께 있는 모달을 엶.
 function loginWithGoogle(){ openLoginModal(); }
+// 트위터(X)로 로그인.
+// ⚠️ provider 문자열은 "twitter"가 아니라 **"x"** 다(OAuth 2.0 방식). 예전 1.0a 방식이 "twitter"이고 곧 없어진다.
+function loginWithTwitter(){
+  var hint=document.getElementById("loginHint");if(hint)hint.textContent="X로 이동 중…";
+  window.supabase.auth.signInWithOAuth({provider:"x",options:{redirectTo:window.location.origin}});
+}
 // 네이버로 로그인: 서버(start)로 이동해 네이버 인증 시작
 function loginWithNaver(){
   var hint=document.getElementById("loginHint");if(hint)hint.textContent="네이버로 이동 중…";
@@ -615,6 +624,8 @@ async function openLoginModal(){
   // 네이버 버튼은 검수 승인 전까지 숨김(NAVER_LOGIN_ENABLED로 제어)
   var nvBtn=document.querySelector(".login-naver-btn");
   if(nvBtn)nvBtn.style.display=NAVER_LOGIN_ENABLED?"flex":"none";
+  var twBtn=document.querySelector(".login-x-btn");
+  if(twBtn)twBtn.style.display=TWITTER_LOGIN_ENABLED?"flex":"none";
   // 항상 '로그인' 모드로 열고 입력값은 비움(제목·안내문구·버튼 문구는 setLoginMode가 맞춰줌)
   ["lgEmail","lgPw","lgPw2","lgNick"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});
   setLoginMode("login");
@@ -672,7 +683,7 @@ function setLoginMode(mode){
   if(desc)desc.textContent=isSignup?"이메일 없이 아이디만으로 가입할 수 있어요."
     :isReset?"이메일로 가입한 계정만 재설정 링크를 받을 수 있어요."
     :isNew?"새로 사용할 비밀번호를 입력해주세요."
-    :(NAVER_LOGIN_ENABLED?"구글·네이버 계정 또는 아이디로 시작해요.":"구글 계정 또는 아이디로 시작해요.");
+    :(function(){var ns=["구글"];if(NAVER_LOGIN_ENABLED)ns.push("네이버");if(TWITTER_LOGIN_ENABLED)ns.push("X");return ns.join("·")+" 계정 또는 아이디로 시작해요.";})();
   var idIn=_lgEl("lgEmail");
   if(idIn){
     idIn.placeholder=isSignup?"아이디 (영문 소문자·숫자 4~20자)":isReset?"가입한 이메일":"아이디 또는 이메일";

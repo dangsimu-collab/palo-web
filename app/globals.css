@@ -1339,6 +1339,11 @@
   .login-naver-btn svg{width:16px;height:16px;flex:none}
   .login-naver-btn:hover{filter:brightness(.96)}
   .login-naver-btn:active{filter:brightness(.92)}
+  /* X(트위터) — 브랜드가 검정이라 그대로 따른다 */
+  .login-x-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:260px;max-width:100%;height:44px;margin:10px auto 0;border:none;border-radius:22px;background:#000;color:#fff;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:.14s}
+  .login-x-btn svg{width:15px;height:15px;flex:none}
+  .login-x-btn:hover{background:#1a1a1a}
+  .login-x-btn:active{background:#2a2a2a}
   .login-google-btn{display:flex;align-items:center;justify-content:center;gap:9px;width:260px;max-width:100%;height:44px;margin:0 auto;border:1.5px solid var(--line-2);border-radius:22px;background:#fff;color:#3c4043;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:background .14s}
   .login-google-btn svg{width:18px;height:18px;flex:none}
   .login-google-btn:hover{background:var(--surface-2)}
