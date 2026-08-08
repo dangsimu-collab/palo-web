@@ -4355,7 +4355,7 @@ window.addEventListener("resize",syncTabInd);
    아래로 내릴 때만 접고, 위로 올리거나 스크롤이 멈추면 다시 펼친다.
    접혀도 아이콘과 선택 표시는 남아 지금 어느 탭인지 알 수 있고, 그대로 누를 수도 있다. */
 (function(){
-  var lastY=0,idle=null,lastRun=0,lastInput=0,vy=0,lastVT=0,glideId=0;
+  var lastY=0,idle=null,lastRun=0,lastInput=0,vy=0,lastVT=0,glideId=0,pendingGlide=0,pendingAt=0;
   // 손가락이나 휠로 '지금 직접' 내리고 있는가.
   // 손을 뗀 뒤 미끄러지는 관성 스크롤은 scroll 이벤트만 오고 touchmove/wheel 은 오지 않는다.
   // 이걸로 구분하면 관성 때문에 다시 접히는 일이 없어져, 기다릴 필요 없이 바로 펼칠 수 있다.
@@ -4369,8 +4369,12 @@ window.addEventListener("resize",syncTabInd);
   //    그래서 touchmove가 한 번이라도 있어야(=실제로 끌어야) 조작 중으로 친다.
   window.addEventListener("touchstart",function(){touching=true;dragged=false;},{passive:true});
   window.addEventListener("touchmove",function(){dragged=true;mark();},{passive:true});
-  ["touchend","touchcancel"].forEach(function(t){
-    window.addEventListener(t,function(){touching=false;dragged=false;},{passive:true});
+  ["touchend","touchcancel","pointerup"].forEach(function(t){
+    window.addEventListener(t,function(){
+      touching=false;dragged=false;
+      // 동그라미를 눌러 챙겨 둔 속도가 있으면, 손을 뗀 지금 이어받아 굴린다
+      if(pendingGlide&&Date.now()-pendingAt<600){var v=pendingGlide;pendingGlide=0;glide(v);}
+    },{passive:true});
   });
   // 끄는 중이면 손을 멈춰도 계속 조작 중(드래그 도중 정지에 판정이 흔들리지 않게)
   function userDriven(){return (touching&&dragged)||Date.now()-lastInput<260;}
@@ -4395,9 +4399,12 @@ window.addEventListener("resize",syncTabInd);
       pos+=v*dt;
       v*=Math.pow(0.994,dt);                 // 자연스럽게 잦아들도록 감쇠
       if(pos<=0||pos>=maxY||Math.abs(v)<0.02){ // 끝에 닿거나 충분히 느려지면 종료
-        window.scrollTo(0,Math.max(0,Math.min(maxY,pos)));glideId=0;return;
+        window.scrollTo({top:Math.max(0,Math.min(maxY,pos)),behavior:"auto"});glideId=0;return;
       }
-      window.scrollTo(0,pos);
+      // ⚠️ html{scroll-behavior:smooth}가 걸려 있어서 그냥 scrollTo(0,pos)를 쓰면
+      //    매 프레임 '부드럽게 이동' 애니메이션이 새로 시작돼 서로를 덮어쓰고 화면이 거의 안 움직인다.
+      //    behavior:"auto"를 명시해야 즉시 이동한다.
+      window.scrollTo({top:pos,behavior:"auto"});
       glideId=requestAnimationFrame(step);
     })(performance.now());
   }
@@ -4474,7 +4481,9 @@ window.addEventListener("resize",syncTabInd);
     if(tb&&tb.classList.contains("mini")&&e.target&&e.target.closest&&e.target.closest(".tabbar")){
       window.__tabExpandAt=Date.now();
       expand(tb);
-      glide(vy);   // 브라우저가 끊어 버린 관성을 이어받아 계속 굴린다
+      // ⚠️ 손가락이 닿아 있는 동안의 프로그램 스크롤은 iOS가 무시한다.
+      //    그래서 속도만 챙겨 두고, 손을 뗄 때 이어받는다.
+      pendingGlide=vy; pendingAt=Date.now();
       // ⚠️ preventDefault/stopPropagation 를 걸지 않는다.
       //    걸면 이 자리에서 시작한 드래그가 화면을 못 굴리고, 스크롤이 멈춰 버린 것처럼 느껴진다.
       //    탭이 눌리는 것은 아래 justExpanded() 가드가 막아 준다.
