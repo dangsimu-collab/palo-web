@@ -513,10 +513,15 @@
   /* ── 스크롤을 내리면 접힘: 지금 보고 있는 탭 하나만 남고 나머지는 그쪽으로 빨려 들어간다 ──
      ⚠️ 폭을 애니메이션하려면 px 값이어야 한다(calc/auto 는 전환이 안 된다) → palo.js가 inline으로 넣는다.
      왼쪽 끝을 고정해 둬서, 줄어들 때 오른쪽 탭들이 왼쪽(홈 방향)으로 접혀 들어가는 것처럼 보인다. */
-  .tabbar{overflow:hidden;
+  /* ⚠️ 평소에는 잘라내지 않는다 — 자르면 탭 전환 때 튕기고 출렁이는 동작이
+     바 테두리에서 뭉텅 잘려 보인다. 접히거나 펴지는 '동안'에만 잘라서
+     탭들이 동그라미 밖으로 삐져나오지 않게 한다. */
+  .tabbar{overflow:visible;
     transition:width .34s cubic-bezier(.33,1.02,.4,1),height .34s cubic-bezier(.33,1.02,.4,1),
       border-radius .3s ease,padding .28s cubic-bezier(.4,0,.2,1)}
-  .tabbar-inner{overflow:hidden}
+  .tabbar.mini,.tabbar.resizing{overflow:hidden}
+  .tabbar-inner{overflow:visible}
+  .tabbar.mini .tabbar-inner,.tabbar.resizing .tabbar-inner{overflow:hidden}
   .tab{transition:color .26s,opacity .2s,padding .28s cubic-bezier(.4,0,.2,1)}
   /* 접히면 탭들을 모두 감추고 동그란 버튼 하나만 남긴다(기본 탭 66px보다 작은 46px) */
   .tabbar.mini{padding:0;border-radius:50%}

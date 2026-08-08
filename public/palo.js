@@ -4370,7 +4370,17 @@ window.addEventListener("resize",syncTabInd);
     tb.style.transform="none";
     if(!tb.classList.contains("mini"))tb.style.width=w+"px";
   }
+  var resizeT=null;
+  // 크기가 변하는 동안에만 잘라낸다(그 사이 탭들이 동그라미 밖으로 새어 나오지 않게).
+  // 다 펴진 뒤에는 풀어 줘야 탭 전환 애니메이션이 바 밖으로 나갈 수 있다.
+  function markResizing(tb){
+    tb.classList.add("resizing");
+    clearTimeout(resizeT);
+    resizeT=setTimeout(function(){tb.classList.remove("resizing");},380);
+  }
   function expand(tb){
+    if(!tb.classList.contains("mini"))return; // 이미 펴져 있으면 건드리지 않는다
+    markResizing(tb);
     tb.classList.remove("mini");
     tb.style.width=fullW()+"px";
     if(expandH)tb.style.height=expandH+"px";
@@ -4379,8 +4389,10 @@ window.addEventListener("resize",syncTabInd);
     setTimeout(function(){if(typeof syncTabInd==="function")syncTabInd();},360);
   }
   function collapse(tb){
+    if(tb.classList.contains("mini"))return;
     // 펼친 높이를 기억해 둔다 — auto 에서는 높이 전환이 안 걸리므로 px로 오갈 수 있어야 한다
     if(!expandH)expandH=Math.round(tb.getBoundingClientRect().height);
+    markResizing(tb);
     tb.classList.add("mini");
     tb.style.width=MINI_W+"px";
     tb.style.height=MINI_W+"px";
