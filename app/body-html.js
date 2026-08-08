@@ -104,6 +104,7 @@ export const BODY_HTML = `
 <!-- bottom tabs -->
 <nav class="tabbar" aria-label="빠른 이동">
   <div class="tabbar-inner">
+    <span class="tab-ind" id="tabInd" aria-hidden="true"></span>
     <button class="tab on" data-tab="home" onclick="goHome()"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 3 10.6V20a1 1 0 0 0 1 1h5v-6h6v6h5a1 1 0 0 0 1-1v-9.4z"/></svg><span class="lbl">홈</span></button>
     <button class="tab" data-tab="commission" onclick="openCommissionList()"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M8.2 3h7.6a1 1 0 0 1 .8.4l3.2 4.2a1 1 0 0 1-.05 1.28l-7 7.8a1 1 0 0 1-1.5 0l-7-7.8A1 1 0 0 1 4.2 7.6L7.4 3.4a1 1 0 0 1 .8-.4z"/></svg><span class="lbl">커미션</span></button>
     <button class="tab write" onclick="openWrite()"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M4 17.3V20h2.7l9.5-9.5-2.7-2.7zM19.7 6.3l-2-2a1.1 1.1 0 0 0-1.5 0l-1.5 1.5 2.7 2.7 1.5-1.5a1.1 1.1 0 0 0 0-1.5z"/></svg><span class="lbl">글쓰기</span></button>

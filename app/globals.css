@@ -494,20 +494,28 @@
     left:50%;transform:translateX(-50%);
     bottom:calc(env(safe-area-inset-bottom,0px) + 12px);
     width:calc(100% - 24px);max-width:440px;
-    /* 투명도 절충: 더 투명하면 유리 느낌은 살지만, 어두운 그림이 뒤로 지나갈 때
-       글자 대비가 3:1 아래로 떨어진다. 0.66이 '유리로 보이면서 글자도 읽히는' 지점. */
-    background:rgba(255,255,255,.66);
-    -webkit-backdrop-filter:blur(26px) saturate(1.9);backdrop-filter:blur(26px) saturate(1.9);
-    border:1px solid rgba(255,255,255,.55);border-radius:26px;padding:6px;
-    /* 윗변 안쪽의 밝은 선 — 실제 유리의 빛 반사처럼 보이게 하는 요소.
-       이게 없으면 그냥 '흐린 흰 판'으로 보인다. */
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.9),
-      0 2px 8px rgba(31,22,28,.07),0 14px 34px rgba(31,22,28,.15)}
+    /* 유리로 보이게 하는 건 '투명도'만이 아니다. 위가 밝고 아래로 어두워지는 결(그라데이션),
+       가장자리의 빛 반사, 채도 상승 세 가지가 함께 있어야 유리로 읽힌다.
+       평균 불투명도는 0.66 근처로 유지해 글자 대비를 지킨다. */
+    background:linear-gradient(180deg,rgba(255,255,255,.8) 0%,rgba(255,255,255,.6) 55%,rgba(255,255,255,.66) 100%);
+    -webkit-backdrop-filter:blur(30px) saturate(2.1);backdrop-filter:blur(30px) saturate(2.1);
+    border:1px solid rgba(255,255,255,.6);border-radius:26px;padding:6px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.95),
+      inset 0 -1px 0 rgba(31,22,28,.05),
+      0 2px 8px rgba(31,22,28,.07),0 16px 38px rgba(31,22,28,.17)}
   /* 홈 화면에 추가한 PWA는 하단 여백이 더 필요하다 */
   @media (display-mode: standalone){ .tabbar{bottom:calc(env(safe-area-inset-bottom,8px) + 20px)} }
   /* 텍스트 입력창 포커스(모바일 키보드 올라옴) 시 하단 탭바를 숨겨 키보드에 밀려 튀어오르지 않게 함 */
   body.kb-open .tabbar{display:none}
-  .tabbar-inner{display:flex;align-items:stretch;gap:2px}
+  .tabbar-inner{display:flex;align-items:stretch;gap:2px;position:relative}
+  /* 선택 표시를 탭이 아니라 별도 조각으로 두고 위치만 옮긴다 →
+     탭을 바꿀 때 '넘어가는 과정'이 보인다(그냥 켜고 끄면 툭 바뀐다). */
+  .tab-ind{position:absolute;top:0;left:0;height:100%;border-radius:20px;z-index:0;opacity:0;
+    /* 유리 조각 + 은은한 분홍기 — 색을 꽉 채우면 유리감이 깨지므로 아래쪽만 살짝 물들인다 */
+    background:linear-gradient(180deg,rgba(255,255,255,.92) 0%,rgba(246,214,231,.78) 100%);
+    border:1px solid rgba(255,255,255,.85);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 1px 2px rgba(31,22,28,.06),0 4px 12px rgba(180,72,122,.13);
+    transition:transform .36s cubic-bezier(.34,1.32,.5,1),width .36s cubic-bezier(.34,1.32,.5,1),opacity .2s}
   /* touch-action:manipulation — 두 번 톡톡 두드려 확대하는 동작을 이 버튼에서만 끈다.
      iOS 사파리는 user-scalable=no를 무시해서, 탭을 빠르게 연속으로 누르면 두 번째를
      '확대 제스처'로 보고 클릭을 아예 안 만들어낸다(= 눌러도 씹힘). 이걸 끄면
@@ -515,14 +523,14 @@
   .tab{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
     background:none;border:none;border-radius:20px;padding:8px 0 7px;
     color:var(--ink-2);font-size:10.5px;font-weight:700;letter-spacing:-.02em;
-    cursor:pointer;position:relative;transition:background .2s,color .2s;
+    cursor:pointer;position:relative;z-index:1;transition:color .26s;
     touch-action:manipulation;-webkit-tap-highlight-color:transparent}
   /* 선택된 탭 강조 — 유리 위에 불투명한 색 블록을 얹으면 유리 느낌이 깨지고 색도 튄다.
      그래서 배경은 '더 밝은 유리 조각'으로 두고, 브랜드 색은 아이콘·글자로만 낸다. */
-  /* 글자색은 브랜드 핑크(#e07aa6)를 그대로 쓰면 흰 유리 위에서 대비 2.8:1로 흐리다.
-     같은 계열의 더 진한 톤을 써서 4.5:1을 넘긴다(요청: 아이콘·글자는 또렷하게). */
-  .tab.on{background:rgba(255,255,255,.82);color:#b4487a;font-weight:800;
-    box-shadow:0 1px 2px rgba(31,22,28,.06),0 3px 10px rgba(31,22,28,.08)}
+  /* 글자색: 브랜드 핑크(#e07aa6)를 그대로 쓰면 흰 유리 위에서 2.8:1로 흐리다.
+     강조 조각에 분홍기를 넣으면서 배경이 더 밝아져 #b4487a도 4.0:1까지 떨어졌다 →
+     같은 계열의 더 진한 톤으로 5.4:1 확보(요청: 아이콘·글자는 또렷하게). */
+  .tab.on{color:#9c3566;font-weight:800}
   .tab:active{transform:scale(.96)}
   .tab .ic{transition:transform .2s}
   .tab.on .ic{transform:translateY(-1px)}

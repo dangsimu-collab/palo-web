@@ -4209,6 +4209,7 @@ function cmSyncTabbarHeight(){
     h=Math.max(0,Math.round(window.innerHeight-r.top));
   }
   document.documentElement.style.setProperty('--cm-tabbar-h',h+'px');
+  if(typeof syncTabInd==="function")syncTabInd(); // 탭바가 나타났다 사라질 때 자리 재계산
 }
 new MutationObserver(function(){
   document.body.classList.toggle('cm-page',!!document.querySelector('#main>.cm-root'));
@@ -4313,7 +4314,31 @@ function syncTabs(id){
     var d=t.getAttribute("data-tab");
     t.classList.toggle("on",(id==="all"&&d==="home")||(id===d));
   });
+  syncTabInd();
 }
+// 선택 표시(유리 조각)를 현재 탭 자리로 옮긴다. 위치만 바꾸므로 CSS 전환이 붙어
+// 탭을 바꿀 때 '미끄러져 가는 과정'이 보인다.
+function syncTabInd(){
+  var inner=document.querySelector(".tabbar-inner"),ind=document.getElementById("tabInd");
+  if(!inner||!ind)return;
+  var on=inner.querySelector(".tab.on");
+  // 탭바가 안 보이는 상태(PC·키보드 올라옴)에선 폭이 0이라 자리를 못 잡는다 → 숨긴다
+  if(!on||!inner.offsetWidth){ind.style.opacity="0";return;}
+  ind.style.opacity="1";
+  ind.style.width=on.offsetWidth+"px";
+  ind.style.transform="translateX("+on.offsetLeft+"px)";
+}
+// 처음 한 번은 전환 없이 제자리에 놓는다(페이지가 뜨자마자 왼쪽에서 미끄러져 오면 어색하다)
+function initTabInd(){
+  var ind=document.getElementById("tabInd");if(!ind)return;
+  var keep=ind.style.transition;ind.style.transition="none";
+  syncTabInd();
+  void ind.offsetWidth; // 위치를 먼저 반영시킨 뒤 전환을 되살린다
+  ind.style.transition=keep;
+}
+window.addEventListener("resize",syncTabInd);
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",initTabInd);
+else initTabInd();
 /* ---------- editor ---------- */
 var TAGS_BY_BOARD={
   talk:["잡담","질문","정보"],ask:["질문","시세문의"],crit:["피드백 요청"],doodle:["낙서","크로키"],
