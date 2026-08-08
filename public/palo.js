@@ -5799,9 +5799,12 @@ function listOrEmpty(arr,emptyMsg,cta){
 function pfMiniIcon(inner){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+inner+'</svg>';}
 /* 프로필 섹션 카드 — 제목 + 한 줄 설명 + 내용을 연한 회색 카드로 묶는다 */
 function pfSection(title,desc,inner,id){
+  // 줄 목록은 하나의 이어진 카드로 감싼다 — 낱개로 띄워 두면 경계가 흐려 구분이 안 된다.
+  // 2x2 타일은 격자라 감싸지 않는다.
+  var body=(inner.indexOf('class="pf-tiles"')>-1)?inner:('<div class="pf-list">'+inner+'</div>');
   return '<div class="pf-group"'+(id?' id="'+id+'"':'')+'>'+
     '<div class="pf-group-head"><div class="pf-group-title">'+title+'</div>'+
-    (desc?'<div class="pf-group-desc">'+desc+'</div>':'')+'</div>'+inner+'</div>';
+    (desc?'<div class="pf-group-desc">'+desc+'</div>':'')+'</div>'+body+'</div>';
 }
 /* 자주 쓰는 기능은 2x2 타일로 — 아이콘 + 제목 + 작은 설명 */
 function pfTile(icon,title,sub,onclick,count){
