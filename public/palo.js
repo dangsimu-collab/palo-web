@@ -5759,6 +5759,19 @@ function listOrEmpty(arr,emptyMsg,cta){
 }
 // 포스타입식 메뉴 한 줄: 왼쪽 선(line) 아이콘 + 이름, 오른쪽 개수/화살표. opts:{count, chev:false, danger}
 function pfMiniIcon(inner){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+inner+'</svg>';}
+/* 프로필 섹션 카드 — 제목 + 한 줄 설명 + 내용을 연한 회색 카드로 묶는다 */
+function pfSection(title,desc,inner,id){
+  return '<div class="pf-group"'+(id?' id="'+id+'"':'')+'>'+
+    '<div class="pf-group-head"><div class="pf-group-title">'+title+'</div>'+
+    (desc?'<div class="pf-group-desc">'+desc+'</div>':'')+'</div>'+inner+'</div>';
+}
+/* 자주 쓰는 기능은 2x2 타일로 — 아이콘 + 제목 + 작은 설명 */
+function pfTile(icon,title,sub,onclick,count){
+  return '<button type="button" class="pf-tile" onclick="'+onclick+'">'+
+    '<span class="pf-tile-ic">'+icon+'</span>'+
+    '<span class="pf-tile-t">'+title+(count!=null?'<i>'+count+'</i>':'')+'</span>'+
+    '<span class="pf-tile-s">'+sub+'</span></button>';
+}
 function pfRow(icon,label,onclick,opts){
   opts=opts||{};
   var right='';
@@ -6391,6 +6404,10 @@ function renderMyProfile(){
   var prog=levelProgress(myScore,myLevel);
   var myReviewStats=pfReviewStats(AUTH.user.id,ME.nick);
   var h='<div class="profile" id="myProfileView" data-auth="in">';
+  // 화면 제목 + 알림 (참고 디자인의 상단 구조)
+  h+='<div class="pf-pagetop"><h1>내 정보</h1>'+
+     '<button type="button" class="pf-bell" aria-label="알림" onclick="toggleNotif(event)">'+
+     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></button></div>';
   h+=pfHeroHTML({nickname:ME.nick,level:myLevel,avatar_url:AUTH.profile&&AUTH.profile.avatar_url,
     cover_url:AUTH.profile&&AUTH.profile.cover_url,bio:AUTH.profile&&AUTH.profile.bio,
     sns_twitter:AUTH.profile&&AUTH.profile.sns_twitter,sns_instagram:AUTH.profile&&AUTH.profile.sns_instagram,sns_email:AUTH.profile&&AUTH.profile.sns_email},
@@ -6403,10 +6420,9 @@ function renderMyProfile(){
   h+='<div class="pf-progress"><div class="pp-row"><span>'+lvName+'</span><span>'+
      (prog.maxed?'최고 등급 달성! 🎉':('다음 등급('+prog.nextName+')까지 '+prog.remain+'점'))+'</span></div>'+
      '<div class="pp-bar"><div class="pp-fill" style="width:'+prog.pct+'%"></div></div></div>';
-  // 통계(점수·광고P·받은 추천·받은 댓글) — '쓴 글' 수는 아래 [내 글] 메뉴로 이동
+  // 통계 3개. 광고 포인트는 광고 낼 때만 쓰는 값이라 상단에서 빼고 [내 활동]으로 옮겼다.
   h+='<div class="pf-stats">'+
      '<div class="pf-st"><b>'+myScore+'</b><span>활동 점수</span></div>'+
-     '<div class="pf-st"><b>'+(AUTH.profile?(AUTH.profile.ad_points||0):0)+'</b><span>광고 포인트</span></div>'+
      '<div class="pf-st"><b>'+likeSum+'</b><span>받은 추천</span></div>'+
      '<div class="pf-st"><b>'+cmSum+'</b><span>받은 댓글</span></div></div>';
   // 고정한 글 + 받은 후기(콘텐츠)
@@ -6414,35 +6430,31 @@ function renderMyProfile(){
   if(pfReviewsForUserId!==AUTH.user.id){pfReviewsExpanded=false;pfReviewsForUserId=AUTH.user.id;}
   h+=pfReviewListHTML(pfArtistReviewList(AUTH.user.id,ME.nick),AUTH.user.id);
   // ===== 메뉴 (포스타입식 섹션: 소제목 + 한 줄에 하나씩) =====
-  h+='<div class="pf-group"><div class="pf-group-title">내 글</div>'+
-     pfRow(pfMiniIcon('<path d="M4 20h4L20 8l-4-4L4 16v4z"/><path d="M14 6l4 4"/>'),'쓴 글',"openPfList('mine')",{count:mine.length})+
-     pfRow(pfMiniIcon('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'),'댓글 단 글',"openPfList('cm')",{count:commented.length})+
-     pfRow(pfMiniIcon('<path d="M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5c0 5-7 9.5-7 9.5z"/>'),'좋아요',"openPfList('liked')",{count:likedArr.length})+
-     pfRow(pfMiniIcon('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>'),'최근 본 글',"openPfList('recent')",{count:recent.length})+
-     '</div>';
-  h+='<div class="pf-group"><div class="pf-group-title">내 활동</div>'+
-     pfRow(pfMiniIcon('<path d="M8 12l3 3 5-5"/><path d="M3 10l5-5 4 3 4-3 5 5-6 8H9z"/>'),'내 커미션',"cmOpenMy()",{})+
-     pfRow(pfMiniIcon('<path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8 8.38 8.38 0 0 1 8.5-8.5 8.5 8.5 0 0 1 8.5 8.5z"/>'),'채팅 목록',"openChatList('profile')",{})+
-     pfRow(pfMiniIcon('<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/>'),'이모티콘',"openEmoticonMarket()",{})+
-     pfRow(pfMiniIcon('<circle cx="12" cy="12" r="9"/><path d="M12 8v8M9 12h6"/>'),'포인트 내역',"openScoreLog()",{})+
-     '</div>';
-  h+='<div class="pf-group" id="notifSettingsSec"><div class="pf-group-title">알림 설정</div>'+notifEnableHTML()+
+  h+=pfSection('내 글','내가 쓴 글과 반응을 확인해요','<div class="pf-tiles">'+
+     pfTile(pfMiniIcon('<path d="M4 20h4L20 8l-4-4L4 16v4z"/><path d="M14 6l4 4"/>'),'쓴 글','내가 올린 글',"openPfList('mine')",mine.length)+
+     pfTile(pfMiniIcon('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'),'댓글 단 글','내가 남긴 훈수',"openPfList('cm')",commented.length)+
+     pfTile(pfMiniIcon('<path d="M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 7a3.5 3.5 0 0 1 7 3.5c0 5-7 9.5-7 9.5z"/>'),'좋아요','내가 누른 글',"openPfList('liked')",likedArr.length)+
+     pfTile(pfMiniIcon('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>'),'최근 본 글','다시 찾아보기',"openPfList('recent')",recent.length)+
+     '</div>');
+  h+=pfSection('내 활동','커미션·채팅·이모티콘을 관리해요','<div class="pf-tiles">'+
+     pfTile(pfMiniIcon('<path d="M8 12l3 3 5-5"/><path d="M3 10l5-5 4 3 4-3 5 5-6 8H9z"/>'),'내 커미션','등록·신청 관리',"cmOpenMy()")+
+     pfTile(pfMiniIcon('<path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8 8.38 8.38 0 0 1 8.5-8.5 8.5 8.5 0 0 1 8.5 8.5z"/>'),'채팅','주고받은 대화',"openChatList('profile')")+
+     pfTile(pfMiniIcon('<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/>'),'이모티콘','담기·만들기',"openEmoticonMarket()")+
+     pfTile(pfMiniIcon('<circle cx="12" cy="12" r="9"/><path d="M12 8v8M9 12h6"/>'),'포인트','광고 P '+(AUTH.profile?(AUTH.profile.ad_points||0):0),"openScoreLog()")+
+     '</div>');
+  h+=pfSection('알림','받고 싶은 알림만 골라서 켜요',notifEnableHTML()+
      '<label class="pf-toggle-row"><span class="pf-item-label">내 글에 댓글이 달리면 알림</span><input type="checkbox" '+(SETTINGS.cm?'checked':'')+' onchange="toggleNotifPref(\'cm\',this.checked,\'댓글\')"></label>'+
      '<label class="pf-toggle-row"><span class="pf-item-label">좋아요 알림</span><input type="checkbox" '+(SETTINGS.like?'checked':'')+' onchange="toggleNotifPref(\'like\',this.checked,\'좋아요\')"></label>'+
      '<label class="pf-toggle-row"><span class="pf-item-label">공지·챌린지 알림</span><input type="checkbox" '+(SETTINGS.notice?'checked':'')+' onchange="toggleNotifPref(\'notice\',this.checked,\'공지\')"></label>'+
      '<label class="pf-toggle-row"><span class="pf-item-label">채팅 알림</span><input type="checkbox" '+(SETTINGS.chat?'checked':'')+' onchange="toggleNotifPref(\'chat\',this.checked,\'채팅\')"></label>'+
-     '<label class="pf-toggle-row"><span class="pf-item-label">커미션 문의 알림</span><input type="checkbox" '+(SETTINGS.cminquiry?'checked':'')+' onchange="toggleNotifPref(\'cminquiry\',this.checked,\'커미션 문의\')"></label>'+
-     '</div>';
-  h+='<div class="pf-group"><div class="pf-group-title">설정</div>'+
+     '<label class="pf-toggle-row"><span class="pf-item-label">커미션 문의 알림</span><input type="checkbox" '+(SETTINGS.cminquiry?'checked':'')+' onchange="toggleNotifPref(\'cminquiry\',this.checked,\'커미션 문의\')"></label>'
+     ,'notifSettingsSec');
+  h+=pfSection('설정','프로필과 계정 정보를 관리해요',
      pfRow(pfMiniIcon('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>'),'닉네임 변경',"openNickModal()",{})+
-     pfRow(pfMiniIcon('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>'),'복구용 이메일',"openRecoveryEmail()",{})+
-     '</div>';
-  h+='<div class="pf-group"><div class="pf-group-title">기타</div>'+
+     pfRow(pfMiniIcon('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>'),'복구용 이메일',"openRecoveryEmail()",{}));
+  h+=pfSection('약관','서비스 약관과 개인정보 처리방침을 확인해요',
      pfRow(pfMiniIcon('<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/>'),'이용약관',"location.href='/terms'",{})+
-     pfRow(pfMiniIcon('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),'개인정보처리방침',"location.href='/privacy'",{})+
-     pfRow(pfMiniIcon('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>'),'로그아웃',"logout()",{chev:false})+
-     pfRow(pfMiniIcon('<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>'),'회원 탈퇴',"openWithdraw()",{chev:false,danger:true})+
-     '</div>';
+     pfRow(pfMiniIcon('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),'개인정보처리방침',"location.href='/privacy'",{}));
   if(AUTH.profile&&AUTH.profile.is_admin){
     var suspN=(function(){var n=reviewSuspicionCountSync();return n?' <span class="pf-item-badge">'+n+'</span>':'';})();
     h+='<div class="pf-group"><div class="pf-group-title">🛡 관리자</div>'+
@@ -6460,6 +6472,8 @@ function renderMyProfile(){
        '</div>';
   }
   h+='</div>';
+  h+='<div class="pf-bottom"><button type="button" class="pf-logout" onclick="logout()">로그아웃</button>'+
+     '<button type="button" class="pf-withdraw" onclick="openWithdraw()">회원 탈퇴</button></div>';
   document.getElementById("main").innerHTML=h;
   syncTabs("me");pfScrollAfterRender();
   loadFollowBar(AUTH.user.id);
