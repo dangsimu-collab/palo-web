@@ -595,7 +595,7 @@ function _gisReady(){return !!(window.google&&window.google.accounts&&window.goo
 var NAVER_LOGIN_ENABLED=false;
 // 트위터(X) 로그인 노출 스위치 — X 개발자 앱을 만들고 Supabase에 키를 넣은 뒤 true로 바꿔 배포하면 버튼이 나타남.
 // (설정 전에 켜 두면 눌렀을 때 오류만 나므로 기본은 꺼 둠. docs/트위터-로그인-설정.md 참고)
-var TWITTER_LOGIN_ENABLED=false;
+var TWITTER_LOGIN_ENABLED=true;
 // 로그인 진입점(여러 곳에서 openLogin 대신 이 이름으로 호출) — 구글+네이버가 함께 있는 모달을 엶.
 function loginWithGoogle(){ openLoginModal(); }
 // 트위터(X)로 로그인.

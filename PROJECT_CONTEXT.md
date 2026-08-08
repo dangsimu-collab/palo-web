@@ -983,7 +983,7 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 
 - **쌓임 순서(z-index) 문제 2건 수정(2026-08-07, 사용자 제보)**: **①커미션 상세의 문의하기·신청하기 바를 푸터가 덮던 문제** — 원인은 `.wrap`의 **전역 규칙**(`position:relative;z-index:1`)이었다. 푸터 마크업(`<footer><div class="wrap">…`)도 이 규칙을 받아 **같은 z-index:1**이 되는데, 같은 값이면 **DOM에서 뒤에 있는 쪽이 위에 그려지므로** 푸터가 본문(`.wrap.grid`) 위의 고정 바를 덮었다. ⚠️ `.cm-apply-bar`의 `z-index:30`을 올려도 소용없다 — `.wrap`이 쌓임 맥락을 만들어 그 안에 **갇혀 있기 때문**(전역 기준으로는 1층). → `footer .wrap{z-index:auto}`로 푸터가 층을 만들지 않게 함(푸터는 층이 필요 없는 단순 텍스트). **②이미지 미리보기가 하단 탭바·헤더를 덮던 문제** — `#imgPreview`는 `document.body`에 붙는 최상위 요소인데 `z-index:200`이라 헤더(60)·탭바(65)보다 위였다. → **50**으로 낮춤(본문 `.wrap`=1보다는 위, 고정 UI보다는 아래). ⚠️ 자동화 환경이 **스크롤을 무시**해 실제 겹침 재현이 불가했다 → 같은 조건의 요소를 강제로 겹쳐놓고 `elementFromPoint`로 판정하는 방식으로 검증. 검증(dev): 푸터 wrap `z-index:auto`·본문 wrap `1`, 겹침 지점 최상단이 **본문 고정요소**로 나옴, 미리보기 z=50(본문보다 위·헤더/탭바보다 아래)·표시/숨김 정상, CTA 바 회귀 없음(문의하기·신청하기 정상 렌더), `next build` 통과.
 
-- **트위터(X) 로그인 추가(2026-08-08, 사용자 요청)**: 코드는 완성, **스위치(`TWITTER_LOGIN_ENABLED`)로 꺼 둔 상태**
+- **트위터(X) 로그인 추가(2026-08-08, 사용자 요청)**: **2026-08-08 설정 완료 후 스위치 ON(운영 중)**
   (네이버와 같은 방식 — X 개발자 앱·Supabase 키 설정 전에 켜면 눌렀을 때 오류만 난다).
   ⚠️ **provider 문자열은 `"twitter"`가 아니라 `"x"`** — `"twitter"`는 곧 없어질 OAuth 1.0a 쪽이다.
   `signInWithOAuth({provider:"x",options:{redirectTo:origin}})`.
@@ -996,6 +996,9 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
   설정 절차·트러블슈팅: `docs/트위터-로그인-설정.md`
   (Callback은 `https://<프로젝트ID>.supabase.co/auth/v1/callback`, X 앱에서 **Request email from users 필수**,
   Supabase는 **X / Twitter (OAuth 2.0)** 항목에 Client ID/Secret 입력).
+  Supabase 설정 확인법: `/auth/v1/authorize?provider=x`가 **x.com으로 302**되고 client_id가 붙으면 정상
+  (안 켠 provider는 Location이 비어 있다 — google과 비교하면 바로 구분된다).
+  ⚠️ 클라이언트의 `signInWithOAuth`가 돌려주는 url은 **Supabase 자체 주소**라 그것만으론 설정 여부를 알 수 없다.
   검증(로컬): 스위치 off일 때 버튼 숨김·문구에서 X 제외, on일 때 표시(260x44, 검정, 로고 렌더),
   호출 인자가 `{provider:"x",...}`인 것 확인.
 
