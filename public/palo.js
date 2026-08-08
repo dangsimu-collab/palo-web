@@ -4200,6 +4200,9 @@ async function cmBulkStatus(status){
 }
 function cmSyncTabbarHeight(){
   var tb=document.querySelector('.tabbar');
+  // ⚠️ 접힌 동안에는 다시 재지 않는다. 접히면 높이가 줄고 → footer 여백이 줄고 →
+  //    문서가 짧아져 스크롤 위치가 튄다. 자리는 '펼친 높이' 기준으로 계속 잡아 둔다.
+  if(tb&&tb.classList.contains('mini'))return;
   var h=0;
   if(tb&&getComputedStyle(tb).display!=="none"){
     // ⚠️ 탭바 '높이'가 아니라 **화면 바닥부터 탭 윗변까지의 거리**를 잰다.
@@ -4347,6 +4350,35 @@ function initTabInd(){
   ind.style.transition=keep;
 }
 window.addEventListener("resize",syncTabInd);
+
+/* ===== 스크롤하면 하단 탭 접기 =====
+   아래로 내릴 때만 접고, 위로 올리거나 스크롤이 멈추면 다시 펼친다.
+   접혀도 아이콘과 선택 표시는 남아 지금 어느 탭인지 알 수 있고, 그대로 누를 수도 있다. */
+(function(){
+  var lastY=0,idle=null,lastRun=0;
+  function tabbar(){return document.querySelector('.tabbar');}
+  function apply(){
+    // 하는 일이 클래스 토글뿐이라 requestAnimationFrame까지 쓸 필요는 없다.
+    // (rAF는 화면이 안 그려지는 환경에서 아예 안 돌아 검증도 어렵다)
+    var now=Date.now();
+    if(now-lastRun<60)return;
+    lastRun=now;
+    var tb=tabbar();if(!tb)return;
+    var y=window.scrollY||document.documentElement.scrollTop||0;
+    var dy=y-lastY;
+    // 6px 미만의 흔들림으로는 상태를 바꾸지 않는다(손가락 떨림에 깜빡이지 않게)
+    if(y>90&&dy>6)tb.classList.add('mini');
+    else if(dy<-6||y<=90)tb.classList.remove('mini');
+    lastY=y;
+    clearTimeout(idle);
+    // 멈추면 다시 펼친다 — 접힌 채로 굳어 있으면 탭을 찾기 어렵다
+    idle=setTimeout(function(){
+      var t=tabbar();if(t){t.classList.remove('mini');
+        if(typeof cmSyncTabbarHeight==="function")cmSyncTabbarHeight();}
+    },900);
+  }
+  window.addEventListener('scroll',apply,{passive:true});
+})();
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",initTabInd);
 else initTabInd();
 /* ---------- editor ---------- */
