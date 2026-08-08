@@ -677,29 +677,33 @@ async function openLoginModal(){
   // 항상 '로그인' 모드로 열고 입력값은 비움(제목·안내문구·버튼 문구는 setLoginMode가 맞춰줌)
   ["lgEmail","lgPw","lgPw2","lgNick"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});
   setLoginMode("login");
-  // 구글도 네이버·X와 같은 모양의 버튼으로 통일한다.
-  // ⚠️ 구글이 직접 그려주는 버튼(GIS)은 생김새를 바꿀 수 없어서, 우리 버튼 + 리다이렉트 방식으로 맞췄다.
-  //    (원래 GIS 팝업 방식은 PWA에서 막혀 어차피 리다이렉트로 빠지고 있었다)
-  if(gwrap)gwrap.innerHTML='<button type="button" class="lg-social" onclick="_loginRedirectFallback()">'+
+  // 구글 버튼: **보이는 건** 네이버·X와 같은 모양의 우리 버튼이지만,
+  // **실제 클릭은** 그 위에 투명하게 겹쳐 둔 진짜 GIS 버튼이 받는다.
+  // ⚠️ 왜 — 리다이렉트(signInWithOAuth)는 Supabase 주소를 거치므로 구글 동의 화면에
+  //    'commi'가 아니라 "…supabase.co로 이동"이 떠 버린다(2026-08-08 사용자 신고).
+  //    우리 클라이언트 ID로 뜨는 GIS 팝업은 'commi'가 나온다. 그런데 GIS 버튼은
+  //    생김새를 바꿀 수 없으므로, 보이는 버튼과 클릭받는 버튼을 분리했다.
+  // ⚠️ PWA(홈 화면 추가)는 팝업이 막혀 GIS가 400을 내므로 리다이렉트를 유지한다(2026-08-04 확인).
+  //    GIS가 없거나 준비가 실패해도 리다이렉트 버튼으로 내려간다 — 로그인이 잠기는 일은 없다.
+  var gHtml='<button type="button" class="lg-social" onclick="_loginRedirectFallback()">'+
     '<span class="lg-social-ic gg">'+GOOGLE_G_SVG+'</span>Google로 계속하기</button>';
+  if(gwrap)gwrap.innerHTML=gHtml;
   m.classList.add("open");document.body.style.overflow="hidden";
-  return;
-  var n;
-  try{n=await _makeLoginNonce();}catch(e){
-    if(gwrap)gwrap.innerHTML='<button type="button" class="login-google-btn" onclick="_loginRedirectFallback()">'+GOOGLE_G_SVG+'구글로 로그인</button>';
-    m.classList.add("open");document.body.style.overflow="hidden";return;
-  }
-  google.accounts.id.initialize({
-    client_id:GOOGLE_CLIENT_ID,
-    callback:function(resp){onGoogleCredential(resp,n.nonce);},
-    nonce:n.hashed,
-    ux_mode:"popup",
-    auto_select:false,
-    cancel_on_tap_outside:true
-  });
-  m.classList.add("open");document.body.style.overflow="hidden";
-  if(gwrap){gwrap.innerHTML="";
-    try{google.accounts.id.renderButton(gwrap,{theme:"outline",size:"large",type:"standard",text:"continue_with",shape:"pill",logo_alignment:"center",width:260,locale:"ko"});}catch(e){}
+  if(gwrap&&!isStandalonePWA()&&_gisReady()){
+    try{
+      var n=await _makeLoginNonce();
+      google.accounts.id.initialize({
+        client_id:GOOGLE_CLIENT_ID,
+        callback:function(resp){onGoogleCredential(resp,n.nonce);},
+        nonce:n.hashed,
+        ux_mode:"popup",
+        auto_select:false,
+        cancel_on_tap_outside:true
+      });
+      gwrap.innerHTML='<div class="lg-gwrap">'+gHtml+'<div class="lg-gis" aria-hidden="true"></div></div>';
+      google.accounts.id.renderButton(gwrap.querySelector(".lg-gis"),
+        {theme:"outline",size:"large",type:"standard",text:"continue_with",shape:"pill",width:280,locale:"ko"});
+    }catch(e){ gwrap.innerHTML=gHtml; }
   }
 }
 function closeLoginModal(){var m=document.getElementById("loginModal");if(m)m.classList.remove("open");document.body.style.overflow="";}
