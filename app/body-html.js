@@ -269,7 +269,8 @@ export const BODY_HTML = `
       <b id="imgPickTitle">사진 넣기</b>
       <button class="imgpick-close" onclick="closeImgPick()" aria-label="닫기">✕</button>
     </div>
-    <p class="imgpick-desc">확인을 누르면 <b>커서가 있던 자리</b>에 고른 순서대로 들어가요. 뺄 사진은 × 를 누르세요.</p>
+    <!-- 설명 문구는 일부러 없다(사용자 요청) — 고른 순서대로 들어가는 건 설명할 게 아니라 당연해야 한다.
+         순서는 썸네일의 번호가 이미 보여 준다. -->
     <div class="imgpick-grid" id="imgPickGrid"></div>
     <p class="imgpick-warn" id="imgPickWarn" style="display:none"></p>
     <div class="imgpick-foot">
