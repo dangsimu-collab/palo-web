@@ -4355,7 +4355,7 @@ window.addEventListener("resize",syncTabInd);
    아래로 내릴 때만 접고, 위로 올리거나 스크롤이 멈추면 다시 펼친다.
    접혀도 아이콘과 선택 표시는 남아 지금 어느 탭인지 알 수 있고, 그대로 누를 수도 있다. */
 (function(){
-  var lastY=0,idle=null,lastRun=0,lastInput=0,vy=0,lastVT=0,glideId=0,pendingGlide=0,pendingAt=0;
+  var lastY=0,idle=null,lastRun=0,lastInput=0;
   // 손가락이나 휠로 '지금 직접' 내리고 있는가.
   // 손을 뗀 뒤 미끄러지는 관성 스크롤은 scroll 이벤트만 오고 touchmove/wheel 은 오지 않는다.
   // 이걸로 구분하면 관성 때문에 다시 접히는 일이 없어져, 기다릴 필요 없이 바로 펼칠 수 있다.
@@ -4369,12 +4369,8 @@ window.addEventListener("resize",syncTabInd);
   //    그래서 touchmove가 한 번이라도 있어야(=실제로 끌어야) 조작 중으로 친다.
   window.addEventListener("touchstart",function(){touching=true;dragged=false;},{passive:true});
   window.addEventListener("touchmove",function(){dragged=true;mark();},{passive:true});
-  ["touchend","touchcancel","pointerup"].forEach(function(t){
-    window.addEventListener(t,function(){
-      touching=false;dragged=false;
-      // 동그라미를 눌러 챙겨 둔 속도가 있으면, 손을 뗀 지금 이어받아 굴린다
-      if(pendingGlide&&Date.now()-pendingAt<600){var v=pendingGlide;pendingGlide=0;glide(v);}
-    },{passive:true});
+  ["touchend","touchcancel"].forEach(function(t){
+    window.addEventListener(t,function(){touching=false;dragged=false;},{passive:true});
   });
   // 끄는 중이면 손을 멈춰도 계속 조작 중(드래그 도중 정지에 판정이 흔들리지 않게)
   function userDriven(){return (touching&&dragged)||Date.now()-lastInput<260;}
@@ -4383,54 +4379,6 @@ window.addEventListener("resize",syncTabInd);
   // (여기서 진짜로 올리고 싶으면 이 거리만큼 올리면 되고, 멈추면 어차피 0.9초 뒤 펼쳐진다)
   var BOUNCE_ZONE=48;
   function tabbar(){return document.querySelector('.tabbar');}
-  /* ⚠️ 화면을 만지면 관성 스크롤이 멈추는 건 브라우저(OS) 기본 동작이라 막을 수 없다.
-     네이티브 앱은 탭바가 스크롤 영역 '바깥'의 별도 뷰라 안 멈추지만, 웹은 화면 전체가 스크롤 영역이다.
-     그래서 대신 **멈춘 속도를 이어받아 우리가 계속 굴린다.** 사용자에겐 안 멈춘 것처럼 보인다.
-     (본문을 별도 스크롤 상자로 바꾸는 방법도 있으나, window.scrollTo 51곳·sticky 10곳을 모두 손봐야 해 위험이 크다) */
-  function stopGlide(){if(glideId){cancelAnimationFrame(glideId);glideId=0;}}
-  function glide(v){
-    stopGlide();
-    if(Math.abs(v)<0.08)return;              // 거의 멈춰 있었으면 이어받을 것이 없다
-    var pos=window.scrollY||document.documentElement.scrollTop||0;
-    var last=performance.now();
-    var maxY=Math.max(0,(document.documentElement.scrollHeight||0)-window.innerHeight);
-    (function step(t){
-      var dt=Math.min(34,t-last); last=t;
-      pos+=v*dt;
-      v*=Math.pow(0.994,dt);                 // 자연스럽게 잦아들도록 감쇠
-      if(pos<=0||pos>=maxY||Math.abs(v)<0.02){ // 끝에 닿거나 충분히 느려지면 종료
-        window.scrollTo({top:Math.max(0,Math.min(maxY,pos)),behavior:"auto"});glideId=0;return;
-      }
-      // ⚠️ html{scroll-behavior:smooth}가 걸려 있어서 그냥 scrollTo(0,pos)를 쓰면
-      //    매 프레임 '부드럽게 이동' 애니메이션이 새로 시작돼 서로를 덮어쓰고 화면이 거의 안 움직인다.
-      //    behavior:"auto"를 명시해야 즉시 이동한다.
-      window.scrollTo({top:pos,behavior:"auto"});
-      glideId=requestAnimationFrame(step);
-    })(performance.now());
-  }
-  // 사용자가 다시 손을 대거나 굴리면 우리 흐름은 즉시 양보한다
-  ["touchstart","wheel","keydown","mousedown"].forEach(function(t){
-    window.addEventListener(t,function(e){
-      // 동그라미를 누른 경우는 예외 — 그 손짓이야말로 이어받아야 하는 상황이다
-      if(e&&e.target&&e.target.closest&&e.target.closest(".tabbar"))return;
-      stopGlide();
-    },{passive:true,capture:true});
-  });
-  // 스크롤이 멈추면 다시 펼친다. 단 손가락이 아직 닿아 있으면 멈춘 게 아니므로
-  // 놓을 때까지 기다린다(드래그 도중 펼쳐졌다 접혔다 하는 깜빡임 방지).
-  function whenIdle(){
-    if(touching&&dragged){idle=setTimeout(whenIdle,300);return;}
-    var t=tabbar();if(t)expand(t);
-  }
-  // 펼친 폭을 px로 계산해 넣는다. calc()나 auto로는 폭 전환이 안 된다.
-  // 왼쪽 끝을 고정해 둬야 줄어들 때 오른쪽 탭들이 '왼쪽으로 빨려 들어가는' 모양이 된다.
-  function fullW(){return Math.min(window.innerWidth-24,440);}
-  function pin(tb){
-    var w=fullW();
-    tb.style.left=Math.round((window.innerWidth-w)/2)+"px";
-    tb.style.transform="none";
-    if(!tb.classList.contains("mini"))tb.style.width=w+"px";
-  }
   var resizeT=null,openT=null;
   // 크기가 변하는 동안에만 잘라낸다(그 사이 탭들이 동그라미 밖으로 새어 나오지 않게).
   // 다 펴진 뒤에는 풀어 줘야 탭 전환 애니메이션이 바 밖으로 나갈 수 있다.
@@ -4481,9 +4429,7 @@ window.addEventListener("resize",syncTabInd);
     if(tb&&tb.classList.contains("mini")&&e.target&&e.target.closest&&e.target.closest(".tabbar")){
       window.__tabExpandAt=Date.now();
       expand(tb);
-      // ⚠️ 손가락이 닿아 있는 동안의 프로그램 스크롤은 iOS가 무시한다.
-      //    그래서 속도만 챙겨 두고, 손을 뗄 때 이어받는다.
-      pendingGlide=vy; pendingAt=Date.now();
+
       // ⚠️ preventDefault/stopPropagation 를 걸지 않는다.
       //    걸면 이 자리에서 시작한 드래그가 화면을 못 굴리고, 스크롤이 멈춰 버린 것처럼 느껴진다.
       //    탭이 눌리는 것은 아래 justExpanded() 가드가 막아 준다.
@@ -4506,9 +4452,6 @@ window.addEventListener("resize",syncTabInd);
     var tb=tabbar();if(!tb)return;
     var y=window.scrollY||document.documentElement.scrollTop||0;
     var dy=y-lastY;
-    // 지금 얼마나 빠르게 흐르고 있는지 기억해 둔다(px/ms). 동그라미를 눌러 관성이 끊겼을 때
-    // 그 속도를 이어받아 우리가 계속 굴리기 위해서다.
-    var dt=now-lastVT; if(dt>0&&dt<200){vy=dy/dt;} lastVT=now;
     // 바닥에 닿으면 화면이 고무줄처럼 튕겨 돌아온다. 그때 y가 줄어드는데,
     // 이걸 '위로 올린 것'으로 보면 탭이 멋대로 펼쳐진다. 바닥 근처에서는 위로 향한 움직임을 무시한다.
     var maxY=Math.max(0,(document.documentElement.scrollHeight||0)-window.innerHeight);
