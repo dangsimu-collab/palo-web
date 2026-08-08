@@ -4370,7 +4370,7 @@ window.addEventListener("resize",syncTabInd);
     tb.style.transform="none";
     if(!tb.classList.contains("mini"))tb.style.width=w+"px";
   }
-  var resizeT=null;
+  var resizeT=null,openT=null;
   // 크기가 변하는 동안에만 잘라낸다(그 사이 탭들이 동그라미 밖으로 새어 나오지 않게).
   // 다 펴진 뒤에는 풀어 줘야 탭 전환 애니메이션이 바 밖으로 나갈 수 있다.
   function markResizing(tb){
@@ -4384,12 +4384,22 @@ window.addEventListener("resize",syncTabInd);
     tb.classList.remove("mini");
     tb.style.width=fullW()+"px";
     if(expandH)tb.style.height=expandH+"px";
+    // 탭이 왼쪽부터 하나씩 나타나게. 클래스를 뗐다 붙이는 것만으론 다시 재생되지 않아 리플로우를 강제한다.
+    tb.classList.remove("opening");
+    void tb.offsetWidth;
+    tb.classList.add("opening");
+    clearTimeout(openT);
+    openT=setTimeout(function(){tb.classList.remove("opening");},620);
     if(typeof cmSyncTabbarHeight==="function")cmSyncTabbarHeight();
     // 폭이 다 펴진 뒤에 선택 조각 자리를 다시 잡는다(펴지는 중엔 탭 폭이 계속 변한다)
     setTimeout(function(){if(typeof syncTabInd==="function")syncTabInd();},360);
   }
   function collapse(tb){
     if(tb.classList.contains("mini"))return;
+    // 손으로 펼친 직후에는 잠시 접지 않는다.
+    // 화면이 미끄러지는 중에 동그라미를 누르면 펼쳐지자마자 남은 관성이 '아래로 내림'으로 잡혀
+    // 곧바로 다시 접혀 버린다(= 한 번 더 눌러야 펴지는 것처럼 보인다).
+    if(Date.now()-(window.__tabExpandAt||0)<1200)return;
     // 펼친 높이를 기억해 둔다 — auto 에서는 높이 전환이 안 걸리므로 px로 오갈 수 있어야 한다
     if(!expandH)expandH=Math.round(tb.getBoundingClientRect().height);
     markResizing(tb);
