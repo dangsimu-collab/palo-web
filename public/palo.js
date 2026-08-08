@@ -177,6 +177,8 @@ var TREND=[
 ];
 var GRADS={t1:"#6b7d63,#414f3a",t2:"#7a5a8a,#493a58",t3:"#c2410c,#8a2f08",t4:"#3a5674,#26384c",t5:"#b08968,#7a5c42"};
 var state={board:"all",sort:"new",query:"",shown:8,tag:null,viewMode:"list"};
+// 추천글(개념글) 문턱 — 좋아요가 이 수를 넘으면 '추천글' 정렬에 나타난다
+var BEST_LIKES=10;
 (function(){try{var _b=getBoardFromPath();if(_b)state.board=_b;}catch(e){}})(); // /board/{id} 딥링크면 시작 게시판을 그걸로
 var PER=40;var page=1;var READ=new Set();var FOLLOW=new Set();var FOLLOW_NAME={}; // FOLLOW=팔로우한 회원 id들, FOLLOW_NAME[id]=닉(표시용)
 var ME={nick:"나"};
@@ -383,7 +385,7 @@ async function loadRealPosts(skipRender){
   // ── 2차: posts에 의존하는 댓글·좋아요·이미지를 병렬로 ──
   var wave2=await Promise.all([
     dbIds.length?sb.from("comments").select("*").in("post_id",dbIds).order("created_at"):Promise.resolve({data:[]}),
-    dbIds.length?sb.from("likes").select("post_id,user_id").in("post_id",dbIds):Promise.resolve({data:[]}),
+    dbIds.length?sb.from("likes").select("post_id,user_id,created_at").in("post_id",dbIds):Promise.resolve({data:[]}),
     dbIds.length?sb.from("post_images").select("post_id,url,sort").in("post_id",dbIds).order("sort"):Promise.resolve({data:[]}),
     dbIds.length?sb.from("polls").select("id,post_id,anchor_key,sort").in("post_id",dbIds).order("sort"):Promise.resolve({data:[]})
   ]);
@@ -406,9 +408,10 @@ async function loadRealPosts(skipRender){
   (cmRes.data||[]).forEach(function(c){
     (commentsByPost[c.post_id]=commentsByPost[c.post_id]||[]).push({n:nameFor(c.author_id),t:timeAgo(c.created_at),txt:c.content,dbId:c.id,authorId:c.author_id,ip:c.ip_masked||null,lv:levelFor(c.author_id),av:avatarFor(c.author_id),h:helpfulCountByComment[c.id]||0,_me:!!helpfulMine[c.id]});
   });
-  var likesByPost={};
+  var likesByPost={},likeTimesByPost={};
   (likeRes.data||[]).forEach(function(l){
     (likesByPost[l.post_id]=likesByPost[l.post_id]||[]).push(l.user_id);
+    (likeTimesByPost[l.post_id]=likeTimesByPost[l.post_id]||[]).push(l.created_at);
   });
   var imagesByPost={};
   (imgRes.data||[]).forEach(function(im){
@@ -417,8 +420,14 @@ async function loadRealPosts(skipRender){
 
   var real=res.data.map(function(row){
     var likers=likesByPost[row.id]||[];
+    // 개념글(추천글) 등극 시각 = **10번째 좋아요가 눌린 시각**.
+    // 등극 시각을 따로 저장하지 않아도 likes의 created_at에서 그대로 계산된다.
+    // (좋아요가 취소되면 10번째가 바뀌므로 값도 자연히 따라 움직인다)
+    var bestAt=null;
+    var lt=likeTimesByPost[row.id];
+    if(lt&&lt.length>=BEST_LIKES){lt=lt.slice().sort();bestAt=lt[BEST_LIKES-1];}
     return {id:100000+row.id,dbId:row.id,authorId:row.author_id,ipMasked:row.ip_masked||null,board:row.board,title:row.title,category:row.category,author:nameFor(row.author_id),authorLevel:levelFor(row.author_id),authorAvatar:avatarFor(row.author_id),
-      time:timeAgo(row.created_at),createdAt:row.created_at,likes:likers.length,_liked:likers.indexOf(myLikeId())>-1,
+      time:timeAgo(row.created_at),createdAt:row.created_at,likes:likers.length,_liked:likers.indexOf(myLikeId())>-1,bestAt:bestAt,
       views:row.views,thumb:"none",stage:row.stage,images:imagesByPost[row.id],polls:pollsByPost[row.id]||[],pollId:(pollsByPost[row.id]&&pollsByPost[row.id][0]?pollsByPost[row.id][0].id:null),
       isManagerPick:!!row.is_manager_pick,pickPosition:row.pick_position,pickedAt:row.picked_at,adLocked:!!adLockedIds[row.id],
       reviewedNickname:row.reviewed_nickname||null,reviewedUserId:row.reviewed_user_id||null,commissionPostId:row.commission_post_id||null,commissionSentiment:row.commission_sentiment||null,
@@ -1204,6 +1213,11 @@ function filteredPosts(){
   if(state.tag)arr=arr.filter(function(p){return p.category===state.tag});
   if(state.query){var q=state.query.toLowerCase();arr=arr.filter(function(p){var body=(p.content||[]).join(" ").toLowerCase();return p.title.toLowerCase().indexOf(q)>-1||p.author.toLowerCase().indexOf(q)>-1||body.indexOf(q)>-1||(p.reviewedNickname&&p.reviewedNickname.toLowerCase().indexOf(q)>-1)})}
   if(state.sort==="hot")arr=sortHot(arr);
+  /* 추천글(개념글): 좋아요 10개를 넘긴 글만, **넘긴 시각의 역순**.
+     인기순(좋아요 수)이 아니다 — 새로 10개를 채운 글이 맨 위에 올라오고,
+     다음 글이 10개를 채우면 한 칸씩 밀려난다(디시 개념글과 같은 방식). */
+  if(state.sort==="best")arr=arr.filter(function(p){return p.bestAt;})
+    .sort(function(a,b){return a.bestAt<b.bestAt?1:-1;});
   return arr;
 }
 function renderTrend(){
@@ -1391,7 +1405,10 @@ function renderList(){
     h+='<div class="notice" onclick="openRules()"><span class="pin">공지</span><span class="nt">📌 이용 규칙 & 피드백 매너 (처음 오셨다면 꼭!)</span></div>';
   }
   if(arr.length===0){
-    h+='<div class="empty"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg><h3>아직 글이 없어요</h3><p>이 게시판의 첫 글을 남겨보세요.</p><button onclick="openWrite()">글쓰기</button></div>';
+    // 추천글이 비었을 때는 문턱(좋아요 10개)을 여기서 자연스럽게 알린다 — 상시 안내문은 두지 않는다
+    h+=(state.sort==="best"&&!state.query)
+      ?'<div class="empty"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.4.7-4.8 4.2 1.3 6L12 16.6 6.5 19.5l1.3-6L3 9.3l6.4-.7z"/></svg><h3>아직 추천글이 없어요</h3><p>좋아요를 '+BEST_LIKES+'개 받은 글이 여기에 올라와요.</p></div>'
+      :'<div class="empty"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg><h3>아직 글이 없어요</h3><p>이 게시판의 첫 글을 남겨보세요.</p><button onclick="openWrite()">글쓰기</button></div>';
     main.innerHTML=h;syncChipScroll();return;
   }
   var totalPages=Math.max(1,Math.ceil(arr.length/PER));if(page>totalPages)page=totalPages;var visible=arr.slice((page-1)*PER,page*PER);
@@ -2620,6 +2637,10 @@ async function toggleLike(id){
   }else{
     p._liked=!p._liked;p.likes+=p._liked?1:-1;
   }
+  // 방금의 좋아요로 문턱을 넘거나(등극) 내려가면(강등) 추천글 표시도 바로 따라간다.
+  // 다음 새로고침 때는 10번째 좋아요의 실제 시각으로 다시 계산된다.
+  if(p.likes>=BEST_LIKES&&!p.bestAt)p.bestAt=new Date().toISOString();
+  else if(p.likes<BEST_LIKES)p.bestAt=null;
   var wasLiked=p._liked;
   var btn=document.getElementById("likeBtn");
   if(btn){
@@ -4493,7 +4514,8 @@ var ICON_GRID='<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentCo
 function _sortDropdownHTML(){ // 정렬(최신/인기)을 드롭다운 하나로
   return '<select class="sort-dd" aria-label="정렬 기준" onchange="setSort(this.value)">'+
     '<option value="new"'+(state.sort==="new"?" selected":"")+'>최신</option>'+
-    '<option value="hot"'+(state.sort==="hot"?" selected":"")+'>인기</option></select>';
+    '<option value="hot"'+(state.sort==="hot"?" selected":"")+'>인기</option>'+
+    '<option value="best"'+(state.sort==="best"?" selected":"")+'>추천글</option></select>';
 }
 function _viewToggleHTML(){ // 보기 방식을 아이콘 하나로 토글(지금 상태를 아이콘으로 표시)
   var isAlbum=state.viewMode==="album";
