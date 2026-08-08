@@ -4383,10 +4383,17 @@ window.addEventListener("resize",syncTabInd);
     tb.style.height=MINI_W+"px";
   }
   window.addEventListener("resize",function(){var tb=tabbar();if(tb)pin(tb);});
-  // 접힌 상태에서 탭바를 누르면 곧바로 펼친다(다시 불러오는 수단)
+  // 접힌 상태에서 탭바(동그라미)를 누르면 곧바로 펼친다(다시 불러오는 수단).
+  // ⚠️ 펼치는 순간 탭들이 다시 눌릴 수 있게 되므로, 뒤따라오는 pointerup·click이
+  //    그대로 홈 탭에 닿아 화면이 이동해 버린다. 그래서 표식을 남겨 잠시 무시하게 한다.
   document.addEventListener("pointerdown",function(e){
     var tb=tabbar();
-    if(tb&&tb.classList.contains("mini")&&e.target&&e.target.closest&&e.target.closest(".tabbar"))expand(tb);
+    if(tb&&tb.classList.contains("mini")&&e.target&&e.target.closest&&e.target.closest(".tabbar")){
+      window.__tabExpandAt=Date.now();
+      expand(tb);
+      e.stopPropagation();
+      e.preventDefault();
+    }
   },true);
   (function init(){
     var tb=tabbar();
@@ -7496,13 +7503,17 @@ syncNotifBadge();
   if(!window.PointerEvent)return;              // 지원 안 하면 기존 클릭 방식 그대로
   function tabAt(e){return e.target&&e.target.closest?e.target.closest(".tabbar .tab"):null;}
   var down=null,ranAt=0,ours=false;
+  // 접힌 탭바를 눌러 '펼치기만' 한 직후인지. 그 손짓이 탭 선택으로 이어지면 안 된다.
+  function justExpanded(){return Date.now()-(window.__tabExpandAt||0)<600;}
   document.addEventListener("pointerdown",function(e){
     if(e.button!==0)return;
+    if(justExpanded()){down=null;return;}
     var btn=tabAt(e);
     down=btn?{btn:btn,x:e.clientX,y:e.clientY,id:e.pointerId}:null;
   });
   document.addEventListener("pointerup",function(e){
     var d=down;down=null;
+    if(justExpanded())return;
     if(!d||e.pointerId!==d.id)return;
     if(Math.abs(e.clientX-d.x)>10||Math.abs(e.clientY-d.y)>10)return; // 끌었으면 누른 걸로 안 봄
     if(tabAt(e)!==d.btn)return;                                       // 다른 탭 위에서 뗐으면 취소
@@ -7516,6 +7527,8 @@ syncNotifBadge();
   // 위에서 이미 실행했으니, 브라우저가 뒤늦게 보내오는 클릭은 한 번만 무시(중복 실행 방지).
   // 키보드(엔터·스페이스)로 온 클릭은 pointerup을 거치지 않아 ranAt이 비어 있으므로 그대로 통과한다.
   document.addEventListener("click",function(e){
+    // 펼치기 직후의 클릭은 탭 선택으로 이어지지 않게 통째로 막는다
+    if(justExpanded()&&tabAt(e)){e.stopPropagation();e.preventDefault();return;}
     if(ours||!ranAt||Date.now()-ranAt>700||!tabAt(e))return;
     ranAt=0;e.stopPropagation();e.preventDefault();
   },true);
