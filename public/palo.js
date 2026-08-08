@@ -4357,6 +4357,9 @@ window.addEventListener("resize",syncTabInd);
 (function(){
   var lastY=0,idle=null,lastRun=0;
   var MINI_W=46,expandH=0; // 접혔을 때 지름(기본 탭 66px보다 작게)
+  // 바닥에서 이만큼 안쪽까지는 '반동 구간'으로 보고 위로 향한 움직임을 무시한다.
+  // (여기서 진짜로 올리고 싶으면 이 거리만큼 올리면 되고, 멈추면 어차피 0.9초 뒤 펼쳐진다)
+  var BOUNCE_ZONE=48;
   function tabbar(){return document.querySelector('.tabbar');}
   // 펼친 폭을 px로 계산해 넣는다. calc()나 auto로는 폭 전환이 안 된다.
   // 왼쪽 끝을 고정해 둬야 줄어들 때 오른쪽 탭들이 '왼쪽으로 빨려 들어가는' 모양이 된다.
@@ -4412,9 +4415,14 @@ window.addEventListener("resize",syncTabInd);
     var tb=tabbar();if(!tb)return;
     var y=window.scrollY||document.documentElement.scrollTop||0;
     var dy=y-lastY;
+    // 바닥에 닿으면 화면이 고무줄처럼 튕겨 돌아온다. 그때 y가 줄어드는데,
+    // 이걸 '위로 올린 것'으로 보면 탭이 멋대로 펼쳐진다. 바닥 근처에서는 위로 향한 움직임을 무시한다.
+    var maxY=Math.max(0,(document.documentElement.scrollHeight||0)-window.innerHeight);
+    var nearBottom=y>=maxY-BOUNCE_ZONE;
     // 6px 미만의 흔들림으로는 상태를 바꾸지 않는다(손가락 떨림에 깜빡이지 않게)
     if(y>90&&dy>6)collapse(tb);
-    else if(dy<-6||y<=90)expand(tb);
+    else if(y<=90)expand(tb);
+    else if(dy<-6&&!nearBottom)expand(tb);
     lastY=y;
     clearTimeout(idle);
     // 멈추면 다시 펼친다 — 접힌 채로 굳어 있으면 탭을 찾기 어렵다
