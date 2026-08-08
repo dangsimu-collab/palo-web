@@ -485,15 +485,14 @@
   .drawer .dh{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;padding:4px 2px}
   .drawer .dclose{background:none;border:none;font-size:18px;color:var(--muted);cursor:pointer;width:36px;height:36px;border-radius:11px}
 
-  /* ── 하단 탭바: 바닥에 붙이지 않고 띄운 알약(pill) + 유리 효과 ──
-     ⚠️ 띄우면 '탭이 가리는 높이'가 탭 자체 높이보다 커진다(아래 여백 + 안전영역).
-        그래서 palo.js의 cmSyncTabbarHeight가 높이가 아니라
-        '화면 바닥부터 탭 윗변까지의 거리'를 재서 --cm-tabbar-h 에 넣는다.
-     ⚠️ 유리(반투명)는 경계가 흐려지므로 밝은 테두리 + 2겹 그림자로 구분을 만든다. */
+  /* ── 하단 탭바: 화면 바닥에 붙인 패널 + 유리 효과 ──
+     접는 기능을 없앴으므로 띄워 둘 이유도 사라졌다(2026-08-08) → 좌우·아래를 화면에 딱 붙인다.
+     ⚠️ 붙였어도 '탭이 가리는 높이'는 여전히 안전영역만큼 더 크다(아래 패딩에 넣었다).
+        palo.js의 cmSyncTabbarHeight가 높이가 아니라
+        '화면 바닥부터 탭 윗변까지의 거리'를 재서 --cm-tabbar-h 에 넣으므로 그대로 맞는다.
+     ⚠️ 유리(반투명)는 경계가 흐려지므로 윗변의 밝은 선 + 위로 퍼지는 그림자로 구분을 만든다. */
   .tabbar{display:none;position:fixed;z-index:65;
-    left:50%;transform:translateX(-50%);
-    bottom:calc(env(safe-area-inset-bottom,0px) + 12px);
-    width:calc(100% - 24px);max-width:440px;
+    left:0;right:0;bottom:0;transform:none;width:100%;
     /* 유리로 보이게 하는 건 '투명도'만이 아니다. 위가 밝고 아래로 어두워지는 결(그라데이션),
        가장자리의 빛 반사, 채도 상승 세 가지가 함께 있어야 유리로 읽힌다.
        평균 불투명도는 0.66 근처로 유지해 글자 대비를 지킨다. */
@@ -511,26 +510,25 @@
       linear-gradient(180deg,rgba(255,255,255,.46) 0%,rgba(255,255,255,.26) 55%,rgba(255,255,255,.34) 100%);
     -webkit-backdrop-filter:blur(16px) saturate(2.4) brightness(1.06);
     backdrop-filter:blur(16px) saturate(2.4) brightness(1.06);
-    border:1px solid rgba(255,255,255,.7);border-radius:26px;padding:6px;
+    /* 좌우·아래는 화면 밖이라 테두리를 두르지 않는다 — 윗변만 유리의 두께처럼 밝은 선을 남긴다.
+       모서리도 윗쪽만 둥글려 '바닥에 놓인 패널'로 읽히게 한다. */
+    border:none;border-top:1px solid rgba(255,255,255,.72);
+    border-radius:22px 22px 0 0;
+    /* 아래 패딩에 안전영역(홈 인디케이터)을 넣는다 — 바가 바닥에 닿아 있으므로 여기서 확보해야 한다 */
+    padding:7px 10px calc(7px + env(safe-area-inset-bottom,0px));
     box-shadow:inset 0 1.5px 0 rgba(255,255,255,1),
       inset 0 0 0 1px rgba(255,255,255,.28),
-      inset 0 -1.5px 0 rgba(31,22,28,.07),
-      0 2px 8px rgba(31,22,28,.07),0 18px 42px rgba(31,22,28,.19)}
-  /* 홈 화면에 추가한 PWA는 하단 여백이 더 필요하다 */
-  @media (display-mode: standalone){ .tabbar{bottom:calc(env(safe-area-inset-bottom,8px) + 20px)} }
+      0 -2px 8px rgba(31,22,28,.05),0 -12px 34px rgba(31,22,28,.13)}
   /* 텍스트 입력창 포커스(모바일 키보드 올라옴) 시 하단 탭바를 숨겨 키보드에 밀려 튀어오르지 않게 함 */
   body.kb-open .tabbar{display:none}
-  /* ── 스크롤을 내리면 접힘: 지금 보고 있는 탭 하나만 남고 나머지는 그쪽으로 빨려 들어간다 ──
-     ⚠️ 폭을 애니메이션하려면 px 값이어야 한다(calc/auto 는 전환이 안 된다) → palo.js가 inline으로 넣는다.
-     왼쪽 끝을 고정해 둬서, 줄어들 때 오른쪽 탭들이 왼쪽(홈 방향)으로 접혀 들어가는 것처럼 보인다. */
-  /* ⚠️ 평소에는 잘라내지 않는다 — 자르면 탭 전환 때 튕기고 출렁이는 동작이
-     바 테두리에서 뭉텅 잘려 보인다. 접히거나 펴지는 '동안'에만 잘라서
-     탭들이 동그라미 밖으로 삐져나오지 않게 한다. */
-  .tabbar{overflow:visible;
-    transition:none}
+  /* ⚠️ 잘라내지 않는다 — 자르면 탭을 옮길 때의 튕김·출렁임이 바 테두리에서 뭉텅 잘려 보인다. */
+  .tabbar{overflow:visible;transition:none}
   .tabbar-inner{overflow:visible}
-  .tab{transition:color .26s,opacity .2s,padding .28s cubic-bezier(.4,0,.2,1)}
-  .tabbar-inner{display:flex;align-items:stretch;gap:2px;position:relative}
+  .tab{transition:color .26s,opacity .2s}
+  /* 바는 화면 끝까지 붙이되, 탭 자체는 본문과 같은 폭(480px) 안에서만 벌어지게 한다 —
+     태블릿 폭에서 탭 하나가 지나치게 넓어지지 않도록. */
+  .tabbar-inner{display:flex;align-items:stretch;gap:2px;position:relative;
+    max-width:480px;margin:0 auto}
   /* 선택 표시를 탭이 아니라 별도 조각으로 두고 위치만 옮긴다 →
      탭을 바꿀 때 '넘어가는 과정'이 보인다(그냥 켜고 끄면 툭 바뀐다). */
   .tab-ind{position:absolute;top:0;left:0;height:100%;border-radius:20px;z-index:0;opacity:0;
@@ -581,7 +579,7 @@
   @media(max-width:860px){
     .menu-btn{display:block}.search.desktop{display:none}.write-btn{display:none}
     .tabbar{display:block}
-    /* 떠 있는 탭바가 마지막 글을 가리지 않게, 탭이 차지하는 높이만큼 아래를 비운다 */
+    /* 탭바가 마지막 글을 가리지 않게, 탭이 차지하는 높이만큼 아래를 비운다 */
     footer{padding-bottom:calc(var(--cm-tabbar-h,0px) + 20px)}
     .catbar{top:66px}.board-head h1{font-size:21px}.d-canvas{height:240px}.d-head h1{font-size:22px}
   }

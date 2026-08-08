@@ -4348,28 +4348,6 @@ function initTabInd(){
 }
 window.addEventListener("resize",syncTabInd);
 
-/* 하단 탭바 자리 잡기.
-   폭을 px로 넣고 왼쪽 끝을 고정한다(가운데 정렬 transform 대신) — 화면 폭이 바뀌어도 흔들리지 않게.
-   ※ 스크롤 접힘 기능은 제거했다(2026-08-08, 사용자 결정).
-     iOS는 화면을 만지면 관성 스크롤을 멈추는데, 접힌 버튼을 눌러 다시 펴는 흐름에서
-     그 멈춤을 피할 방법이 웹에는 없었다(본문을 별도 스크롤 상자로 옮기는 큰 구조 변경 외에는). */
-(function(){
-  function tabbar(){return document.querySelector('.tabbar');}
-  function fullW(){return Math.min(window.innerWidth-24,440);}
-  function pin(tb){
-    var w=fullW();
-    tb.style.left=Math.round((window.innerWidth-w)/2)+"px";
-    tb.style.transform="none";
-    tb.style.width=w+"px";
-  }
-  window.addEventListener("resize",function(){var tb=tabbar();if(tb)pin(tb);});
-  (function init(){
-    var tb=tabbar();
-    if(!tb){setTimeout(init,60);return;}
-    var keep=tb.style.transition;tb.style.transition="none";
-    pin(tb); void tb.offsetWidth; tb.style.transition=keep;
-  })();
-})();
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",initTabInd);
 else initTabInd();
 /* ---------- editor ---------- */
