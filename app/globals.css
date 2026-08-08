@@ -2130,7 +2130,9 @@
    안 보이는 걸 이용해 크게 확대해서 버튼 전체를 덮게 한다(왜곡은 안 보이니 무관). */
 /* flex로 감싸 래퍼 높이가 정확히 버튼 높이가 되게 한다(블록이면 공백 줄이 높이를 9px쯤 늘려
    겹침층이 버튼 아래로 삐져나온다) */
-.lg-gwrap{position:relative;display:flex;margin-bottom:9px}
+/* width:100% — 부모(.gsi-wrap)가 가운데 정렬 flex라, 폭을 못 박지 않으면 내용 크기로 쪼그라들어
+   아래 네이버·트위터 버튼과 좌우 크기가 달라진다(실측 175px vs 419px) */
+.lg-gwrap{position:relative;display:flex;width:100%;margin-bottom:9px}
 /* 버튼의 아래 여백(9px)을 래퍼로 옮긴다 — 버튼에 남겨 두면 래퍼가 그만큼 길어져
    겹침층(inset:0)이 버튼 아래 빈 공간까지 클릭 영역으로 만든다 */
 .lg-gwrap .lg-social{width:100%;margin-bottom:0;pointer-events:none} /* 겹친 GIS가 클릭을 다 받도록. GIS 실패 시엔 이 래퍼 자체를 안 쓴다 */

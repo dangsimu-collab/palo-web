@@ -461,7 +461,7 @@ export const BODY_HTML = `
     <div id="loginSocial">
       <div id="gsiButton" class="gsi-wrap"></div>
       <button type="button" class="lg-social login-naver-btn" onclick="loginWithNaver()"><span class="lg-social-ic nv"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.273 12.845 7.376 0H0v24h7.726V11.156L16.624 24H24V0h-7.727z"/></svg></span>네이버로 계속하기</button>
-      <button type="button" class="lg-social login-x-btn" onclick="loginWithTwitter()"><span class="lg-social-ic xx"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></span>X로 계속하기</button>
+      <button type="button" class="lg-social login-x-btn" onclick="loginWithTwitter()"><span class="lg-social-ic xx"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></span>트위터로 계속하기</button>
       <div class="login-or"><span>또는</span></div>
     </div>
 
