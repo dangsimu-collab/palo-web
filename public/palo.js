@@ -727,7 +727,8 @@ function setLoginMode(mode){
   var isLogin=mode==="login",isSignup=mode==="signup",isReset=mode==="reset",isNew=mode==="newpw";
   show("loginSocial",isLogin);                 // 소셜 버튼은 로그인 화면에서만
   show("lgSafeBox",isLogin||isSignup);         // 안전 안내는 계정을 만들거나 들어올 때만 의미 있음
-  show("loginAltBtn",isLogin);
+  // "구글 로그인이 안 되나요? 다른 방법으로" 버튼은 제거됨(2026-08-08 사용자 요청).
+  // 구글이 안 되는 환경(PWA·GIS 실패)은 openLoginModal이 알아서 리다이렉트 버튼으로 내려간다.
   show("lgEmail",!isNew);                      // 새 비밀번호 설정에선 이메일 입력 불필요
   show("lgPw",!isReset);
   show("lgPw2",isSignup||isNew);
