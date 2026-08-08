@@ -37,8 +37,9 @@ create table if not exists public.referral_rules (
   reward_invitee_points integer not null default 100,  -- 초대받은 사람 광고 포인트
   need_posts            integer not null default 1,    -- 자격: 글 몇 개
   need_comments         integer not null default 3,    -- 또는 댓글 몇 개
+  -- 한도. ⚠️ **0을 넣으면 무제한**이다(큰 숫자를 넣으면 화면에 그 숫자가 그대로 보인다).
   daily_cap             integer not null default 3,    -- 한 사람이 하루에 보상받을 수 있는 초대 수
-  total_cap             integer not null default 20,   -- 한 사람이 누적으로 보상받을 수 있는 초대 수
+  total_cap             integer not null default 0,    -- 누적 한도 (0 = 무제한)
   hold_same_ip          boolean not null default true, -- 같은 회선이면 보류할지
   active                boolean not null default true, -- 기능 전체 on/off
   constraint referral_rules_one_row check (id = 1)
@@ -258,15 +259,18 @@ begin
   if not v_rules.active then return; end if;
 
   -- ⑥ 한도 — 넘으면 보상 없이 기록만 남긴다(집계에는 그대로 보인다)
+  --    ⚠️ 한도값이 0이면 '무제한'으로 본다(그 검사를 통째로 건너뛴다).
   select count(*) into v_today from public.referrals
    where inviter_id = v_ref.inviter_id and status = 'rewarded'
      and rewarded_at >= date_trunc('day', now() at time zone 'Asia/Seoul') at time zone 'Asia/Seoul';
   select count(*) into v_total from public.referrals
    where inviter_id = v_ref.inviter_id and status = 'rewarded';
-  if v_today >= v_rules.daily_cap or v_total >= v_rules.total_cap then
+  if (v_rules.daily_cap > 0 and v_today >= v_rules.daily_cap)
+     or (v_rules.total_cap > 0 and v_total >= v_rules.total_cap) then
     update public.referrals
        set status = 'capped',
-           note = case when v_today >= v_rules.daily_cap then '하루 한도 초과' else '누적 한도 초과' end
+           note = case when v_rules.daily_cap > 0 and v_today >= v_rules.daily_cap
+                       then '하루 한도 초과' else '누적 한도 초과' end
      where id = p_id;
     return;
   end if;

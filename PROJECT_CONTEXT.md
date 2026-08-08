@@ -1660,7 +1660,9 @@ Supabase Storage 용량 절약 + 로딩 속도 개선 목적. 전부 **브라우
 - ⚠️ **광고 포인트는 현금성 가치가 있다**(배너 광고 최소 500P) → 가짜 계정 유인이 실재한다. 방어 8겹:
   ①자기 자신 불가 ②`invitee_id UNIQUE`로 평생 1회만 초대받음 ③가입 후 24시간 안에만 코드가 붙음
   ④가입만으론 0원(글/댓글 필요) ⑤**같은 회선(IP 앞 3자리)이면 `held`로 보류 → 관리자 승인 필요**
-  ⑥하루 3명·누적 20명 한도(넘으면 `capped`, 기록만) ⑦차단 회원 제외 ⑧관리자 회수(`admin_referral_revoke`)로 준 만큼 차감.
+  ⑥하루 3명 한도(넘으면 `capped`, 기록만) — **누적 한도는 사용자 요청으로 해제**(`total_cap=0`).
+  ⚠️ 한도값 **0은 '무제한'**으로 약속했다(큰 숫자를 넣으면 화면에 "최대 999999명"처럼 그대로 보인다).
+  `referral_grant`가 `cap > 0` 일 때만 검사하고, 안내 문구는 `referralCapText()`가 0을 빼고 문장을 만든다 ⑦차단 회원 제외 ⑧관리자 회수(`admin_referral_revoke`)로 준 만큼 차감.
   IP는 PostgREST가 넘겨주는 `request.headers`에서 읽고 **원본은 저장하지 않고 앞 3자리만** 남긴다(`client_ip_prefix()`).
 - 🚨 **만들다 발견해 막은 치명적 구멍**: Postgres는 함수를 만들면 **기본적으로 모두에게 EXECUTE를 준다.**
   `referral_award`/`referral_grant`가 security definer라 그대로 뒀으면 로그인한 누구나 브라우저에서

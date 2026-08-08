@@ -1758,6 +1758,15 @@ async function openReferral(){
   }
   renderReferral(res.data);
 }
+/* 한도 안내 문구. ⚠️ 값이 0이면 '무제한'이라 그 부분을 아예 빼야 한다 —
+   그냥 숫자를 찍으면 "최대 0명까지"처럼 정반대로 읽힌다. */
+function referralCapText(r){
+  var d=r.daily_cap>0,t=r.total_cap>0;
+  if(d&&t)return '하루 '+r.daily_cap+'명, 최대 '+r.total_cap+'명까지 받을 수 있어요.';
+  if(d)return '하루 '+r.daily_cap+'명까지 받을 수 있고, 총 인원 제한은 없어요.';
+  if(t)return '최대 '+r.total_cap+'명까지 받을 수 있어요.';
+  return '인원 제한 없이 받을 수 있어요.';
+}
 function renderReferral(d){
   var link=location.origin+"/?ref="+d.code,r=d.reward,c=d.counts,e=d.earned;
   var h='<div class="pf-sec">🎁 친구 초대</div>';
@@ -1777,7 +1786,7 @@ function renderReferral(d){
        '<div class="pf-item"><span class="pf-item-label">초대받은 친구</span><span class="pf-item-count">'+r.invitee_score+'점 · 광고 '+r.invitee_points+'P</span></div>'+
      '</div>'+
      '<div class="ref-note">친구가 <b>글 '+r.need_posts+'개</b> 또는 <b>댓글 '+r.need_comments+'개</b>를 남기면 양쪽 모두에게 지급돼요. '+
-     '하루 '+r.daily_cap+'명, 최대 '+r.total_cap+'명까지 받을 수 있어요.</div></div>';
+     referralCapText(r)+'</div></div>';
 
   h+='<div class="pf-group"><div class="pf-group-title">내 초대 현황</div>'+
      '<div class="pf-stats">'+
