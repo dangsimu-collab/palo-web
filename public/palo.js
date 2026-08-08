@@ -4359,16 +4359,29 @@ window.addEventListener("resize",syncTabInd);
   // 손가락이나 휠로 '지금 직접' 내리고 있는가.
   // 손을 뗀 뒤 미끄러지는 관성 스크롤은 scroll 이벤트만 오고 touchmove/wheel 은 오지 않는다.
   // 이걸로 구분하면 관성 때문에 다시 접히는 일이 없어져, 기다릴 필요 없이 바로 펼칠 수 있다.
+  var touching=false;
   function mark(){lastInput=Date.now();}
-  ["touchstart","touchmove","wheel","keydown"].forEach(function(t){
+  ["touchmove","wheel","keydown"].forEach(function(t){
     window.addEventListener(t,mark,{passive:true});
   });
-  function userDriven(){return Date.now()-lastInput<220;}
+  // 손가락이 닿아 있는 동안은 계속 '사용자가 조작 중'으로 본다.
+  // touchmove만 보면 드래그 도중 잠깐 멈췄을 때 220ms 창을 벗어나 판정이 흔들린다.
+  window.addEventListener("touchstart",function(){touching=true;mark();},{passive:true});
+  ["touchend","touchcancel"].forEach(function(t){
+    window.addEventListener(t,function(){touching=false;mark();},{passive:true});
+  });
+  function userDriven(){return touching||Date.now()-lastInput<260;}
   var MINI_W=46,expandH=0; // 접혔을 때 지름(기본 탭 66px보다 작게)
   // 바닥에서 이만큼 안쪽까지는 '반동 구간'으로 보고 위로 향한 움직임을 무시한다.
   // (여기서 진짜로 올리고 싶으면 이 거리만큼 올리면 되고, 멈추면 어차피 0.9초 뒤 펼쳐진다)
   var BOUNCE_ZONE=48;
   function tabbar(){return document.querySelector('.tabbar');}
+  // 스크롤이 멈추면 다시 펼친다. 단 손가락이 아직 닿아 있으면 멈춘 게 아니므로
+  // 놓을 때까지 기다린다(드래그 도중 펼쳐졌다 접혔다 하는 깜빡임 방지).
+  function whenIdle(){
+    if(touching){idle=setTimeout(whenIdle,300);return;}
+    var t=tabbar();if(t)expand(t);
+  }
   // 펼친 폭을 px로 계산해 넣는다. calc()나 auto로는 폭 전환이 안 된다.
   // 왼쪽 끝을 고정해 둬야 줄어들 때 오른쪽 탭들이 '왼쪽으로 빨려 들어가는' 모양이 된다.
   function fullW(){return Math.min(window.innerWidth-24,440);}
@@ -4391,7 +4404,10 @@ window.addEventListener("resize",syncTabInd);
     markResizing(tb);
     tb.classList.remove("mini");
     tb.style.width=fullW()+"px";
+    // 펼친 높이를 못 구했으면(초기화 시 탭바가 숨겨져 있었던 경우 등) 높이를 풀어 준다.
+    // 안 그러면 접혔을 때의 46px에 그대로 갇힌다.
     if(expandH)tb.style.height=expandH+"px";
+    else tb.style.height="";
     // 탭이 왼쪽부터 하나씩 나타나게. 클래스를 뗐다 붙이는 것만으론 다시 재생되지 않아 리플로우를 강제한다.
     tb.classList.remove("opening");
     void tb.offsetWidth;
@@ -4411,7 +4427,12 @@ window.addEventListener("resize",syncTabInd);
     tb.style.width=MINI_W+"px";
     tb.style.height=MINI_W+"px";
   }
-  window.addEventListener("resize",function(){var tb=tabbar();if(tb)pin(tb);});
+  window.addEventListener("resize",function(){
+    var tb=tabbar();if(!tb)return;
+    // 회전·주소창 변화로 크기가 달라지면 펼친 높이도 다시 재야 한다(옛 값에 갇히지 않게)
+    if(!tb.classList.contains("mini")){tb.style.height="";expandH=Math.round(tb.getBoundingClientRect().height)||0;}
+    pin(tb);
+  });
   // 접힌 상태에서 탭바(동그라미)를 누르면 곧바로 펼친다(다시 불러오는 수단).
   // ⚠️ 펼치는 순간 탭들이 다시 눌릴 수 있게 되므로, 뒤따라오는 pointerup·click이
   //    그대로 홈 탭에 닿아 화면이 이동해 버린다. 그래서 표식을 남겨 잠시 무시하게 한다.
@@ -4453,7 +4474,7 @@ window.addEventListener("resize",syncTabInd);
     lastY=y;
     clearTimeout(idle);
     // 멈추면 다시 펼친다 — 접힌 채로 굳어 있으면 탭을 찾기 어렵다
-    idle=setTimeout(function(){var t=tabbar();if(t)expand(t);},900);
+    idle=setTimeout(whenIdle,900);
   }
   window.addEventListener('scroll',apply,{passive:true});
 })();
@@ -7539,7 +7560,10 @@ syncNotifBadge();
   function tabAt(e){return e.target&&e.target.closest?e.target.closest(".tabbar .tab"):null;}
   var down=null,ranAt=0,ours=false;
   // 접힌 탭바를 눌러 '펼치기만' 한 직후인지. 그 손짓이 탭 선택으로 이어지면 안 된다.
-  function justExpanded(){return Date.now()-(window.__tabExpandAt||0)<600;}
+  // 동그라미를 눌러 펼친 그 손짓이 탭 선택으로 이어지지 않게 잠깐만 막는다.
+  // ⚠️ 너무 길게 잡으면(600ms) 펼친 직후 진짜로 누른 탭까지 씹혀 '작동 안 한다'고 느낀다.
+  function justExpanded(){return Date.now()-(window.__tabExpandAt||0)<350;}
+  function consumeExpand(){window.__tabExpandAt=0;}
   document.addEventListener("pointerdown",function(e){
     if(e.button!==0)return;
     if(justExpanded()){down=null;return;}
@@ -7563,7 +7587,7 @@ syncNotifBadge();
   // 키보드(엔터·스페이스)로 온 클릭은 pointerup을 거치지 않아 ranAt이 비어 있으므로 그대로 통과한다.
   document.addEventListener("click",function(e){
     // 펼치기 직후의 클릭은 탭 선택으로 이어지지 않게 통째로 막는다
-    if(justExpanded()&&tabAt(e)){e.stopPropagation();e.preventDefault();return;}
+    if(justExpanded()&&tabAt(e)){consumeExpand();e.stopPropagation();e.preventDefault();return;}
     if(ours||!ranAt||Date.now()-ranAt>700||!tabAt(e))return;
     ranAt=0;e.stopPropagation();e.preventDefault();
   },true);
