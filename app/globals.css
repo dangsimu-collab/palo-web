@@ -518,8 +518,9 @@
   .tabbar-inner{overflow:hidden}
   .tab{transition:color .26s,opacity .2s,padding .28s cubic-bezier(.4,0,.2,1)}
   .tabbar.mini{padding:5px}
-  /* 남는 탭이 공간을 다 가져가고, 나머지는 폭 0으로 접히며 사라진다 */
-  .tabbar.mini .tab.on{flex:1 0 auto;padding:8px 10px}
+  /* 남는 탭은 '내용 크기'만 차지한다. flex:1로 두면 남은 공간을 다 먹어 혼자 커 보인다. */
+  .tabbar.mini .tabbar-inner{justify-content:center}
+  .tabbar.mini .tab.on{flex:0 0 auto;padding:8px 13px}
   .tabbar.mini .tab:not(.on){flex:0 1 0;min-width:0;padding-left:0;padding-right:0;opacity:0;pointer-events:none}
   /* 접히면 움직이는 조각 대신 남은 탭이 직접 유리 배경을 갖는다(폭이 계속 변해 조각 위치를 못 맞춘다) */
   .tabbar.mini .tab-ind{opacity:0}

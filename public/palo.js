@@ -4356,7 +4356,9 @@ window.addEventListener("resize",syncTabInd);
    접혀도 아이콘과 선택 표시는 남아 지금 어느 탭인지 알 수 있고, 그대로 누를 수도 있다. */
 (function(){
   var lastY=0,idle=null,lastRun=0;
-  var MINI_W=104; // 접혔을 때 폭(남는 탭 하나가 들어갈 만큼)
+  // 접혔을 때 폭. 남는 탭이 원래 탭 하나 정도로 보이게 잡는다.
+  // (너무 넓게 잡으면 탭이 그 공간을 채우려 들어 혼자 커 보인다)
+  var MINI_W=78;
   function tabbar(){return document.querySelector('.tabbar');}
   // 펼친 폭을 px로 계산해 넣는다. calc()나 auto로는 폭 전환이 안 된다.
   // 왼쪽 끝을 고정해 둬야 줄어들 때 오른쪽 탭들이 '왼쪽으로 빨려 들어가는' 모양이 된다.
