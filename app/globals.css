@@ -1468,8 +1468,12 @@
   .lg-logo{width:66px;height:66px;border-radius:20px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;
     background:linear-gradient(135deg,var(--brand),var(--grape));color:#fff;box-shadow:0 8px 22px rgba(224,122,166,.32)}
   .lg-logo svg{width:38px;height:38px}
-  /* 앱 아이콘 이미지가 통을 꽉 채우게 — 그라데이션 배경은 이미지가 뜨기 전 잠깐의 바탕이 된다 */
-  .lg-logo img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}
+  /* 앱 아이콘 이미지가 통을 꽉 채우게 — 그라데이션 배경은 이미지가 뜨기 전 잠깐의 바탕이 된다.
+     ⚠️ scale(1.08): 아이콘 파일이 '흰 바탕 위 둥근 사각형'이라(픽셀 실측) 그대로 넣으면
+        네 모서리에 흰 조각이 비친다. 살짝 확대해 흰 모서리를 통 밖으로 밀어내고 잘라낸다
+        (1.05부터 사라짐을 픽셀 시뮬레이션으로 확인, 여유 포함 1.08). */
+  .lg-logo{overflow:hidden}
+  .lg-logo img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;transform:scale(1.08)}
   .lg-name{font-size:23px;font-weight:900;letter-spacing:-.02em;color:var(--ink)}
   /* 안전 안내 박스 — 계정을 맡기는 자리라 무엇을 하고 안 하는지 짧게 알린다 */
   .lg-safe{display:flex;gap:11px;text-align:left;background:var(--surface-2);border-radius:14px;padding:13px 14px;margin-bottom:20px}
