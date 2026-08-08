@@ -4359,18 +4359,21 @@ window.addEventListener("resize",syncTabInd);
   // 손가락이나 휠로 '지금 직접' 내리고 있는가.
   // 손을 뗀 뒤 미끄러지는 관성 스크롤은 scroll 이벤트만 오고 touchmove/wheel 은 오지 않는다.
   // 이걸로 구분하면 관성 때문에 다시 접히는 일이 없어져, 기다릴 필요 없이 바로 펼칠 수 있다.
-  var touching=false;
+  var touching=false,dragged=false;
   function mark(){lastInput=Date.now();}
-  ["touchmove","wheel","keydown"].forEach(function(t){
+  ["wheel","keydown"].forEach(function(t){
     window.addEventListener(t,mark,{passive:true});
   });
-  // 손가락이 닿아 있는 동안은 계속 '사용자가 조작 중'으로 본다.
-  // touchmove만 보면 드래그 도중 잠깐 멈췄을 때 220ms 창을 벗어나 판정이 흔들린다.
-  window.addEventListener("touchstart",function(){touching=true;mark();},{passive:true});
+  // ⚠️ '손가락이 닿음'과 '실제로 끌고 있음'은 다르다.
+  //    동그라미를 톡 누르기만 해도 조작 중으로 보면, 펼친 직후 남아 있던 관성이 곧바로 다시 접어 버린다.
+  //    그래서 touchmove가 한 번이라도 있어야(=실제로 끌어야) 조작 중으로 친다.
+  window.addEventListener("touchstart",function(){touching=true;dragged=false;},{passive:true});
+  window.addEventListener("touchmove",function(){dragged=true;mark();},{passive:true});
   ["touchend","touchcancel"].forEach(function(t){
-    window.addEventListener(t,function(){touching=false;mark();},{passive:true});
+    window.addEventListener(t,function(){touching=false;dragged=false;},{passive:true});
   });
-  function userDriven(){return touching||Date.now()-lastInput<260;}
+  // 끄는 중이면 손을 멈춰도 계속 조작 중(드래그 도중 정지에 판정이 흔들리지 않게)
+  function userDriven(){return (touching&&dragged)||Date.now()-lastInput<260;}
   var MINI_W=46,expandH=0; // 접혔을 때 지름(기본 탭 66px보다 작게)
   // 바닥에서 이만큼 안쪽까지는 '반동 구간'으로 보고 위로 향한 움직임을 무시한다.
   // (여기서 진짜로 올리고 싶으면 이 거리만큼 올리면 되고, 멈추면 어차피 0.9초 뒤 펼쳐진다)
@@ -4379,7 +4382,7 @@ window.addEventListener("resize",syncTabInd);
   // 스크롤이 멈추면 다시 펼친다. 단 손가락이 아직 닿아 있으면 멈춘 게 아니므로
   // 놓을 때까지 기다린다(드래그 도중 펼쳐졌다 접혔다 하는 깜빡임 방지).
   function whenIdle(){
-    if(touching){idle=setTimeout(whenIdle,300);return;}
+    if(touching&&dragged){idle=setTimeout(whenIdle,300);return;}
     var t=tabbar();if(t)expand(t);
   }
   // 펼친 폭을 px로 계산해 넣는다. calc()나 auto로는 폭 전환이 안 된다.
@@ -4397,7 +4400,7 @@ window.addEventListener("resize",syncTabInd);
   function markResizing(tb){
     tb.classList.add("resizing");
     clearTimeout(resizeT);
-    resizeT=setTimeout(function(){tb.classList.remove("resizing");},280);
+    resizeT=setTimeout(function(){tb.classList.remove("resizing");},220);
   }
   function expand(tb){
     if(!tb.classList.contains("mini"))return; // 이미 펴져 있으면 건드리지 않는다
@@ -4413,10 +4416,10 @@ window.addEventListener("resize",syncTabInd);
     void tb.offsetWidth;
     tb.classList.add("opening");
     clearTimeout(openT);
-    openT=setTimeout(function(){tb.classList.remove("opening");},420);
+    openT=setTimeout(function(){tb.classList.remove("opening");},280);
     if(typeof cmSyncTabbarHeight==="function")cmSyncTabbarHeight();
     // 폭이 다 펴진 뒤에 선택 조각 자리를 다시 잡는다(펴지는 중엔 탭 폭이 계속 변한다)
-    setTimeout(function(){if(typeof syncTabInd==="function")syncTabInd();},360);
+    setTimeout(function(){if(typeof syncTabInd==="function")syncTabInd();},240);
   }
   function collapse(tb){
     if(tb.classList.contains("mini"))return;
@@ -4441,8 +4444,9 @@ window.addEventListener("resize",syncTabInd);
     if(tb&&tb.classList.contains("mini")&&e.target&&e.target.closest&&e.target.closest(".tabbar")){
       window.__tabExpandAt=Date.now();
       expand(tb);
-      e.stopPropagation();
-      e.preventDefault();
+      // ⚠️ preventDefault/stopPropagation 를 걸지 않는다.
+      //    걸면 이 자리에서 시작한 드래그가 화면을 못 굴리고, 스크롤이 멈춰 버린 것처럼 느껴진다.
+      //    탭이 눌리는 것은 아래 justExpanded() 가드가 막아 준다.
     }
   },true);
   (function init(){
