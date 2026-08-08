@@ -4198,25 +4198,65 @@ async function cmBulkStatus(status){
   cmDataLoaded=false;
   toast(status==='open'?'커미션을 모두 열었어요':'커미션을 모두 마감했어요',status==='open'?'🟢':'⛔');
 }
+/* 탭바가 가리는 높이를 --cm-tabbar-h 에 넣는다(본문 여백·떠 있는 버튼들이 이 값을 쓴다).
+   ⚠️ **window.innerHeight로 재지 않는다.** 인앱 브라우저(네이버 등)는 스크롤할 때 자기 툴바를
+      접었다 폈다 하며 innerHeight를 계속 바꾼다. 그 순간 innerHeight는 즉시 바뀌지만
+      고정 요소의 위치(rect.top)는 다음 프레임에야 따라오므로 둘의 차가 몇 px씩 흔들린다.
+      그 값이 흔들리면 → footer 여백이 흔들리고 → 문서 높이가 흔들리고 → 스크롤 위치가 밀려
+      **탭이 움찔거린다.** 탭바를 바닥에 붙인 뒤로는 탭바 자신의 높이가 곧 가리는 높이다.
+   ⚠️ 값이 그대로면 아무것도 쓰지 않는다 — 같은 값을 다시 넣어도 재배치 비용은 그대로 든다. */
+var _cmTabH=-1;
 function cmSyncTabbarHeight(){
   var tb=document.querySelector('.tabbar');
-  var h=0;
-  if(tb&&getComputedStyle(tb).display!=="none"){
-    // ⚠️ 탭바 '높이'가 아니라 **화면 바닥부터 탭 윗변까지의 거리**를 잰다.
-    //    탭바를 띄워 놓아서 아래 여백·안전영역까지 합쳐야 실제로 가리는 높이가 된다.
-    //    (높이만 재면 그 여백만큼 글이 탭에 가린다)
-    var r=tb.getBoundingClientRect();
-    h=Math.max(0,Math.round(window.innerHeight-r.top));
-  }
+  var h=tb?Math.round(tb.offsetHeight):0;   // display:none 이면 0이 나온다
+  if(h===_cmTabH)return;
+  _cmTabH=h;
   document.documentElement.style.setProperty('--cm-tabbar-h',h+'px');
-  if(typeof syncTabInd==="function")syncTabInd(); // 탭바가 나타났다 사라질 때 자리 재계산
+  if(typeof syncTabInd==="function")syncTabInd(true); // 탭바가 나타났다 사라질 때 자리 재계산
 }
 new MutationObserver(function(){
   document.body.classList.toggle('cm-page',!!document.querySelector('#main>.cm-root'));
   cmSyncTabbarHeight();
 }).observe(document.body,{childList:true,subtree:true});
-window.addEventListener('resize',cmSyncTabbarHeight);
 cmSyncTabbarHeight();
+
+/* 화면 크기가 바뀔 때의 뒷정리.
+   ⚠️ 인앱 브라우저의 툴바 여닫힘 때문에 resize는 스크롤 중에 연달아 쏟아진다.
+      바뀌는 '도중'의 어중간한 값을 반영하면 그게 곧 떨림이 되므로, 멈춘 뒤 한 번만 처리한다. */
+var _vpT;
+window.addEventListener('resize',function(){
+  clearTimeout(_vpT);
+  _vpT=setTimeout(function(){
+    cmSyncSafeArea();
+    cmSyncTabbarHeight();
+    if(typeof syncTabInd==="function")syncTabInd(true);
+  },120);
+});
+
+/* 아래 안전영역(아이폰 홈 인디케이터 자리)을 --cm-sab 에 담아 두고 탭바 패딩이 그걸 쓰게 한다.
+   ⚠️ 인앱 브라우저는 자기 툴바를 감출 때 env(safe-area-inset-bottom)을 0 ↔ 34px 로 오간다.
+      패딩에 env()를 그대로 쓰면 **스크롤할 때마다 탭바 높이가 바뀌어 움찔거린다.**
+      → 한 번 커진 값은 다시 줄이지 않는다(줄이는 쪽만 무시하므로 가려지는 일은 없다).
+      화면을 돌리면(orientationchange) 값이 진짜로 달라지므로 그때만 다시 잰다. */
+var _sabProbe=null,_sab=-1;
+function cmReadSafeArea(){
+  if(!_sabProbe){
+    _sabProbe=document.createElement('div');
+    _sabProbe.setAttribute('aria-hidden','true');
+    _sabProbe.style.cssText='position:fixed;left:-9999px;top:0;width:0;visibility:hidden;pointer-events:none;height:env(safe-area-inset-bottom,0px)';
+    document.body.appendChild(_sabProbe);
+  }
+  return _sabProbe.offsetHeight||0;
+}
+function cmSyncSafeArea(reset){
+  var v=cmReadSafeArea();
+  if(reset)_sab=v; else if(v<=_sab)return;   // 줄어드는 쪽은 무시 = 떨리지 않는다
+  _sab=v;
+  document.documentElement.style.setProperty('--cm-sab',_sab+'px');
+  cmSyncTabbarHeight();
+}
+window.addEventListener('orientationchange',function(){setTimeout(function(){cmSyncSafeArea(true);},300);});
+cmSyncSafeArea(true);
 function tagFilterBarHTML(){
   var tags=TAGS_BY_BOARD[state.board];
   if(!tags||state.query)return"";
@@ -4318,7 +4358,11 @@ function syncTabs(id){
 }
 // 선택 표시(유리 조각)를 현재 탭 자리로 옮긴다. 위치만 바꾸므로 CSS 전환이 붙어
 // 탭을 바꿀 때 '미끄러져 가는 과정'이 보인다.
-function syncTabInd(){
+/* quiet=true 면 출렁임 없이 자리만 맞춘다.
+   ⚠️ 화면 크기 변화(인앱 브라우저 툴바 여닫힘 등)로 불린 경우엔 반드시 quiet여야 한다 —
+      스크롤 중에 출렁임이 재생되면 그게 바로 '탭이 움찔거리는' 모습이 된다.
+      출렁임은 사람이 탭을 바꿨을 때(syncTabs)만 나와야 한다. */
+function syncTabInd(quiet){
   var inner=document.querySelector(".tabbar-inner"),ind=document.getElementById("tabInd");
   if(!inner||!ind)return;
   var on=inner.querySelector(".tab.on");
@@ -4327,11 +4371,12 @@ function syncTabInd(){
   ind.style.opacity="1";
   var x=on.offsetLeft;
   var moved=(ind.dataset.x!==String(x));
-  ind.style.width=on.offsetWidth+"px";
+  var w=on.offsetWidth+"px";
+  if(ind.style.width!==w)ind.style.width=w;   // 같은 값을 다시 쓰지 않는다(불필요한 재배치 방지)
   ind.style.translate=x+"px 0";   // transform이 아니라 translate — scale(출렁임)과 겹치지 않게
   ind.dataset.x=String(x);
   // 자리를 실제로 옮겼을 때만 출렁임을 다시 재생(같은 탭을 또 눌러도 흔들리면 산만하다)
-  if(moved){
+  if(moved&&!quiet){
     ind.classList.remove("wobble");
     void ind.offsetWidth;         // 클래스를 뗐다 붙이는 것만으론 애니메이션이 다시 안 돈다
     ind.classList.add("wobble");
@@ -4346,7 +4391,8 @@ function initTabInd(){
   void ind.offsetWidth;            // 위치를 먼저 반영시킨 뒤 전환을 되살린다
   ind.style.transition=keep;
 }
-window.addEventListener("resize",syncTabInd);
+/* resize 때의 자리 재계산은 위쪽 뒷정리 타이머(_vpT)가 quiet 모드로 맡는다.
+   여기서 직접 붙이면 툴바가 여닫히는 매 프레임마다 출렁임이 재생될 수 있다. */
 
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",initTabInd);
 else initTabInd();
