@@ -111,8 +111,6 @@ export const BODY_HTML = `
     <button class="tab" data-tab="chat" onclick="openChatList('home')"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.2c-5 0-9 3.4-9 7.6 0 2.2 1.1 4.2 2.9 5.6L5 21.3l4.5-2.4c.8.2 1.6.3 2.5.3 5 0 9-3.4 9-7.6s-4-7.4-9-7.4z"/></svg><span class="lbl">채팅</span></button>
     <button class="tab" data-tab="me" onclick="openProfile()"><svg class="ic" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12.2a4.6 4.6 0 1 0 0-9.2 4.6 4.6 0 0 0 0 9.2z"/><path d="M12 13.9c-4 0-7.4 2.3-8 5.4-.15.95.62 1.8 1.6 1.8h12.8c.98 0 1.75-.85 1.6-1.8-.6-3.1-4-5.4-8-5.4z"/></svg><span class="lbl">내 정보</span></button>
   </div>
-  <!-- 접혔을 때만 보이는 동그란 버튼(사람 표시). 누르면 탭바가 다시 펼쳐진다. -->
-  <span class="tab-mini" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12.2a4.6 4.6 0 1 0 0-9.2 4.6 4.6 0 0 0 0 9.2z"/><path d="M12 13.9c-4 0-7.4 2.3-8 5.4-.15.95.62 1.8 1.6 1.8h12.8c.98 0 1.75-.85 1.6-1.8-.6-3.1-4-5.4-8-5.4z"/></svg></span>
 </nav>
 
 <!-- 1:1 채팅방 (전체화면 오버레이, body 최상위라 fixed가 iOS에서도 정상 동작) -->

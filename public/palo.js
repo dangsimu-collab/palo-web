@@ -4200,9 +4200,6 @@ async function cmBulkStatus(status){
 }
 function cmSyncTabbarHeight(){
   var tb=document.querySelector('.tabbar');
-  // ⚠️ 접힌 동안에는 다시 재지 않는다. 접히면 높이가 줄고 → footer 여백이 줄고 →
-  //    문서가 짧아져 스크롤 위치가 튄다. 자리는 '펼친 높이' 기준으로 계속 잡아 둔다.
-  if(tb&&tb.classList.contains('mini'))return;
   var h=0;
   if(tb&&getComputedStyle(tb).display!=="none"){
     // ⚠️ 탭바 '높이'가 아니라 **화면 바닥부터 탭 윗변까지의 거리**를 잰다.
@@ -4351,122 +4348,27 @@ function initTabInd(){
 }
 window.addEventListener("resize",syncTabInd);
 
-/* ===== 스크롤하면 하단 탭 접기 =====
-   아래로 내릴 때만 접고, 위로 올리거나 스크롤이 멈추면 다시 펼친다.
-   접혀도 아이콘과 선택 표시는 남아 지금 어느 탭인지 알 수 있고, 그대로 누를 수도 있다. */
+/* 하단 탭바 자리 잡기.
+   폭을 px로 넣고 왼쪽 끝을 고정한다(가운데 정렬 transform 대신) — 화면 폭이 바뀌어도 흔들리지 않게.
+   ※ 스크롤 접힘 기능은 제거했다(2026-08-08, 사용자 결정).
+     iOS는 화면을 만지면 관성 스크롤을 멈추는데, 접힌 버튼을 눌러 다시 펴는 흐름에서
+     그 멈춤을 피할 방법이 웹에는 없었다(본문을 별도 스크롤 상자로 옮기는 큰 구조 변경 외에는). */
 (function(){
-  var lastY=0,idle=null,lastRun=0,lastInput=0;
-  // 손가락이나 휠로 '지금 직접' 내리고 있는가.
-  // 손을 뗀 뒤 미끄러지는 관성 스크롤은 scroll 이벤트만 오고 touchmove/wheel 은 오지 않는다.
-  // 이걸로 구분하면 관성 때문에 다시 접히는 일이 없어져, 기다릴 필요 없이 바로 펼칠 수 있다.
-  var touching=false,dragged=false;
-  function mark(){lastInput=Date.now();}
-  ["wheel","keydown"].forEach(function(t){
-    window.addEventListener(t,mark,{passive:true});
-  });
-  // ⚠️ '손가락이 닿음'과 '실제로 끌고 있음'은 다르다.
-  //    동그라미를 톡 누르기만 해도 조작 중으로 보면, 펼친 직후 남아 있던 관성이 곧바로 다시 접어 버린다.
-  //    그래서 touchmove가 한 번이라도 있어야(=실제로 끌어야) 조작 중으로 친다.
-  window.addEventListener("touchstart",function(){touching=true;dragged=false;},{passive:true});
-  window.addEventListener("touchmove",function(){dragged=true;mark();},{passive:true});
-  ["touchend","touchcancel"].forEach(function(t){
-    window.addEventListener(t,function(){touching=false;dragged=false;},{passive:true});
-  });
-  // 끄는 중이면 손을 멈춰도 계속 조작 중(드래그 도중 정지에 판정이 흔들리지 않게)
-  function userDriven(){return (touching&&dragged)||Date.now()-lastInput<260;}
-  var MINI_W=46,expandH=0; // 접혔을 때 지름(기본 탭 66px보다 작게)
-  // 바닥에서 이만큼 안쪽까지는 '반동 구간'으로 보고 위로 향한 움직임을 무시한다.
-  // (여기서 진짜로 올리고 싶으면 이 거리만큼 올리면 되고, 멈추면 어차피 0.9초 뒤 펼쳐진다)
-  var BOUNCE_ZONE=48;
   function tabbar(){return document.querySelector('.tabbar');}
-  var resizeT=null,openT=null;
-  // 크기가 변하는 동안에만 잘라낸다(그 사이 탭들이 동그라미 밖으로 새어 나오지 않게).
-  // 다 펴진 뒤에는 풀어 줘야 탭 전환 애니메이션이 바 밖으로 나갈 수 있다.
-  function markResizing(tb){
-    tb.classList.add("resizing");
-    clearTimeout(resizeT);
-    resizeT=setTimeout(function(){tb.classList.remove("resizing");},220);
+  function fullW(){return Math.min(window.innerWidth-24,440);}
+  function pin(tb){
+    var w=fullW();
+    tb.style.left=Math.round((window.innerWidth-w)/2)+"px";
+    tb.style.transform="none";
+    tb.style.width=w+"px";
   }
-  function expand(tb){
-    if(!tb.classList.contains("mini"))return; // 이미 펴져 있으면 건드리지 않는다
-    markResizing(tb);
-    tb.classList.remove("mini");
-    tb.style.width=fullW()+"px";
-    // 펼친 높이를 못 구했으면(초기화 시 탭바가 숨겨져 있었던 경우 등) 높이를 풀어 준다.
-    // 안 그러면 접혔을 때의 46px에 그대로 갇힌다.
-    if(expandH)tb.style.height=expandH+"px";
-    else tb.style.height="";
-    // 탭이 왼쪽부터 하나씩 나타나게. 클래스를 뗐다 붙이는 것만으론 다시 재생되지 않아 리플로우를 강제한다.
-    tb.classList.remove("opening");
-    void tb.offsetWidth;
-    tb.classList.add("opening");
-    clearTimeout(openT);
-    openT=setTimeout(function(){tb.classList.remove("opening");},280);
-    if(typeof cmSyncTabbarHeight==="function")cmSyncTabbarHeight();
-    // 폭이 다 펴진 뒤에 선택 조각 자리를 다시 잡는다(펴지는 중엔 탭 폭이 계속 변한다)
-    setTimeout(function(){if(typeof syncTabInd==="function")syncTabInd();},240);
-  }
-  function collapse(tb){
-    if(tb.classList.contains("mini"))return;
-    // 펼친 높이를 기억해 둔다 — auto 에서는 높이 전환이 안 걸리므로 px로 오갈 수 있어야 한다
-    if(!expandH)expandH=Math.round(tb.getBoundingClientRect().height);
-    markResizing(tb);
-    tb.classList.add("mini");
-    tb.style.width=MINI_W+"px";
-    tb.style.height=MINI_W+"px";
-  }
-  window.addEventListener("resize",function(){
-    var tb=tabbar();if(!tb)return;
-    // 회전·주소창 변화로 크기가 달라지면 펼친 높이도 다시 재야 한다(옛 값에 갇히지 않게)
-    if(!tb.classList.contains("mini")){tb.style.height="";expandH=Math.round(tb.getBoundingClientRect().height)||0;}
-    pin(tb);
-  });
-  // 접힌 상태에서 탭바(동그라미)를 누르면 곧바로 펼친다(다시 불러오는 수단).
-  // ⚠️ 펼치는 순간 탭들이 다시 눌릴 수 있게 되므로, 뒤따라오는 pointerup·click이
-  //    그대로 홈 탭에 닿아 화면이 이동해 버린다. 그래서 표식을 남겨 잠시 무시하게 한다.
-  document.addEventListener("pointerdown",function(e){
-    var tb=tabbar();
-    if(tb&&tb.classList.contains("mini")&&e.target&&e.target.closest&&e.target.closest(".tabbar")){
-      window.__tabExpandAt=Date.now();
-      expand(tb);
-
-      // ⚠️ preventDefault/stopPropagation 를 걸지 않는다.
-      //    걸면 이 자리에서 시작한 드래그가 화면을 못 굴리고, 스크롤이 멈춰 버린 것처럼 느껴진다.
-      //    탭이 눌리는 것은 아래 justExpanded() 가드가 막아 준다.
-    }
-  },true);
+  window.addEventListener("resize",function(){var tb=tabbar();if(tb)pin(tb);});
   (function init(){
     var tb=tabbar();
     if(!tb){setTimeout(init,60);return;}
     var keep=tb.style.transition;tb.style.transition="none";
-    pin(tb);
-    expandH=Math.round(tb.getBoundingClientRect().height); // 펼친 높이 기록
-    void tb.offsetWidth; tb.style.transition=keep;
+    pin(tb); void tb.offsetWidth; tb.style.transition=keep;
   })();
-  function apply(){
-    // 하는 일이 클래스 토글뿐이라 requestAnimationFrame까지 쓸 필요는 없다.
-    // (rAF는 화면이 안 그려지는 환경에서 아예 안 돌아 검증도 어렵다)
-    var now=Date.now();
-    if(now-lastRun<60)return;
-    lastRun=now;
-    var tb=tabbar();if(!tb)return;
-    var y=window.scrollY||document.documentElement.scrollTop||0;
-    var dy=y-lastY;
-    // 바닥에 닿으면 화면이 고무줄처럼 튕겨 돌아온다. 그때 y가 줄어드는데,
-    // 이걸 '위로 올린 것'으로 보면 탭이 멋대로 펼쳐진다. 바닥 근처에서는 위로 향한 움직임을 무시한다.
-    var maxY=Math.max(0,(document.documentElement.scrollHeight||0)-window.innerHeight);
-    var nearBottom=y>=maxY-BOUNCE_ZONE;
-    // 6px 미만의 흔들림으로는 상태를 바꾸지 않는다(손가락 떨림에 깜빡이지 않게)
-    // 사람이 직접 내리는 중일 때만 접는다(관성으로는 접히지 않는다)
-    if(y>90&&dy>6&&userDriven())collapse(tb);
-    else if(y<=90)expand(tb);
-    else if(dy<-6&&!nearBottom)expand(tb);
-    lastY=y;
-    clearTimeout(idle);
-    // 멈추면 다시 펼친다 — 접힌 채로 굳어 있으면 탭을 찾기 어렵다
-    idle=setTimeout(whenIdle,900);
-  }
-  window.addEventListener('scroll',apply,{passive:true});
 })();
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",initTabInd);
 else initTabInd();
@@ -7550,19 +7452,13 @@ syncNotifBadge();
   function tabAt(e){return e.target&&e.target.closest?e.target.closest(".tabbar .tab"):null;}
   var down=null,ranAt=0,ours=false;
   // 접힌 탭바를 눌러 '펼치기만' 한 직후인지. 그 손짓이 탭 선택으로 이어지면 안 된다.
-  // 동그라미를 눌러 펼친 그 손짓이 탭 선택으로 이어지지 않게 잠깐만 막는다.
-  // ⚠️ 너무 길게 잡으면(600ms) 펼친 직후 진짜로 누른 탭까지 씹혀 '작동 안 한다'고 느낀다.
-  function justExpanded(){return Date.now()-(window.__tabExpandAt||0)<350;}
-  function consumeExpand(){window.__tabExpandAt=0;}
   document.addEventListener("pointerdown",function(e){
     if(e.button!==0)return;
-    if(justExpanded()){down=null;return;}
     var btn=tabAt(e);
     down=btn?{btn:btn,x:e.clientX,y:e.clientY,id:e.pointerId}:null;
   });
   document.addEventListener("pointerup",function(e){
     var d=down;down=null;
-    if(justExpanded())return;
     if(!d||e.pointerId!==d.id)return;
     if(Math.abs(e.clientX-d.x)>10||Math.abs(e.clientY-d.y)>10)return; // 끌었으면 누른 걸로 안 봄
     if(tabAt(e)!==d.btn)return;                                       // 다른 탭 위에서 뗐으면 취소
@@ -7576,8 +7472,6 @@ syncNotifBadge();
   // 위에서 이미 실행했으니, 브라우저가 뒤늦게 보내오는 클릭은 한 번만 무시(중복 실행 방지).
   // 키보드(엔터·스페이스)로 온 클릭은 pointerup을 거치지 않아 ranAt이 비어 있으므로 그대로 통과한다.
   document.addEventListener("click",function(e){
-    // 펼치기 직후의 클릭은 탭 선택으로 이어지지 않게 통째로 막는다
-    if(justExpanded()&&tabAt(e)){consumeExpand();e.stopPropagation();e.preventDefault();return;}
     if(ours||!ranAt||Date.now()-ranAt>700||!tabAt(e))return;
     ranAt=0;e.stopPropagation();e.preventDefault();
   },true);
